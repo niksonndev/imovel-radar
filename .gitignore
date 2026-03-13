@@ -1,0 +1,85 @@
+# Secrets — nunca commitar
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtualenv
+.venv/
+venv/
+ENV/
+env/
+
+# Banco SQLite (dados locais)
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Testes / cobertura
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# mypy / Ruff / etc.
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+
+# IDEs e editores
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Cursor (opcional: descomente se não quiser versionar regras locais)
+# .cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Playwright / browsers (se usar depois)
+playwright-report/
+test-results/
