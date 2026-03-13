@@ -1,15 +1,16 @@
 """
-Entrada: bot Telegram OLX Maceió.
-Execute a partir da pasta olx_maceio_bot:
-  python main.py
+Entrada do bot Telegram (alertas OLX Maceió).
+
+Sempre execute na RAIZ do repositório (pasta imovel-radar):
+  py main.py
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import sys
 from pathlib import Path
 
+# Garante que imports como `database`, `bot`, `scraper` funcionem
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
