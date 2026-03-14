@@ -1,4 +1,11 @@
-"""Jobs APScheduler: alertas + watchlist."""
+"""
+JOBS = tarefas que rodam no FUNDO de tempo em tempo (APScheduler).
+
+job_alerts: para cada alerta ativo, busca OLX, marca vistos, manda Telegram se for NOVO.
+job_watchlist: para cada URL observada, re-baixa página, compara preço ou 404.
+
+app.bot_data = mesmo dicionário que main.py preencheu (session_factory, scraper, ...).
+"""
 from __future__ import annotations
 
 import logging
@@ -35,7 +42,7 @@ async def job_alerts(app) -> None:
                 tg_id = user.telegram_id
             listings = await scraper.search_listings(alert.filters or {}, max_pages=6)
             async with session_factory() as session:
-                # Primeira execução do alerta: só marca vistos (evita spam no 1º ciclo)
+                # Primeiro ciclo: last_checked ainda é None → só populamos seen_listings, zero DM
                 seed_only = alert.last_checked is None
                 for ad in listings:
                     oid = ad.get("olx_id")
@@ -101,7 +108,7 @@ async def job_watchlist(app) -> None:
                 continue
             if info.get("removed") or info.get("not_found"):
                 if not w2.removed_notified:
-                    user = await session.get(crud.User, w2.user_id)
+                    user = await session.get(User, w2.user_id)
                     if user:
                         try:
                             await bot.send_message(
@@ -122,7 +129,7 @@ async def job_watchlist(app) -> None:
             if new_p is not None and old_p is not None and new_p != old_p and old_p > 0:
                 pct = (new_p - old_p) / old_p * 100
                 sign = "+" if pct > 0 else ""
-                user = await session.get(crud.User, w2.user_id)
+                user = await session.get(User, w2.user_id)
                 if user:
                     try:
                         await bot.send_message(
@@ -153,6 +160,7 @@ async def job_watchlist(app) -> None:
 
 
 def register_jobs(scheduler: AsyncIOScheduler, application) -> None:
+    """Agenda dois intervalos: alertas (minutos) e watchlist (horas)."""
     am = application.bot_data.get("alert_min", 30)
     wh = application.bot_data.get("watch_hours", 6)
 

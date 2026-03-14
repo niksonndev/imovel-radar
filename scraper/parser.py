@@ -1,6 +1,9 @@
 """
-Extrai anúncios do HTML OLX (Next.js __NEXT_DATA__ + fallbacks).
-Estrutura do site pode mudar; ajuste seletores se necessário.
+PARSER = HTML → dados estruturados (dict/list).
+
+O site OLX usa Next.js: muitos dados vêm num <script id="__NEXT_DATA__"> em JSON gigante.
+_walk_find_ads percorre esse JSON (dict/list aninhados) e acha objetos que parecem anúncio.
+Se não achar o suficiente, fallback: links <a href="/d/..."> no HTML.
 """
 from __future__ import annotations
 
@@ -13,9 +16,6 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-LISTING_URL_RE = re.compile(
-    r"https?://(?:www\.)?olx\.com\.br/d/[^\"'\s]+|/d/[^\"'\s]+", re.I
-)
 OLX_ID_RE = re.compile(r"/(\d{8,})(?:\?|$|/)", re.I)
 
 
@@ -26,6 +26,7 @@ def _normalize_url(href: str) -> str:
 
 
 def _parse_price(val: Any) -> float | None:
+    """Tira só os dígitos de strings tipo 'R$ 320.000' → 320000.0"""
     if val is None:
         return None
     if isinstance(val, (int, float)):
@@ -41,10 +42,13 @@ def _parse_price(val: Any) -> float | None:
 
 
 def _walk_find_ads(obj: Any, out: list[dict], depth: int = 0) -> None:
+    """
+    Recursão em dict/list. depth limit evita loop infinito se JSON circular (não deveria).
+    Quando encontra listId/adId ou URL com ID, monta um dict padronizado e append em out.
+    """
     if depth > 25 or obj is None:
         return
     if isinstance(obj, dict):
-        # Anúncio típico OLX (listagem)
         lid = str(obj.get("listId") or obj.get("adId") or "")
         if not lid.isdigit() or len(lid) < 6:
             if isinstance(obj.get("url"), str) and "/d/" in obj["url"]:
@@ -110,7 +114,7 @@ def _walk_find_ads(obj: Any, out: list[dict], depth: int = 0) -> None:
 
 
 def parse_search_page(html: str) -> list[dict]:
-    """Lista de dicts: olx_id, title, price, url, thumbnail, neighborhood, bedrooms, area_m2."""
+    """HTML da listagem → lista de anúncios (cada um é um dict)."""
     out: list[dict] = []
     seen_ids: set[str] = set()
 
@@ -123,7 +127,6 @@ def parse_search_page(html: str) -> list[dict]:
         except json.JSONDecodeError as e:
             logger.warning("__NEXT_DATA__ JSON: %s", e)
 
-    # Dedup por olx_id, manter primeiro com url melhor
     dedup: dict[str, dict] = {}
     for ad in out:
         oid = ad.get("olx_id")
@@ -134,7 +137,6 @@ def parse_search_page(html: str) -> list[dict]:
         seen_ids.add(oid)
     result = list(dedup.values())
 
-    # Fallback: links /d/ no HTML
     if len(result) < 3:
         for a in soup.find_all("a", href=True):
             href = a["href"]
@@ -162,7 +164,7 @@ def parse_search_page(html: str) -> list[dict]:
 
 
 def parse_listing_page(html: str) -> dict[str, Any]:
-    """Página individual: price, title, removed."""
+    """Uma página de detalhe do anúncio (preço, título, se sumiu)."""
     removed = False
     lower = html.lower()
     if "não encontrado" in lower or "nao encontrado" in lower or "anúncio expirado" in lower:
@@ -187,7 +189,6 @@ def parse_listing_page(html: str) -> dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
-    # H1 / preço visível
     if not title:
         h1 = soup.find("h1")
         if h1:

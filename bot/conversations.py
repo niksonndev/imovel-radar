@@ -1,7 +1,14 @@
-"""Wizard /novo_alerta."""
+"""
+WIZARD do comando /novo_alerta.
+
+ConversationHandler = máquina de estados:
+  cada "estado" (WIZ_NAME, WIZ_PROPERTY, ...) espera um tipo de input.
+  A função retorna o PRÓXIMO estado (número) ou ConversationHandler.END para sair.
+
+range(9) gera 0,1,...,8 — só precisamos de IDs únicos para os estados.
+"""
 import logging
 import re
-from typing import Any
 
 from telegram import Update
 from telegram.ext import (
@@ -36,6 +43,7 @@ def _session(context: ContextTypes.DEFAULT_TYPE):
 
 
 async def novo_alerta_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    # user_data = dicionário por usuário — guardamos o progresso do wizard aqui
     context.user_data["wizard_alert"] = {"neighborhoods_selected": set()}
     await update.message.reply_text(
         "🆕 *Novo alerta*\n\n"
@@ -49,7 +57,7 @@ async def wiz_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     name = (update.message.text or "").strip()[:200]
     if not name:
         await update.message.reply_text("Nome inválido. Tente de novo.")
-        return WIZ_NAME
+        return WIZ_NAME  # fica no mesmo estado até acertar
     context.user_data["wizard_alert"]["name"] = name
     await update.message.reply_text(
         "Tipo de imóvel:",
@@ -59,8 +67,9 @@ async def wiz_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def wiz_property_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    # callback_query = clique em botão inline
     q = update.callback_query
-    await q.answer()
+    await q.answer()  # tira o "relógio" do botão no cliente Telegram
     key = q.data.replace("wiz_pt_", "")
     context.user_data["wizard_alert"]["property_type"] = key
     await q.edit_message_text(
@@ -88,6 +97,7 @@ async def wiz_price_min(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         context.user_data["wizard_alert"]["price_min"] = None
     else:
         try:
+            # re.sub(r"\D", "", text) = só dígitos (tira R$, pontos, etc.)
             context.user_data["wizard_alert"]["price_min"] = int(re.sub(r"\D", "", text) or 0)
         except Exception:
             await update.message.reply_text("Número inválido. Ex.: 150000")
@@ -165,6 +175,7 @@ async def wiz_neighborhoods_cb(update: Update, context: ContextTypes.DEFAULT_TYP
     w = context.user_data.setdefault("wizard_alert", {})
     sel = w.setdefault("neighborhoods_selected", set())
     if data == "nbd_done":
+        # Monta o dict que o scraper vai usar na URL do OLX
         filters_dict = {
             "property_type": w.get("property_type", "apartment"),
             "transaction": w.get("transaction", "sale"),
@@ -204,6 +215,10 @@ async def cancel_wiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 def conversation_novo_alerta() -> ConversationHandler:
+    """
+    Registra o fluxo completo. filters.COMMAND = mensagens que começam com /
+    (~filters.COMMAND) = aceita só texto que NÃO é comando.
+    """
     return ConversationHandler(
         entry_points=[CommandHandler("novo_alerta", novo_alerta_entry)],
         states={

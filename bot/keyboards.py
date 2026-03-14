@@ -1,6 +1,12 @@
-"""Teclados inline e reply."""
+"""
+TECLADOS do Telegram: botões que o usuário toca (inline) em vez de digitar.
+
+InlineKeyboardButton = um botão; callback_data = string que volta pro código quando clica
+(é como data-custom no HTML, não aparece pro usuário).
+"""
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 
+# Lista de tuplas (valor_interno, texto_no_botão)
 PROPERTY_TYPES = [
     ("apartment", "Apartamento"),
     ("house", "Casa"),
@@ -15,6 +21,7 @@ TRANSACTIONS = [
 
 
 def property_type_keyboard() -> InlineKeyboardMarkup:
+    # List comprehension: uma linha de botões por tipo
     rows = [
         [InlineKeyboardButton(label, callback_data=f"wiz_pt_{key}")]
         for key, label in PROPERTY_TYPES
@@ -31,7 +38,10 @@ def transaction_keyboard() -> InlineKeyboardMarkup:
 
 
 def neighborhoods_keyboard(selected: set[str]) -> InlineKeyboardMarkup:
-    """Toggle bairros; callback nbd_<name>"""
+    """
+    selected = bairros já marcados (set = conjunto sem repetir).
+    Cada clique alterna marcar/desmarcar; "nbd_done" finaliza o passo.
+    """
     from config import MACEIO_NEIGHBORHOODS
 
     buttons = []
@@ -49,4 +59,5 @@ def neighborhoods_keyboard(selected: set[str]) -> InlineKeyboardMarkup:
 
 
 def skip_keyboard() -> ReplyKeyboardMarkup:
+    """Teclado normal (não inline) com uma linha "Pular" — opcional no wizard."""
     return ReplyKeyboardMarkup([["Pular"]], resize_keyboard=True, one_time_keyboard=True)

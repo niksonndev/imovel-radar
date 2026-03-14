@@ -1,4 +1,9 @@
-"""Cliente HTTP + montagem de URLs OLX Maceió."""
+"""
+SCRAPER = cliente HTTP que fala com o site do OLX (tipo fetch no Node).
+
+- build_search_url: monta a URL de listagem (Maceió + filtros).
+- OLXScraper: baixa HTML, espera entre requests, parseia com parser.py.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -21,8 +26,8 @@ MACEIO_PATH = "estado-al/alagoas/maceio"
 
 def build_search_url(filters: dict[str, Any], page: int = 1) -> str:
     """
-    filters: property_type, transaction, price_min, price_max, bedrooms_min,
-    area_min, area_max, neighborhoods (list)
+    filters vêm do alerta no banco (JSON).
+    Monta path tipo /imoveis/venda/apartamentos/estado-al/alagoas/maceio?pe=min-max&q=bairros
     """
     ptype = config.PROPERTY_TYPE_SLUGS.get(filters.get("property_type") or "apartment", "apartamentos")
     trans = config.TRANSACTION_SLUGS.get(filters.get("transaction") or "sale", "venda")
@@ -46,6 +51,7 @@ def build_search_url(filters: dict[str, Any], page: int = 1) -> str:
 
 
 def extract_olx_id_from_url(url: str) -> str | None:
+    """ID numérico longo que aparece na URL do anúncio."""
     m = re.search(r"/(\d{8,})(?:\?|$)", url)
     return m.group(1) if m else None
 
@@ -55,6 +61,7 @@ class OLXScraper:
         self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
+        # AsyncClient = sessão HTTP reutilizável (mantém conexões vivas)
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
                 timeout=45.0,
@@ -69,6 +76,7 @@ class OLXScraper:
             self._client = None
 
     async def _delay(self) -> None:
+        # asyncio.sleep não bloqueia o thread inteiro — só esta corrotina espera
         await asyncio.sleep(random.uniform(config.SCRAPER_DELAY_MIN, config.SCRAPER_DELAY_MAX))
 
     def _ua(self) -> dict[str, str]:
@@ -78,11 +86,14 @@ class OLXScraper:
         await self._delay()
         client = await self._get_client()
         r = await client.get(url, headers=self._ua())
-        r.raise_for_status()
+        r.raise_for_status()  # levanta erro se status não for 2xx
         return r.text
 
     async def search_listings(self, filters: dict[str, Any], max_pages: int = 8) -> list[dict]:
-        """Agrega várias páginas; filtra localmente por quartos/área se necessário."""
+        """
+        Várias páginas de resultados; dict[olx_id] evita duplicata.
+        Depois filtra em Python o que a URL do OLX não filtrou (quartos, m², bairro no texto).
+        """
         all_ads: dict[str, dict] = {}
         for page in range(1, max_pages + 1):
             url = build_search_url(filters, page)
@@ -127,6 +138,7 @@ class OLXScraper:
         return result
 
     async def fetch_listing(self, url: str) -> dict[str, Any]:
+        """Uma página de anúncio só (watchlist)."""
         if not url.startswith("http"):
             url = BASE + url
         try:

@@ -1,20 +1,28 @@
-"""Operações async no banco."""
+"""
+CRUD = Create, Read, Update, Delete — funções que falam com o banco.
+
+Todas são "async" porque usamos SQLAlchemy async (await = espera o disco terminar).
+session = uma "transação" curta: abre, faz coisas, commit ou rollback.
+"""
 from datetime import datetime
 from typing import Any, Sequence
 
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from database.models import User, Alert, SeenListing, WatchedListing
 
 
 def create_engine_and_session(database_url: str):
+    # engine = conexão com o arquivo SQLite (ou outro banco na URL)
     engine = create_async_engine(database_url, echo=False)
+    # session_factory = função que cria novas sessões quando precisamos
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     return engine, session_factory
 
 
 async def init_db(engine) -> None:
+    """Cria todas as tabelas definidas em models.py (CREATE TABLE se não existir)."""
     from database.models import Base
 
     async with engine.begin() as conn:
@@ -24,6 +32,7 @@ async def init_db(engine) -> None:
 async def get_or_create_user(
     session: AsyncSession, telegram_id: int, username: str | None
 ) -> User:
+    """Garante que existe um User para esse chat_id do Telegram."""
     r = await session.execute(select(User).where(User.telegram_id == telegram_id))
     u = r.scalar_one_or_none()
     if u:
@@ -34,7 +43,7 @@ async def get_or_create_user(
     u = User(telegram_id=telegram_id, username=username)
     session.add(u)
     await session.commit()
-    await session.refresh(u)
+    await session.refresh(u)  # preenche u.id gerado pelo banco
     return u
 
 
@@ -81,7 +90,10 @@ async def delete_alert(session: AsyncSession, alert_id: int, user_id: int) -> bo
 
 
 async def mark_seen(session: AsyncSession, alert_id: int, olx_id: str) -> bool:
-    """Retorna True se o anúncio é novo para este alerta."""
+    """
+    Registra que já vimos esse anúncio neste alerta.
+    Retorna True só na PRIMEIRA vez (anúncio novo → vale notificar no Telegram).
+    """
     r = await session.execute(
         select(SeenListing).where(
             SeenListing.alert_id == alert_id, SeenListing.olx_id == olx_id
@@ -111,11 +123,14 @@ async def update_alert_last_checked(session: AsyncSession, alert_id: int) -> Non
 
 
 async def active_alerts(session: AsyncSession) -> Sequence[Alert]:
+    """Todos os alertas ligados (o job de scraping roda em cima disso)."""
     r = await session.execute(select(Alert).where(Alert.is_active == True))  # noqa: E712
     return r.scalars().all()
 
 
-# Watchlist
+# ---------- Watchlist ----------
+
+
 async def add_watched(
     session: AsyncSession,
     user_id: int,
@@ -153,6 +168,7 @@ async def list_watched(session: AsyncSession, user_id: int) -> Sequence[WatchedL
 
 
 async def all_active_watched(session: AsyncSession) -> Sequence[WatchedListing]:
+    """Itens que o job de watchlist ainda deve checar (não avisamos remoção ainda)."""
     r = await session.execute(
         select(WatchedListing).where(
             WatchedListing.is_active == True, WatchedListing.removed_notified == False  # noqa
@@ -174,7 +190,7 @@ async def remove_watched(session: AsyncSession, wid: int, user_id: int) -> bool:
     w = await get_watched_by_id(session, wid, user_id)
     if not w:
         return False
-    w.is_active = False
+    w.is_active = False  # soft delete: não apagamos a linha, só desligamos
     await session.commit()
     return True
 
@@ -189,7 +205,7 @@ async def update_watched_price(
     w.last_checked = datetime.utcnow()
     hist = list(w.price_history or [])
     hist.append(history_entry)
-    w.price_history = hist[-50:]
+    w.price_history = hist[-50:]  # guarda só os últimos 50 pontos
     await session.commit()
 
 

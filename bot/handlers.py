@@ -1,8 +1,15 @@
-"""Handlers de comandos Telegram."""
+"""
+HANDLERS = uma função por COMANDO do Telegram (/start, /observar, ...).
+
+Quando alguém manda /start, a lib chama cmd_start(update, context).
+- update = dados da mensagem (quem mandou, texto, etc.)
+- context = acesso ao bot_data, args do comando, etc.
+
+async def = a função pode usar await (responder no Telegram, banco, OLX).
+"""
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -14,16 +21,19 @@ logger = logging.getLogger(__name__)
 
 
 def _session(context: ContextTypes.DEFAULT_TYPE):
+    """Abre uma sessão de banco (use com 'async with _session(context) as session:')."""
     return context.application.bot_data["session_factory"]()
 
 
 def _fmt_money(v: float | None) -> str:
+    """Formata número como moeda BR (troca ponto/vírgula)."""
     if v is None:
         return "—"
     return f"R$ {v:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Garante linha no banco para esse usuário do Telegram
     async with _session(context) as session:
         await crud.get_or_create_user(
             session, update.effective_user.id, update.effective_user.username
@@ -60,6 +70,7 @@ async def cmd_meus_alertas(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def cmd_pausar_alerta(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # context.args = palavras depois do comando: /pausar_alerta 3 → ["3"]
     args = context.args or []
     if not args:
         await update.message.reply_text("Uso: `/pausar_alerta [id]`", parse_mode="Markdown")
@@ -102,6 +113,10 @@ async def cmd_deletar_alerta(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def cmd_observar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    /observar https://... → baixa a página do anúncio, lê preço/título,
+    salva na watchlist para o job periódico comparar depois.
+    """
     args = context.args or []
     url = " ".join(args).strip()
     if not url or "olx.com.br" not in url.lower():
@@ -180,6 +195,7 @@ async def cmd_remover(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Horários que o scheduler atualizou em bot_data (próxima janela aproximada)
     am = context.application.bot_data.get("alert_min", 30)
     wh = context.application.bot_data.get("watch_hours", 6)
     next_a = context.application.bot_data.get("next_alert_run")
