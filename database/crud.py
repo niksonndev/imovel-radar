@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any, Sequence
 
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from database.models import User, Alert, SeenListing, WatchedListing
@@ -105,8 +106,12 @@ async def mark_seen(session: AsyncSession, alert_id: int, olx_id: str) -> bool:
         row.last_seen = now
         await session.commit()
         return False
-    session.add(SeenListing(alert_id=alert_id, olx_id=olx_id, first_seen=now, last_seen=now))
-    await session.commit()
+    try:
+        session.add(SeenListing(alert_id=alert_id, olx_id=olx_id, first_seen=now, last_seen=now))
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        return False
     return True
 
 

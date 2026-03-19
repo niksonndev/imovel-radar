@@ -184,7 +184,7 @@ async def wiz_neighborhoods_cb(update: Update, context: ContextTypes.DEFAULT_TYP
             "bedrooms_min": w.get("bedrooms_min"),
             "area_min": w.get("area_min"),
             "area_max": w.get("area_max"),
-            "neighborhoods": list(sel),
+            "neighborhoods": sorted(sel),
         }
         async with _session(context) as session:
             user = await crud.get_or_create_user(
