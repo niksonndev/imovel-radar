@@ -25,6 +25,8 @@ The bot runs indefinitely via long-polling. Stop with Ctrl+C.
 
 - **No tests or linter**: the repository has no test suite and no linting configuration (no `pytest`, `ruff`, `flake8`, `mypy`, etc.). There is nothing to run for lint/test checks.
 - **No build step**: the bot is run directly via `python main.py`.
-- **SQLite auto-created**: the database file `data/bot.db` is created automatically on first run — no migrations needed.
-- **`.env` file**: copy from `.env.example` and set `TELEGRAM_BOT_TOKEN`. Other variables have sensible defaults (see `README.md` for the full list).
+- **SQLite auto-created**: the database file `data/bot.db` is created automatically on first run — no migrations needed. Tables: `users`, `alerts`, `seen_listings`, `watched_listings`.
+- **`.env` file**: copy from `.env.example` and set `TELEGRAM_BOT_TOKEN`. Other variables have sensible defaults (see `README.md` for the full list). If `TELEGRAM_BOT_TOKEN` is set as an environment variable, it takes precedence over `.env`.
 - **The `PTBUserWarning` about `per_message=False`** in `bot/conversations.py:222` is expected and harmless.
+- **Transient `NetworkError` in polling logs** (e.g. "Server disconnected without sending a response") is normal — the bot auto-retries on the next polling cycle.
+- **Concurrent bot API calls conflict with polling**: if you run a separate script that calls Bot API methods while `main.py` is polling, you may get `Conflict` errors. Stop the bot first or use a different token for testing.
