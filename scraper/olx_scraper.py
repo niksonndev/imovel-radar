@@ -1,8 +1,9 @@
 """
-SCRAPER = navegador headless que acessa o site do OLX via Playwright.
+SCRAPER = cliente HTTP que fala com o OLX via ScrapingBee.
 
 - build_search_url: monta a URL de listagem (Maceió + filtros).
-- OLXScraper: renderiza páginas com Chromium + stealth, parseia com parser.py.
+- OLXScraper: faz requests via ScrapingBee (proxy com browser real),
+  parseia com parser.py.
 """
 from __future__ import annotations
 
@@ -13,8 +14,7 @@ import re
 from typing import Any
 from urllib.parse import urlencode
 
-from playwright.async_api import async_playwright, Browser, Playwright
-from playwright_stealth import Stealth
+import httpx
 
 import config
 from scraper.parser import parse_listing_page, parse_search_page
@@ -23,10 +23,11 @@ logger = logging.getLogger(__name__)
 
 BASE = "https://www.olx.com.br"
 MACEIO_PATH = "estado-al/alagoas/maceio"
+SCRAPINGBEE_ENDPOINT = "https://app.scrapingbee.com/api/v1/"
 
 
 class FetchError(Exception):
-    """Erro HTTP retornado pelo servidor ao navegar com Playwright."""
+    """Erro HTTP retornado pelo servidor (via ScrapingBee ou direto)."""
 
     def __init__(self, status_code: int, url: str) -> None:
         self.status_code = status_code
@@ -78,61 +79,37 @@ def extract_olx_id_from_url(url: str) -> str | None:
 
 class OLXScraper:
     def __init__(self) -> None:
-        self._playwright: Playwright | None = None
-        self._browser: Browser | None = None
+        self._client: httpx.AsyncClient | None = None
 
-    async def _ensure_browser(self) -> Browser:
-        if self._browser is None or not self._browser.is_connected():
-            self._playwright = await async_playwright().start()
-            self._browser = await self._playwright.chromium.launch(
-                headless=True,
-                args=["--disable-blink-features=AutomationControlled"],
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                timeout=90.0,
+                follow_redirects=True,
+                headers={"Accept-Language": "pt-BR,pt;q=0.9"},
             )
-        return self._browser
-
-    async def _close_browser(self) -> None:
-        if self._browser is not None:
-            await self._browser.close()
-            self._browser = None
-        if self._playwright is not None:
-            await self._playwright.stop()
-            self._playwright = None
+        return self._client
 
     async def close(self) -> None:
-        await self._close_browser()
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
 
     async def _delay(self) -> None:
         await asyncio.sleep(random.uniform(config.SCRAPER_DELAY_MIN, config.SCRAPER_DELAY_MAX))
 
     async def fetch(self, url: str) -> str:
         await self._delay()
-        browser = await self._ensure_browser()
-        page = await browser.new_page()
-        try:
-            await Stealth().apply_stealth_async(page)
-            resp = await page.goto(url, wait_until="domcontentloaded", timeout=45_000)
-            status = resp.status if resp is not None else 200
-
-            if status in (403, 503):
-                try:
-                    await page.wait_for_load_state("networkidle", timeout=15_000)
-                except Exception:
-                    pass
-                content = await page.content()
-                cf_markers = (
-                    "Just a moment", "Checking your browser",
-                    "cf-challenge-running", "Attention Required",
-                )
-                if any(m in content for m in cf_markers):
-                    raise FetchError(status, url)
-                return content
-
-            if status >= 400:
-                raise FetchError(status, url)
-
-            return await page.content()
-        finally:
-            await page.close()
+        client = await self._get_client()
+        params = {
+            "api_key": config.SCRAPINGBEE_API_KEY,
+            "url": url,
+            "render_js": "true",
+        }
+        r = await client.get(SCRAPINGBEE_ENDPOINT, params=params)
+        if r.status_code >= 400:
+            raise FetchError(r.status_code, url)
+        return r.text
 
     async def search_listings(self, filters: dict[str, Any], max_pages: int = 8) -> list[dict]:
         """
@@ -140,23 +117,20 @@ class OLXScraper:
         Depois filtra em Python o que a URL do OLX não filtrou (quartos, m², bairro no texto).
         """
         all_ads: dict[str, dict] = {}
-        try:
-            for page in range(1, max_pages + 1):
-                url = build_search_url(filters, page)
-                try:
-                    html = await self.fetch(url)
-                except Exception as e:
-                    logger.exception("Erro ao buscar %s: %s", url, e)
-                    break
-                ads = parse_search_page(html)
-                if not ads:
-                    break
-                for ad in ads:
-                    all_ads[ad["olx_id"]] = ad
-                if len(ads) < 20:
-                    break
-        finally:
-            await self._close_browser()
+        for page in range(1, max_pages + 1):
+            url = build_search_url(filters, page)
+            try:
+                html = await self.fetch(url)
+            except Exception as e:
+                logger.exception("Erro ao buscar %s: %s", url, e)
+                break
+            ads = parse_search_page(html)
+            if not ads:
+                break
+            for ad in ads:
+                all_ads[ad["olx_id"]] = ad
+            if len(ads) < 20:
+                break
         out = list(all_ads.values())
         out = self._apply_local_filters(out, filters)
         return out
@@ -195,6 +169,4 @@ class OLXScraper:
             if e.status_code == 404:
                 return {"removed": True, "not_found": True, "price": None, "title": None}
             raise
-        finally:
-            await self._close_browser()
         return parse_listing_page(html)
