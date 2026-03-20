@@ -1,8 +1,8 @@
 """
-SCRAPER = cliente HTTP que fala com o site do OLX (tipo fetch no Node).
+SCRAPER = navegador headless que acessa o site do OLX via Playwright.
 
 - build_search_url: monta a URL de listagem (Maceió + filtros).
-- OLXScraper: baixa HTML, espera entre requests, parseia com parser.py.
+- OLXScraper: renderiza páginas com Chromium + stealth, parseia com parser.py.
 """
 from __future__ import annotations
 
@@ -13,7 +13,8 @@ import re
 from typing import Any
 from urllib.parse import urlencode
 
-import httpx
+from playwright.async_api import async_playwright, Browser, Playwright
+from playwright_stealth import Stealth
 
 import config
 from scraper.parser import parse_listing_page, parse_search_page
@@ -22,6 +23,15 @@ logger = logging.getLogger(__name__)
 
 BASE = "https://www.olx.com.br"
 MACEIO_PATH = "estado-al/alagoas/maceio"
+
+
+class FetchError(Exception):
+    """Erro HTTP retornado pelo servidor ao navegar com Playwright."""
+
+    def __init__(self, status_code: int, url: str) -> None:
+        self.status_code = status_code
+        self.url = url
+        super().__init__(f"HTTP {status_code} para {url}")
 
 
 def build_search_url(filters: dict[str, Any], page: int = 1) -> str:
@@ -68,36 +78,41 @@ def extract_olx_id_from_url(url: str) -> str | None:
 
 class OLXScraper:
     def __init__(self) -> None:
-        self._client: httpx.AsyncClient | None = None
+        self._playwright: Playwright | None = None
+        self._browser: Browser | None = None
 
-    async def _get_client(self) -> httpx.AsyncClient:
-        # AsyncClient = sessão HTTP reutilizável (mantém conexões vivas)
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(
-                timeout=45.0,
-                follow_redirects=True,
-                headers={"Accept-Language": "pt-BR,pt;q=0.9"},
-            )
-        return self._client
+    async def _ensure_browser(self) -> Browser:
+        if self._browser is None or not self._browser.is_connected():
+            self._playwright = await async_playwright().start()
+            self._browser = await self._playwright.chromium.launch(headless=True)
+        return self._browser
+
+    async def _close_browser(self) -> None:
+        if self._browser is not None:
+            await self._browser.close()
+            self._browser = None
+        if self._playwright is not None:
+            await self._playwright.stop()
+            self._playwright = None
 
     async def close(self) -> None:
-        if self._client and not self._client.is_closed:
-            await self._client.aclose()
-            self._client = None
+        await self._close_browser()
 
     async def _delay(self) -> None:
-        # asyncio.sleep não bloqueia o thread inteiro — só esta corrotina espera
         await asyncio.sleep(random.uniform(config.SCRAPER_DELAY_MIN, config.SCRAPER_DELAY_MAX))
-
-    def _ua(self) -> dict[str, str]:
-        return {"User-Agent": random.choice(config.USER_AGENTS)}
 
     async def fetch(self, url: str) -> str:
         await self._delay()
-        client = await self._get_client()
-        r = await client.get(url, headers=self._ua())
-        r.raise_for_status()  # levanta erro se status não for 2xx
-        return r.text
+        browser = await self._ensure_browser()
+        page = await browser.new_page()
+        try:
+            await Stealth().apply_stealth_async(page)
+            resp = await page.goto(url, wait_until="domcontentloaded", timeout=45_000)
+            if resp is not None and resp.status >= 400:
+                raise FetchError(resp.status, url)
+            return await page.content()
+        finally:
+            await page.close()
 
     async def search_listings(self, filters: dict[str, Any], max_pages: int = 8) -> list[dict]:
         """
@@ -105,20 +120,23 @@ class OLXScraper:
         Depois filtra em Python o que a URL do OLX não filtrou (quartos, m², bairro no texto).
         """
         all_ads: dict[str, dict] = {}
-        for page in range(1, max_pages + 1):
-            url = build_search_url(filters, page)
-            try:
-                html = await self.fetch(url)
-            except Exception as e:
-                logger.exception("Erro ao buscar %s: %s", url, e)
-                break
-            ads = parse_search_page(html)
-            if not ads:
-                break
-            for ad in ads:
-                all_ads[ad["olx_id"]] = ad
-            if len(ads) < 20:
-                break
+        try:
+            for page in range(1, max_pages + 1):
+                url = build_search_url(filters, page)
+                try:
+                    html = await self.fetch(url)
+                except Exception as e:
+                    logger.exception("Erro ao buscar %s: %s", url, e)
+                    break
+                ads = parse_search_page(html)
+                if not ads:
+                    break
+                for ad in ads:
+                    all_ads[ad["olx_id"]] = ad
+                if len(ads) < 20:
+                    break
+        finally:
+            await self._close_browser()
         out = list(all_ads.values())
         out = self._apply_local_filters(out, filters)
         return out
@@ -153,8 +171,10 @@ class OLXScraper:
             url = BASE + url
         try:
             html = await self.fetch(url)
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
+        except FetchError as e:
+            if e.status_code == 404:
                 return {"removed": True, "not_found": True, "price": None, "title": None}
             raise
+        finally:
+            await self._close_browser()
         return parse_listing_page(html)

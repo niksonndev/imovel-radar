@@ -203,7 +203,7 @@ def main() -> None:
     )
     if not args.verbose:
         logging.getLogger("scraper").setLevel(logging.CRITICAL)
-        logging.getLogger("httpx").setLevel(logging.CRITICAL)
+        logging.getLogger("playwright").setLevel(logging.CRITICAL)
 
     asyncio.run(run_scraping(args))
 

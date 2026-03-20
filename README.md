@@ -15,7 +15,7 @@ Monitora anúncios de imóveis no [OLX](https://www.olx.com.br) em **Maceió/AL*
 | Express rotas                  | Comandos Telegram (`/start`, `/novo_alerta`, …) em `bot/handlers.py` |
 | `setInterval` / cron           | **APScheduler** em `scheduler/jobs.py` (a cada X minutos/horas)      |
 | Mongo/SQLite via driver        | **SQLAlchemy** + SQLite em `database/`                               |
-| `fetch` + parse HTML           | **httpx** + **BeautifulSoup** em `scraper/`                          |
+| `fetch` + parse HTML           | **Playwright** + **BeautifulSoup** em `scraper/`                     |
 
 O programa **não é um servidor HTTP** que você abre no browser: é um **processo que fica rodando** falando com a API do Telegram (long polling). Enquanto o terminal estiver com `py main.py` ativo, o bot responde.
 
@@ -51,6 +51,7 @@ py -m venv .venv
 .venv\Scripts\activate
 py -m pip install --upgrade pip
 py -m pip install -r requirements.txt
+playwright install chromium
 ```
 
 Crie o `.env` (pode copiar o exemplo):
