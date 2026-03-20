@@ -15,7 +15,7 @@ Monitora anúncios de imóveis no [OLX](https://www.olx.com.br) em **Maceió/AL*
 | Express rotas                  | Comandos Telegram (`/start`, `/novo_alerta`, …) em `bot/handlers.py` |
 | `setInterval` / cron           | **APScheduler** em `scheduler/jobs.py` (a cada X minutos/horas)      |
 | Mongo/SQLite via driver        | **SQLAlchemy** + SQLite em `database/`                               |
-| `fetch` + parse HTML           | **httpx** + **ScrapingBee** + **BeautifulSoup** em `scraper/`        |
+| `fetch` + parse HTML           | **cloudscraper** + **BeautifulSoup** em `scraper/`                   |
 
 O programa **não é um servidor HTTP** que você abre no browser: é um **processo que fica rodando** falando com a API do Telegram (long polling). Enquanto o terminal estiver com `py main.py` ativo, o bot responde.
 
@@ -120,7 +120,6 @@ imovel-radar/
 | `WATCHLIST_CHECK_INTERVAL_HOURS` | 6                         |
 | `DATABASE_URL`                   | SQLite em `./data/bot.db` |
 | `SCRAPER_DELAY_MIN` / `MAX`      | 2–5 s entre requests      |
-| `SCRAPINGBEE_API_KEY`            | — (obrigatória)           |
 
 ---
 

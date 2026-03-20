@@ -1,8 +1,8 @@
 """
-SCRAPER = cliente HTTP que fala com o OLX via ScrapingBee.
+SCRAPER = cliente HTTP que fala com o OLX via cloudscraper.
 
 - build_search_url: monta a URL de listagem (Maceió + filtros).
-- OLXScraper: faz requests via ScrapingBee (proxy com browser real),
+- OLXScraper: faz requests via cloudscraper (bypass Cloudflare nativo),
   parseia com parser.py.
 """
 from __future__ import annotations
@@ -14,7 +14,7 @@ import re
 from typing import Any
 from urllib.parse import urlencode
 
-import httpx
+import cloudscraper
 
 import config
 from scraper.parser import parse_listing_page, parse_search_page
@@ -23,11 +23,10 @@ logger = logging.getLogger(__name__)
 
 BASE = "https://www.olx.com.br"
 MACEIO_PATH = "estado-al/alagoas/maceio"
-SCRAPINGBEE_ENDPOINT = "https://app.scrapingbee.com/api/v1/"
 
 
 class FetchError(Exception):
-    """Erro HTTP retornado pelo servidor (via ScrapingBee ou direto)."""
+    """Erro HTTP retornado pelo servidor."""
 
     def __init__(self, status_code: int, url: str) -> None:
         self.status_code = status_code
@@ -79,37 +78,29 @@ def extract_olx_id_from_url(url: str) -> str | None:
 
 class OLXScraper:
     def __init__(self) -> None:
-        self._client: httpx.AsyncClient | None = None
-
-    async def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(
-                timeout=90.0,
-                follow_redirects=True,
-                headers={"Accept-Language": "pt-BR,pt;q=0.9"},
-            )
-        return self._client
+        self._scraper = cloudscraper.create_scraper()
 
     async def close(self) -> None:
-        if self._client and not self._client.is_closed:
-            await self._client.aclose()
-            self._client = None
+        self._scraper.close()
 
     async def _delay(self) -> None:
         await asyncio.sleep(random.uniform(config.SCRAPER_DELAY_MIN, config.SCRAPER_DELAY_MAX))
 
+    def _sync_get(self, url: str) -> tuple[int, str]:
+        """GET síncrono via cloudscraper (roda em thread separada)."""
+        r = self._scraper.get(
+            url,
+            timeout=90,
+            headers={"Accept-Language": "pt-BR,pt;q=0.9"},
+        )
+        return r.status_code, r.text
+
     async def fetch(self, url: str) -> str:
         await self._delay()
-        client = await self._get_client()
-        params = {
-            "api_key": config.SCRAPINGBEE_API_KEY,
-            "url": url,
-            "render_js": "true",
-        }
-        r = await client.get(SCRAPINGBEE_ENDPOINT, params=params)
-        if r.status_code >= 400:
-            raise FetchError(r.status_code, url)
-        return r.text
+        status_code, text = await asyncio.to_thread(self._sync_get, url)
+        if status_code >= 400:
+            raise FetchError(status_code, url)
+        return text
 
     async def search_listings(self, filters: dict[str, Any], max_pages: int = 8) -> list[dict]:
         """
