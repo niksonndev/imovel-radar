@@ -85,6 +85,7 @@ MACEIO_NEIGHBORHOODS = [
 
 # dict = objeto chave→valor. Valores são os pedaços de URL que o OLX usa
 PROPERTY_TYPE_SLUGS = {
+    "all": None,
     "apartment": "apartamentos",
     "house": "casas",
     "land": "terrenos",
