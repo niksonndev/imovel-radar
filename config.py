@@ -37,6 +37,9 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 SCRAPER_DELAY_MIN = float(os.getenv("SCRAPER_DELAY_MIN", "2"))
 SCRAPER_DELAY_MAX = float(os.getenv("SCRAPER_DELAY_MAX", "5"))
 
+# API key do ScrapingBee (proxy com browser real que resolve Cloudflare)
+SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY", "")
+
 # Lista de strings (cada User-Agent finge um navegador diferente, às vezes ajuda a não ser bloqueado)
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",

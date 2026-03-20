@@ -1,8 +1,9 @@
 """
-SCRAPER = cliente HTTP que fala com o site do OLX (tipo fetch no Node).
+SCRAPER = cliente HTTP que fala com o OLX via ScrapingBee.
 
 - build_search_url: monta a URL de listagem (Maceió + filtros).
-- OLXScraper: baixa HTML, espera entre requests, parseia com parser.py.
+- OLXScraper: faz requests via ScrapingBee (proxy com browser real),
+  parseia com parser.py.
 """
 from __future__ import annotations
 
@@ -22,6 +23,16 @@ logger = logging.getLogger(__name__)
 
 BASE = "https://www.olx.com.br"
 MACEIO_PATH = "estado-al/alagoas/maceio"
+SCRAPINGBEE_ENDPOINT = "https://app.scrapingbee.com/api/v1/"
+
+
+class FetchError(Exception):
+    """Erro HTTP retornado pelo servidor (via ScrapingBee ou direto)."""
+
+    def __init__(self, status_code: int, url: str) -> None:
+        self.status_code = status_code
+        self.url = url
+        super().__init__(f"HTTP {status_code} para {url}")
 
 
 def build_search_url(filters: dict[str, Any], page: int = 1) -> str:
@@ -71,10 +82,9 @@ class OLXScraper:
         self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
-        # AsyncClient = sessão HTTP reutilizável (mantém conexões vivas)
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
-                timeout=45.0,
+                timeout=90.0,
                 follow_redirects=True,
                 headers={"Accept-Language": "pt-BR,pt;q=0.9"},
             )
@@ -86,17 +96,19 @@ class OLXScraper:
             self._client = None
 
     async def _delay(self) -> None:
-        # asyncio.sleep não bloqueia o thread inteiro — só esta corrotina espera
         await asyncio.sleep(random.uniform(config.SCRAPER_DELAY_MIN, config.SCRAPER_DELAY_MAX))
-
-    def _ua(self) -> dict[str, str]:
-        return {"User-Agent": random.choice(config.USER_AGENTS)}
 
     async def fetch(self, url: str) -> str:
         await self._delay()
         client = await self._get_client()
-        r = await client.get(url, headers=self._ua())
-        r.raise_for_status()  # levanta erro se status não for 2xx
+        params = {
+            "api_key": config.SCRAPINGBEE_API_KEY,
+            "url": url,
+            "render_js": "true",
+        }
+        r = await client.get(SCRAPINGBEE_ENDPOINT, params=params)
+        if r.status_code >= 400:
+            raise FetchError(r.status_code, url)
         return r.text
 
     async def search_listings(self, filters: dict[str, Any], max_pages: int = 8) -> list[dict]:
@@ -153,8 +165,8 @@ class OLXScraper:
             url = BASE + url
         try:
             html = await self.fetch(url)
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
+        except FetchError as e:
+            if e.status_code == 404:
                 return {"removed": True, "not_found": True, "price": None, "title": None}
             raise
         return parse_listing_page(html)
