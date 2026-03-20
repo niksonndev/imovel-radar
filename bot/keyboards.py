@@ -61,3 +61,31 @@ def neighborhoods_keyboard(selected: set[str]) -> InlineKeyboardMarkup:
 def skip_keyboard() -> ReplyKeyboardMarkup:
     """Teclado normal (não inline) com uma linha "Pular" — opcional no wizard."""
     return ReplyKeyboardMarkup([["Pular"]], resize_keyboard=True, one_time_keyboard=True)
+
+
+def main_menu_keyboard() -> InlineKeyboardMarkup:
+    """
+    Menu principal que aparece no `/start`.
+
+    callback_data:
+      - menu_novo_alerta
+      - menu_meus_alertas
+      - menu_ajuda
+      - menu_acompanhar
+    """
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("🔔 Novo Alerta", callback_data="menu_novo_alerta"),
+            ],
+            [
+                InlineKeyboardButton("📋 Meus Alertas", callback_data="menu_meus_alertas"),
+            ],
+            [
+                InlineKeyboardButton("❓ Ajuda", callback_data="menu_ajuda"),
+            ],
+            [
+                InlineKeyboardButton("👁 Acompanhar Anúncio", callback_data="menu_acompanhar"),
+            ],
+        ]
+    )

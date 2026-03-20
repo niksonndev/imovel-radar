@@ -22,6 +22,7 @@ from telegram.ext import (
 
 from bot import keyboards
 from database import crud
+from scraper.olx_scraper import extract_olx_id_from_url
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,22 @@ async def novo_alerta_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     # user_data = dicionário por usuário — guardamos o progresso do wizard aqui
     context.user_data["wizard_alert"] = {"neighborhoods_selected": set()}
     await update.message.reply_text(
+        "🆕 *Novo alerta*\n\n"
+        "Digite um *nome* para este alerta (ex.: Centro/Pajuçara):",
+        parse_mode="Markdown",
+    )
+    return WIZ_NAME
+
+
+async def novo_alerta_entry_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Entrada do wizard iniciada via clique no menu.
+    A diferença é que aqui o update vem como callback_query (não update.message).
+    """
+    q = update.callback_query
+    await q.answer()
+    context.user_data["wizard_alert"] = {"neighborhoods_selected": set()}
+    await q.message.reply_text(
         "🆕 *Novo alerta*\n\n"
         "Digite um *nome* para este alerta (ex.: Centro/Pajuçara):",
         parse_mode="Markdown",
@@ -214,13 +231,106 @@ async def cancel_wiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
+# ---------------- ACOMPANHAR ANUNCIO (watchlist) ----------------
+
+
+(ACOMP_URL,) = range(1)
+
+
+def _fmt_money(v: float | None) -> str:
+    if v is None:
+        return "—"
+    return f"R$ {v:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+async def acompanhar_entry_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Entrada da conversa quando o usuário clica em 'Acompanhar Anúncio' no menu."""
+    q = update.callback_query
+    await q.answer()
+    await q.message.reply_text(
+        "👁 Envie a *URL do anúncio OLX* que você quer acompanhar.\n\n"
+        "Ex.: `https://www.olx.com.br/d/...`",
+        parse_mode="Markdown",
+    )
+    return ACOMP_URL
+
+
+async def acompanhar_url(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Recebe a URL digitada e chama a mesma lógica de /observar para salvar na watchlist."""
+    url = (update.message.text or "").strip()
+    if not url or "olx.com.br" not in url.lower():
+        await update.message.reply_text(
+            "URL inválida. Envie uma URL do OLX (ex.: https://www.olx.com.br/d/...).",
+            parse_mode="Markdown",
+        )
+        return ACOMP_URL
+
+    oid = extract_olx_id_from_url(url)
+    if not oid:
+        await update.message.reply_text("Não consegui extrair o ID do anúncio pela URL.")
+        return ACOMP_URL
+
+    scraper = context.application.bot_data["scraper"]
+    try:
+        info = await scraper.fetch_listing(url)
+    except Exception:
+        await update.message.reply_text("Erro ao ler o anúncio. Tente de novo mais tarde.")
+        return ACOMP_URL
+
+    if info.get("removed") or info.get("not_found"):
+        await update.message.reply_text("Anúncio indisponível ou removido.")
+        return ConversationHandler.END
+
+    async with _session(context) as session:
+        user = await crud.get_or_create_user(
+            session, update.effective_user.id, update.effective_user.username
+        )
+        await crud.add_watched(
+            session,
+            user.id,
+            oid,
+            url.split("?")[0],
+            info.get("title"),
+            info.get("price"),
+        )
+
+    await update.message.reply_text(
+        f"✅ Na watchlist. Preço atual: {_fmt_money(info.get('price'))}",
+        parse_mode="Markdown",
+    )
+    return ConversationHandler.END
+
+
+async def cancel_acompanhar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.message.reply_text("Acompanhar Anúncio cancelado.")
+    return ConversationHandler.END
+
+
+def conversation_acompanhar_anuncio() -> ConversationHandler:
+    """Conversa curta: pede URL e adiciona na watchlist."""
+    return ConversationHandler(
+        entry_points=[CallbackQueryHandler(acompanhar_entry_cb, pattern=r"^menu_acompanhar$")],
+        states={
+            ACOMP_URL: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, acompanhar_url)
+            ]
+        },
+        fallbacks=[CommandHandler("cancelar", cancel_acompanhar)],
+        name="acompanhar_anuncio",
+        persistent=False,
+    )
+
+
 def conversation_novo_alerta() -> ConversationHandler:
     """
     Registra o fluxo completo. filters.COMMAND = mensagens que começam com /
     (~filters.COMMAND) = aceita só texto que NÃO é comando.
     """
     return ConversationHandler(
-        entry_points=[CommandHandler("novo_alerta", novo_alerta_entry)],
+        entry_points=[
+            CommandHandler("novo_alerta", novo_alerta_entry),
+            CallbackQueryHandler(novo_alerta_entry_cb, pattern=r"^menu_novo_alerta$"),
+        ],
         states={
             WIZ_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, wiz_name)],
             WIZ_PROPERTY: [CallbackQueryHandler(wiz_property_cb, pattern=r"^wiz_pt_")],

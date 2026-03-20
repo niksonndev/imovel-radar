@@ -20,10 +20,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from telegram.ext import Application, CommandHandler
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 
 import config
-from bot.conversations import conversation_novo_alerta
+from bot.conversations import conversation_novo_alerta, conversation_acompanhar_anuncio
 from bot.handlers import (
     cmd_ajuda,
     cmd_deletar_alerta,
@@ -34,6 +34,8 @@ from bot.handlers import (
     cmd_start,
     cmd_status,
     cmd_watchlist,
+    menu_ajuda_cb,
+    menu_meus_alertas_cb,
 )
 from database.crud import create_engine_and_session, init_db
 from scheduler.jobs import register_jobs
@@ -100,6 +102,13 @@ def main() -> None:
     app.add_handler(CommandHandler("ajuda", cmd_ajuda))
     # ConversationHandler = vários passos numa conversa (/novo_alerta)
     app.add_handler(conversation_novo_alerta())
+    # Menu principal (botões inline)
+    app.add_handler(
+        CallbackQueryHandler(menu_meus_alertas_cb, pattern=r"^menu_meus_alertas$")
+    )
+    app.add_handler(CallbackQueryHandler(menu_ajuda_cb, pattern=r"^menu_ajuda$"))
+    # "👁 Acompanhar Anúncio" (conversa curta)
+    app.add_handler(conversation_acompanhar_anuncio())
     logger.info("Polling…")
     # Fica perguntando ao Telegram "tem mensagem nova?" o tempo todo
     app.run_polling(allowed_updates=["message", "callback_query"])

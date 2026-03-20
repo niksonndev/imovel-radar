@@ -14,6 +14,7 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from bot import keyboards
 from database import crud
 from scraper.olx_scraper import extract_olx_id_from_url
 
@@ -47,6 +48,55 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "• `/status` — próximas verificações\n"
         "• `/ajuda` — ajuda completa\n\n"
         "Respeite os termos do OLX; uso por sua conta e risco.",
+        parse_mode="Markdown",
+        reply_markup=keyboards.main_menu_keyboard(),
+    )
+
+
+async def menu_meus_alertas_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Callback do botão '📋 Meus Alertas' (mostra lista resumida)."""
+    q = update.callback_query
+    await q.answer()
+
+    async with _session(context) as session:
+        user = await crud.get_or_create_user(
+            session, q.from_user.id, q.from_user.username
+        )
+        alerts = await crud.list_alerts(session, user.id)
+
+    if not alerts:
+        await q.message.reply_text("Nenhum alerta. Use /novo_alerta")
+        return
+
+    lines = []
+    for a in alerts:
+        st = "▶️ ativo" if a.is_active else "⏸ pausado"
+        lines.append(f"• `id {a.id}` — *{a.name}* ({st})")
+
+    await q.message.reply_text(
+        "*Seus alertas*\n" + "\n".join(lines),
+        parse_mode="Markdown",
+    )
+
+
+async def menu_ajuda_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Callback do botão '❓ Ajuda' (manda texto de comandos)."""
+    q = update.callback_query
+    await q.answer()
+    await q.message.reply_text(
+        "*Comandos*\n"
+        "/start — boas-vindas\n"
+        "/novo_alerta — criar alerta (nome, tipo, venda/aluguel, preço, quartos, m², bairros)\n"
+        "/meus_alertas — listar alertas (id, nome, ativo/pausado)\n"
+        "/pausar_alerta [id] — pausar ou reativar\n"
+        "/deletar_alerta [id] — apagar alerta\n"
+        "/observar [url OLX] — monitorar preço do anúncio\n"
+        "/watchlist — listar observados\n"
+        "/remover [id] — tirar da watchlist\n"
+        "/status — intervalos e próximas execuções\n"
+        "/cancelar — cancelar wizard\n\n"
+        "Alertas disparam quando aparece anúncio novo nos filtros. "
+        "Watchlist avisa mudança de preço ou remoção.",
         parse_mode="Markdown",
     )
 
