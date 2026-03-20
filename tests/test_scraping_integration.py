@@ -215,9 +215,9 @@ class TestBackwardsCompatibility:
         url = build_search_url({"property_type": "house", "transaction": "rent"})
         assert "/imoveis/aluguel/casas/estado-al/alagoas/maceio" in url
 
-    async def test_default_unchanged(self):
+    async def test_default_is_all_types(self):
         url = build_search_url({})
-        assert url == "https://www.olx.com.br/imoveis/venda/apartamentos/estado-al/alagoas/maceio"
+        assert url == "https://www.olx.com.br/imoveis/venda/estado-al/alagoas/maceio"
 
     async def test_existing_scraping_with_specific_type(self):
         scraper = OLXScraper()

@@ -6,7 +6,7 @@ class TestBuildSearchUrl:
     def test_defaults(self):
         url = build_search_url({})
         assert url == (
-            "https://www.olx.com.br/imoveis/venda/apartamentos/"
+            "https://www.olx.com.br/imoveis/venda/"
             "estado-al/alagoas/maceio"
         )
 
@@ -48,7 +48,8 @@ class TestBuildSearchUrl:
 
     def test_unknown_property_type_falls_back(self):
         url = build_search_url({"property_type": "unknown"})
-        assert "/apartamentos/" in url
+        assert "/apartamentos/" not in url
+        assert "/imoveis/venda/estado-al/" in url
 
     def test_all_property_types_rent(self):
         """URL de aluguel sem filtro de tipo: /imoveis/aluguel/estado-al/..."""
@@ -92,6 +93,10 @@ class TestBuildSearchUrl:
         )
         assert "/aluguel/apartamentos/" in url
         assert "sp=3" in url
+
+    def test_kitnet_rent(self):
+        url = build_search_url({"property_type": "kitnet", "transaction": "rent"})
+        assert "/aluguel/kitnet/" in url
 
 
 class TestExtractOlxId:

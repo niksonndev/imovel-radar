@@ -40,14 +40,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             session, update.effective_user.id, update.effective_user.username
         )
     await update.message.reply_text(
-        "👋 *Olá!* Sou o bot de alertas OLX — *Maceió/AL*.\n\n"
-        "• `/novo_alerta` — criar alerta de busca (assistente passo a passo)\n"
-        "• `/meus_alertas` — listar alertas\n"
-        "• `/observar [url]` — adicionar anúncio à watchlist\n"
-        "• `/watchlist` — ver watchlist\n"
-        "• `/status` — próximas verificações\n"
-        "• `/ajuda` — ajuda completa\n\n"
-        "Respeite os termos do OLX; uso por sua conta e risco.",
+        "👋 *Olá!* Sou o bot de alertas OLX — *Maceió/AL*.\n\n",
         parse_mode="Markdown",
         reply_markup=keyboards.main_menu_keyboard(),
     )
@@ -86,7 +79,7 @@ async def menu_ajuda_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await q.message.reply_text(
         "*Comandos*\n"
         "/start — boas-vindas\n"
-        "/novo_alerta — criar alerta (nome, tipo, venda/aluguel, preço, quartos, m², bairros)\n"
+        "/novo_alerta — criar alerta (aluguel/venda, preço, bairros, nome)\n"
         "/meus_alertas — listar alertas (id, nome, ativo/pausado)\n"
         "/pausar_alerta [id] — pausar ou reativar\n"
         "/deletar_alerta [id] — apagar alerta\n"
@@ -265,7 +258,7 @@ async def cmd_ajuda(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "*Comandos*\n"
         "/start — boas-vindas\n"
-        "/novo_alerta — criar alerta (nome, tipo, venda/aluguel, preço, quartos, m², bairros)\n"
+        "/novo_alerta — criar alerta (aluguel/venda, preço, bairros, nome)\n"
         "/meus_alertas — listar alertas (id, nome, ativo/pausado)\n"
         "/pausar_alerta [id] — pausar ou reativar\n"
         "/deletar_alerta [id] — apagar alerta\n"

@@ -32,7 +32,7 @@ def build_search_url(filters: dict[str, Any], page: int = 1) -> str:
     gerando /imoveis/venda/estado-al/alagoas/maceio  (todos os tipos).
     """
     ptype_slug = config.PROPERTY_TYPE_SLUGS.get(
-        filters.get("property_type") or "apartment", "apartamentos"
+        filters.get("property_type") or "all"
     )
     trans = config.TRANSACTION_SLUGS.get(filters.get("transaction") or "sale", "venda")
     if ptype_slug:

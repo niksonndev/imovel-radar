@@ -9,8 +9,9 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMa
 # Lista de tuplas (valor_interno, texto_no_botão)
 PROPERTY_TYPES = [
     ("all", "Todos"),
-    ("apartment", "Apartamento"),
     ("house", "Casa"),
+    ("apartment", "Apartamento"),
+    ("kitnet", "Kitnet"),
     ("land", "Terreno"),
     ("commercial", "Comercial"),
 ]
@@ -35,6 +36,31 @@ def transaction_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(label, callback_data=f"wiz_tr_{key}")]
         for key, label in TRANSACTIONS
     ]
+    return InlineKeyboardMarkup(rows)
+
+
+def price_range_keyboard(transaction: str) -> InlineKeyboardMarkup:
+    """
+    Faixas de preço inline para wizard do /novo_alerta.
+    transaction: "rent" ou "sale"
+    """
+    if transaction == "rent":
+        presets = [
+            ("wiz_price_preset_rent_0", "Até R$ 800"),
+            ("wiz_price_preset_rent_1", "R$ 800 – R$ 1.500"),
+            ("wiz_price_preset_rent_2", "R$ 1.500 – R$ 3.000"),
+            ("wiz_price_preset_rent_3", "R$ 3.000+"),
+        ]
+    else:
+        presets = [
+            ("wiz_price_preset_sale_0", "Até R$ 150k"),
+            ("wiz_price_preset_sale_1", "R$ 150k – R$ 300k"),
+            ("wiz_price_preset_sale_2", "R$ 300k – R$ 600k"),
+            ("wiz_price_preset_sale_3", "R$ 600k+"),
+        ]
+
+    rows: list[list[InlineKeyboardButton]] = [[InlineKeyboardButton(label, callback_data=cb)] for cb, label in presets]
+    rows.append([InlineKeyboardButton("Personalizado", callback_data="wiz_price_custom")])
     return InlineKeyboardMarkup(rows)
 
 
@@ -88,5 +114,19 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton("👁 Acompanhar Anúncio", callback_data="menu_acompanhar"),
             ],
+        ]
+    )
+
+
+def alert_confirmation_keyboard() -> InlineKeyboardMarkup:
+    """
+    Confirmação antes de salvar o alerta (wizard do /novo_alerta).
+    """
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("✅ Confirmar", callback_data="wiz_confirm_yes"),
+                InlineKeyboardButton("❌ Cancelar", callback_data="wiz_confirm_no"),
+            ]
         ]
     )
