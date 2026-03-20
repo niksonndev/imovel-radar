@@ -84,7 +84,10 @@ class OLXScraper:
     async def _ensure_browser(self) -> Browser:
         if self._browser is None or not self._browser.is_connected():
             self._playwright = await async_playwright().start()
-            self._browser = await self._playwright.chromium.launch(headless=True)
+            self._browser = await self._playwright.chromium.launch(
+                headless=True,
+                args=["--disable-blink-features=AutomationControlled"],
+            )
         return self._browser
 
     async def _close_browser(self) -> None:
@@ -108,8 +111,25 @@ class OLXScraper:
         try:
             await Stealth().apply_stealth_async(page)
             resp = await page.goto(url, wait_until="domcontentloaded", timeout=45_000)
-            if resp is not None and resp.status >= 400:
-                raise FetchError(resp.status, url)
+            status = resp.status if resp is not None else 200
+
+            if status in (403, 503):
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=15_000)
+                except Exception:
+                    pass
+                content = await page.content()
+                cf_markers = (
+                    "Just a moment", "Checking your browser",
+                    "cf-challenge-running", "Attention Required",
+                )
+                if any(m in content for m in cf_markers):
+                    raise FetchError(status, url)
+                return content
+
+            if status >= 400:
+                raise FetchError(status, url)
+
             return await page.content()
         finally:
             await page.close()
