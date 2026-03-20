@@ -28,10 +28,17 @@ def build_search_url(filters: dict[str, Any], page: int = 1) -> str:
     """
     filters vêm do alerta no banco (JSON).
     Monta path tipo /imoveis/venda/apartamentos/estado-al/alagoas/maceio?pe=min-max&q=bairros
+    Se property_type for "all" (ou None no slug), omite o segmento de tipo,
+    gerando /imoveis/venda/estado-al/alagoas/maceio  (todos os tipos).
     """
-    ptype = config.PROPERTY_TYPE_SLUGS.get(filters.get("property_type") or "apartment", "apartamentos")
+    ptype_slug = config.PROPERTY_TYPE_SLUGS.get(
+        filters.get("property_type") or "all"
+    )
     trans = config.TRANSACTION_SLUGS.get(filters.get("transaction") or "sale", "venda")
-    path = f"/imoveis/{trans}/{ptype}/{MACEIO_PATH}"
+    if ptype_slug:
+        path = f"/imoveis/{trans}/{ptype_slug}/{MACEIO_PATH}"
+    else:
+        path = f"/imoveis/{trans}/{MACEIO_PATH}"
     params: dict[str, str] = {}
     if page > 1:
         params["o"] = str(page)
@@ -44,6 +51,9 @@ def build_search_url(filters: dict[str, Any], page: int = 1) -> str:
     q_parts = filters.get("neighborhoods") or []
     if q_parts:
         params["q"] = " ".join(q_parts)
+    sp = filters.get("sp")
+    if sp is not None:
+        params["sp"] = str(sp)
     url = BASE + path
     if params:
         url += "?" + urlencode(params)

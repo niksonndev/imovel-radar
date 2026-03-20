@@ -8,6 +8,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMa
 
 # Lista de tuplas (valor_interno, texto_no_botão)
 PROPERTY_TYPES = [
+    ("all", "Todos"),
     ("house", "Casa"),
     ("apartment", "Apartamento"),
     ("kitnet", "Kitnet"),

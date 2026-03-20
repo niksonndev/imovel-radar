@@ -6,7 +6,7 @@ class TestBuildSearchUrl:
     def test_defaults(self):
         url = build_search_url({})
         assert url == (
-            "https://www.olx.com.br/imoveis/venda/apartamentos/"
+            "https://www.olx.com.br/imoveis/venda/"
             "estado-al/alagoas/maceio"
         )
 
@@ -48,7 +48,55 @@ class TestBuildSearchUrl:
 
     def test_unknown_property_type_falls_back(self):
         url = build_search_url({"property_type": "unknown"})
-        assert "/apartamentos/" in url
+        assert "/apartamentos/" not in url
+        assert "/imoveis/venda/estado-al/" in url
+
+    def test_all_property_types_rent(self):
+        """URL de aluguel sem filtro de tipo: /imoveis/aluguel/estado-al/..."""
+        url = build_search_url({"property_type": "all", "transaction": "rent"})
+        assert url == (
+            "https://www.olx.com.br/imoveis/aluguel/"
+            "estado-al/alagoas/maceio"
+        )
+
+    def test_all_property_types_sale(self):
+        """URL de venda sem filtro de tipo: /imoveis/venda/estado-al/..."""
+        url = build_search_url({"property_type": "all", "transaction": "sale"})
+        assert url == (
+            "https://www.olx.com.br/imoveis/venda/"
+            "estado-al/alagoas/maceio"
+        )
+
+    def test_all_rent_with_sp(self):
+        """URL de aluguel com parâmetro sp (sponsored position)."""
+        url = build_search_url(
+            {"property_type": "all", "transaction": "rent", "sp": 2}
+        )
+        assert url == (
+            "https://www.olx.com.br/imoveis/aluguel/"
+            "estado-al/alagoas/maceio?sp=2"
+        )
+
+    def test_all_with_price_and_page(self):
+        url = build_search_url(
+            {"property_type": "all", "transaction": "sale", "price_max": 500000},
+            page=2,
+        )
+        assert "/imoveis/venda/estado-al/" in url
+        assert "apartamentos" not in url
+        assert "o=2" in url
+        assert "pe=0-500000" in url
+
+    def test_sp_param_preserved_with_type(self):
+        url = build_search_url(
+            {"property_type": "apartment", "transaction": "rent", "sp": 3}
+        )
+        assert "/aluguel/apartamentos/" in url
+        assert "sp=3" in url
+
+    def test_kitnet_rent(self):
+        url = build_search_url({"property_type": "kitnet", "transaction": "rent"})
+        assert "/aluguel/kitnet/" in url
 
 
 class TestExtractOlxId:
