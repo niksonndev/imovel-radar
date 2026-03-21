@@ -42,6 +42,10 @@ async def job_alerts(app) -> None:
                     continue
                 tg_id = user.telegram_id
             listings = await scraper.search_listings(alert.filters or {}, max_pages=6)
+            # log temporário
+            for ad in listings[:3]:
+                logger.info("AD: %s | neighborhood: %s", ad.get("title"), ad.get("neighborhood"))
+            logger.info("Total antes do filtro local: %s", len(listings))
             async with session_factory() as session:
                 seed_only = alert.last_checked is None
                 for ad in listings:

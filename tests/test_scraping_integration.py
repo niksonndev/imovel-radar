@@ -26,7 +26,7 @@ SAMPLE_ADS = [
         "title": "Apartamento Centro 2 quartos",
         "priceValue": "R$ 250.000",
         "url": "/d/imoveis/apto-11111111",
-        "location": {"neighbourhood": "Centro"},
+        "locationDetails": {"neighbourhood": "Centro"},
         "properties": [
             {"name": "Quartos", "value": "2"},
             {"name": "Área útil", "value": "65 m²"},
@@ -37,7 +37,7 @@ SAMPLE_ADS = [
         "title": "Casa Farol 3 quartos",
         "priceValue": "R$ 450.000",
         "url": "/d/imoveis/casa-22222222",
-        "location": {"neighbourhood": "Farol"},
+        "locationDetails": {"neighbourhood": "Farol"},
         "properties": [
             {"name": "Quartos", "value": "3"},
             {"name": "Área útil", "value": "120 m²"},
@@ -48,7 +48,7 @@ SAMPLE_ADS = [
         "title": "Terreno Jatiúca",
         "priceValue": "R$ 180.000",
         "url": "/d/imoveis/terreno-33333333",
-        "location": {"neighbourhood": "Jatiúca"},
+        "locationDetails": {"neighbourhood": "Jatiúca"},
         "properties": [],
     },
     {
@@ -56,7 +56,7 @@ SAMPLE_ADS = [
         "title": "Sala Comercial Pajuçara",
         "priceValue": "R$ 1.500",
         "url": "/d/imoveis/sala-44444444",
-        "location": {"neighbourhood": "Pajuçara"},
+        "locationDetails": {"neighbourhood": "Pajuçara"},
         "properties": [
             {"name": "Área útil", "value": "40 m²"},
         ],
@@ -141,7 +141,8 @@ class TestScrapingIntegrationSale:
             "price_max": 500000,
         }
         url = build_search_url(filters)
-        assert "pe=200000-500000" in url
+        assert "ps=200000" in url
+        assert "pe=500000" in url
 
         ads = await scraper.search_listings(filters, max_pages=1)
         assert len(ads) == 4

@@ -37,7 +37,7 @@ class FetchError(Exception):
 def build_search_url(filters: dict[str, Any], page: int = 1) -> str:
     """
     filters vêm do alerta no banco (JSON).
-    Monta path tipo /imoveis/venda/apartamentos/estado-al/alagoas/maceio?pe=min-max&q=bairros
+    Monta path tipo /imoveis/venda/apartamentos/estado-al/alagoas/maceio?ps=min&pe=max
     Se property_type for "all" (ou None no slug), omite o segmento de tipo,
     gerando /imoveis/venda/estado-al/alagoas/maceio  (todos os tipos).
     """
@@ -54,13 +54,10 @@ def build_search_url(filters: dict[str, Any], page: int = 1) -> str:
         params["o"] = str(page)
     pmin = filters.get("price_min")
     pmax = filters.get("price_max")
-    if pmin is not None or pmax is not None:
-        a = int(pmin or 0)
-        b = int(pmax or 999_999_999)
-        params["pe"] = f"{a}-{b}"
-    q_parts = filters.get("neighborhoods") or []
-    if q_parts:
-        params["q"] = " ".join(q_parts)
+    if pmin:
+        params["ps"] = str(int(pmin))
+    if pmax:
+        params["pe"] = str(int(pmax))
     sp = filters.get("sp")
     if sp is not None:
         params["sp"] = str(sp)

@@ -83,3 +83,9 @@ logs/
 # Playwright / browsers (se usar depois)
 playwright-report/
 test-results/
+
+# Arquivos gerados por scripts de debug
+debug_page.html
+debug_ad.json
+scripts/*.html
+scripts/*.json

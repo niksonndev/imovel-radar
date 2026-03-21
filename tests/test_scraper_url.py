@@ -24,19 +24,23 @@ class TestBuildSearchUrl:
 
     def test_price_range(self):
         url = build_search_url({"price_min": 100000, "price_max": 500000})
-        assert "pe=100000-500000" in url
+        assert "ps=100000" in url
+        assert "pe=500000" in url
 
     def test_price_min_only(self):
         url = build_search_url({"price_min": 200000})
-        assert "pe=200000-999999999" in url
+        assert "ps=200000" in url
+        assert "pe=" not in url
 
     def test_price_max_only(self):
         url = build_search_url({"price_max": 300000})
-        assert "pe=0-300000" in url
+        assert "pe=300000" in url
+        assert "ps=" not in url
 
-    def test_neighborhoods_query(self):
+    def test_neighborhoods_no_query_param(self):
+        """Bairro não vai na URL; filtro local em _apply_local_filters."""
         url = build_search_url({"neighborhoods": ["Centro", "Farol"]})
-        assert "q=Centro+Farol" in url
+        assert "q=" not in url
 
     def test_land_sale(self):
         url = build_search_url({"property_type": "land", "transaction": "sale"})
@@ -85,7 +89,8 @@ class TestBuildSearchUrl:
         assert "/imoveis/venda/estado-al/" in url
         assert "apartamentos" not in url
         assert "o=2" in url
-        assert "pe=0-500000" in url
+        assert "pe=500000" in url
+        assert "ps=" not in url
 
     def test_sp_param_preserved_with_type(self):
         url = build_search_url(

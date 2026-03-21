@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import pprint
 import re
 from typing import Any
 
@@ -41,6 +42,46 @@ def _parse_price(val: Any) -> float | None:
         return None
 
 
+def _walk_first_raw_ad(obj: Any, depth: int = 0) -> dict | None:
+    """Primeiro dict na árvore JSON com chave listId ou adId (debug)."""
+    if depth > 25 or obj is None:
+        return None
+    if isinstance(obj, dict):
+        if "listId" in obj or "adId" in obj:
+            return obj
+        for v in obj.values():
+            found = _walk_first_raw_ad(v, depth + 1)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = _walk_first_raw_ad(item, depth + 1)
+            if found is not None:
+                return found
+    return None
+
+
+def dump_sample_ad(html: str) -> None:
+    """
+    Extrai __NEXT_DATA__, acha o primeiro objeto com listId ou adId e imprime o dict inteiro.
+    """
+    soup = BeautifulSoup(html, "lxml")
+    script = soup.find("script", id="__NEXT_DATA__")
+    if not script or not script.string:
+        print("dump_sample_ad: sem __NEXT_DATA__ no HTML")
+        return
+    try:
+        data = json.loads(script.string)
+    except json.JSONDecodeError as e:
+        print(f"dump_sample_ad: JSON inválido: {e}")
+        return
+    raw = _walk_first_raw_ad(data)
+    if raw is None:
+        print("dump_sample_ad: nenhum objeto com listId/adId encontrado")
+        return
+    pprint.pprint(raw, width=120, sort_dicts=False, compact=False)
+
+
 def _walk_find_ads(obj: Any, out: list[dict], depth: int = 0) -> None:
     """
     Recursão em dict/list. depth limit evita loop infinito se JSON circular (não deveria).
@@ -71,29 +112,53 @@ def _walk_find_ads(obj: Any, out: list[dict], depth: int = 0) -> None:
                 thumb = first if isinstance(first, str) else first.get("url") or first.get("original")
             elif isinstance(images, dict):
                 thumb = images.get("url") or images.get("original")
-            loc = obj.get("location") or obj.get("address") or {}
+            loc_details = obj.get("locationDetails") or {}
             neighborhood = ""
-            if isinstance(loc, dict):
-                neighborhood = loc.get("neighbourhood") or loc.get("district") or loc.get("name") or ""
+            if isinstance(loc_details, dict):
+                neighborhood = loc_details.get("neighbourhood") or ""
             props = obj.get("properties") or []
             bedrooms = None
             area_m2 = None
+            bathrooms = None
+            garage_spaces = None
             if isinstance(props, list):
                 for p in props:
                     if not isinstance(p, dict):
                         continue
                     name = (p.get("name") or "").lower()
                     val = p.get("value")
-                    if "quarto" in name or name == "bedrooms":
+                    if "quarto" in name or name in ("bedrooms", "rooms"):
                         try:
                             bedrooms = int(re.sub(r"\D", "", str(val)) or 0)
                         except ValueError:
                             pass
-                    if "m²" in str(val) or "area" in name or "área" in name:
+                    if name == "bathrooms":
+                        try:
+                            bathrooms = int(re.sub(r"\D", "", str(val)) or 0)
+                        except ValueError:
+                            pass
+                    if name == "garage_spaces":
+                        try:
+                            garage_spaces = int(re.sub(r"\D", "", str(val)) or 0)
+                        except ValueError:
+                            pass
+                    if "m²" in str(val) or "area" in name or "área" in name or name == "size":
                         try:
                             area_m2 = float(re.sub(r"[^\d.,]", "", str(val)).replace(",", "."))
                         except ValueError:
                             pass
+            category = str(obj.get("categoryName") or obj.get("category") or "")
+            old_price = _parse_price(obj.get("oldPrice"))
+            pub_raw = obj.get("origListTime")
+            if pub_raw is None:
+                pub_raw = obj.get("date")
+            if isinstance(pub_raw, (int, float)):
+                published_at = int(pub_raw)
+            else:
+                published_at = None
+            is_professional = bool(obj.get("professionalAd"))
+            feat = obj.get("featured")
+            is_featured = isinstance(feat, list) and len(feat) > 0
             out.append(
                 {
                     "olx_id": lid,
@@ -104,6 +169,13 @@ def _walk_find_ads(obj: Any, out: list[dict], depth: int = 0) -> None:
                     "neighborhood": str(neighborhood),
                     "bedrooms": bedrooms,
                     "area_m2": area_m2,
+                    "category": category,
+                    "old_price": old_price,
+                    "published_at": published_at,
+                    "is_professional": is_professional,
+                    "is_featured": is_featured,
+                    "bathrooms": bathrooms,
+                    "garage_spaces": garage_spaces,
                 }
             )
         for v in obj.values():
