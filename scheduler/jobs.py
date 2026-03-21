@@ -17,6 +17,7 @@ from telegram.constants import ParseMode
 
 from database import crud
 from database.models import User, WatchedListing
+from scraper.olx_scraper import build_search_url
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,6 @@ async def job_alerts(app) -> None:
                 tg_id = user.telegram_id
             listings = await scraper.search_listings(alert.filters or {}, max_pages=6)
             async with session_factory() as session:
-                # Primeiro ciclo: last_checked ainda é None → só populamos seen_listings, zero DM
                 seed_only = alert.last_checked is None
                 for ad in listings:
                     oid = ad.get("olx_id")
@@ -82,6 +82,37 @@ async def job_alerts(app) -> None:
                                 pass
                     except Exception as e:
                         logger.warning("Falha ao notificar %s: %s", tg_id, e)
+
+                if seed_only:
+                    count = len(listings)
+                    search_url = build_search_url(alert.filters or {}, page=1)
+                    seed_text = (
+                        f"Alerta {alert.name} ativado! "
+                        f"Encontrei {count} imóveis que já correspondem aos seus critérios.\n"
+                        f"🔗 [Ver resultados no OLX]({search_url})\n\n"
+                        f"A partir de agora, verifico essa busca e vou te avisar "
+                        f"quando aparecer algum anúncio novo."
+                    )
+                    logger.info(
+                        "seed_only: enviando resumo do alerta %s (%d imóveis) para tg_id=%s",
+                        alert.id, count, tg_id,
+                    )
+                    try:
+                        await bot.send_message(
+                            chat_id=tg_id,
+                            text=seed_text,
+                            parse_mode=ParseMode.MARKDOWN,
+                            disable_web_page_preview=True,
+                        )
+                        logger.info(
+                            "seed_only: mensagem de resumo enviada com sucesso para tg_id=%s",
+                            tg_id,
+                        )
+                    except Exception as e:
+                        logger.exception(
+                            "seed_only: falha ao enviar resumo para tg_id=%s: %s", tg_id, e,
+                        )
+
                 await crud.update_alert_last_checked(session, alert.id)
         except Exception as e:
             logger.exception("Alerta %s: %s", alert.id, e)
