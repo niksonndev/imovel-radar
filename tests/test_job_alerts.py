@@ -1,4 +1,5 @@
 """Tests for scheduler/jobs.py — seed_only first-cycle behavior."""
+import logging
 import pytest
 import pytest_asyncio
 from datetime import datetime
@@ -7,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 from database.models import Base, User, Alert
-from database.crud import init_db, mark_seen
+from database.crud import init_db, mark_seen, create_alert, get_or_create_user
 from scheduler.jobs import job_alerts
 
 pytestmark = pytest.mark.asyncio
@@ -141,3 +142,90 @@ async def test_seed_only_no_listings(db_factory):
 
     bot.send_message.assert_called_once()
     assert "*0* imóveis" in bot.send_message.call_args[1]["text"]
+
+
+async def test_seed_message_contains_olx_link(db_factory):
+    """Mensagem de resumo deve conter link para resultados no OLX."""
+    factory, user, alert = db_factory
+    bot = AsyncMock()
+    scraper = AsyncMock()
+    scraper.search_listings.return_value = FAKE_LISTINGS
+
+    app = _fake_app(factory, bot, scraper)
+    await job_alerts(app)
+
+    text = bot.send_message.call_args[1]["text"]
+    assert "Ver resultados no OLX" in text
+    assert "olx.com.br" in text
+
+
+async def test_seed_logs_before_and_after(db_factory, caplog):
+    """Deve logar info antes e depois do envio do seed."""
+    factory, user, alert = db_factory
+    bot = AsyncMock()
+    scraper = AsyncMock()
+    scraper.search_listings.return_value = FAKE_LISTINGS
+
+    app = _fake_app(factory, bot, scraper)
+    with caplog.at_level(logging.INFO, logger="scheduler.jobs"):
+        await job_alerts(app)
+
+    seed_logs = [r for r in caplog.records if "seed_only" in r.message]
+    assert len(seed_logs) >= 2
+    assert any("enviando resumo" in r.message for r in seed_logs)
+    assert any("enviada com sucesso" in r.message for r in seed_logs)
+
+
+async def test_seed_send_failure_logs_exception(db_factory, caplog):
+    """Se send_message falhar no seed, deve logar com logger.exception."""
+    factory, user, alert = db_factory
+    bot = AsyncMock()
+    bot.send_message.side_effect = Exception("Telegram API error")
+    scraper = AsyncMock()
+    scraper.search_listings.return_value = FAKE_LISTINGS
+
+    app = _fake_app(factory, bot, scraper)
+    with caplog.at_level(logging.ERROR, logger="scheduler.jobs"):
+        await job_alerts(app)
+
+    assert any("falha ao enviar resumo" in r.message for r in caplog.records)
+
+
+async def test_seed_sets_last_checked(db_factory):
+    """Após o seed, last_checked deve ser atualizado (não None)."""
+    factory, user, alert = db_factory
+    bot = AsyncMock()
+    scraper = AsyncMock()
+    scraper.search_listings.return_value = FAKE_LISTINGS
+
+    app = _fake_app(factory, bot, scraper)
+    await job_alerts(app)
+
+    async with factory() as session:
+        refreshed = await session.get(Alert, alert.id)
+        assert refreshed.last_checked is not None
+
+
+async def test_wizard_filters_work_with_seed(db_factory):
+    """Filtros sem property_type (como o wizard cria) devem funcionar no seed."""
+    factory, user, _ = db_factory
+
+    async with factory() as session:
+        alert = await create_alert(session, user.id, "Ape noco", {
+            "transaction": "sale",
+            "price_min": None,
+            "price_max": 300000,
+            "neighborhoods": [],
+        })
+
+    bot = AsyncMock()
+    scraper = AsyncMock()
+    scraper.search_listings.return_value = FAKE_LISTINGS
+
+    app = _fake_app(factory, bot, scraper)
+    await job_alerts(app)
+
+    calls = bot.send_message.call_args_list
+    seed_calls = [c for c in calls if "ativado" in c[1].get("text", "")]
+    assert len(seed_calls) >= 1
+    assert "Ape noco" in seed_calls[-1][1]["text"]

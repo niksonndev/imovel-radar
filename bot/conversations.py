@@ -407,9 +407,11 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         alert = await crud.create_alert(session, user.id, name, filters_dict)
 
     context.user_data.pop("wizard_alert", None)
+    interval = context.application.bot_data.get("alert_min", 30)
     await q.message.reply_text(
         f"✅ Alerta *{alert.name}* criado (id `{alert.id}`).\n"
-        f"Verificações a cada {context.application.bot_data.get('alert_min', 30)} min.",
+        f"🔎 Primeira verificação em até {interval} min — vou te enviar um resumo!\n"
+        f"Depois disso, verificações a cada {interval} min.",
         parse_mode="Markdown",
     )
     return ConversationHandler.END
