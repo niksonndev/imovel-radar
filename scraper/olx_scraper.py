@@ -99,7 +99,7 @@ class OLXScraper:
             raise FetchError(status_code, url)
         return text
 
-    async def search_listings(self, filters: dict[str, Any], max_pages: int = 8) -> list[dict]:
+    async def search_listings(self, filters: dict[str, Any], max_pages: int = 15) -> list[dict]:
         """
         Várias páginas de resultados; dict[olx_id] evita duplicata.
         Depois filtra em Python o que a URL do OLX não filtrou (quartos, m², bairro no texto).
@@ -113,6 +113,7 @@ class OLXScraper:
                 logger.exception("Erro ao buscar %s: %s", url, e)
                 break
             ads = parse_search_page(html)
+            logger.info("Página %s: %s anúncios brutos", page, len(ads))
             if not ads:
                 break
             for ad in ads:
@@ -121,9 +122,23 @@ class OLXScraper:
                 break
         out = list(all_ads.values())
         out = self._apply_local_filters(out, filters)
+        logger.info("Total bruto: %s | Após filtro: %s", len(all_ads), len(out))
         return out
 
     def _apply_local_filters(self, ads: list[dict], filters: dict[str, Any]) -> list[dict]:
+        # log temporário
+        for ad in ads[:5]:
+            logger.info(
+                "neighborhood: '%s' | title: '%s'",
+                ad.get("neighborhood"),
+                (ad.get("title") or "")[:50],
+            )
+        pv = [ad for ad in ads if "ponta verde" in (ad.get("neighborhood") or "").lower()]
+        logger.info(
+            "Ponta Verde: %s | Cruz das Almas: %s",
+            len(pv),
+            len([ad for ad in ads if "cruz" in (ad.get("neighborhood") or "").lower()]),
+        )
         bmin = filters.get("bedrooms_min")
         amin = filters.get("area_min")
         amax = filters.get("area_max")

@@ -41,11 +41,7 @@ async def job_alerts(app) -> None:
                 if not user:
                     continue
                 tg_id = user.telegram_id
-            listings = await scraper.search_listings(alert.filters or {}, max_pages=6)
-            # log temporário
-            for ad in listings[:3]:
-                logger.info("AD: %s | neighborhood: %s", ad.get("title"), ad.get("neighborhood"))
-            logger.info("Total antes do filtro local: %s", len(listings))
+            listings = await scraper.search_listings(alert.filters or {}, max_pages=15)
             async with session_factory() as session:
                 seed_only = alert.last_checked is None
                 for ad in listings:
@@ -89,13 +85,17 @@ async def job_alerts(app) -> None:
 
                 if seed_only:
                     count = len(listings)
-                    search_url = build_search_url(alert.filters or {}, page=1)
+                    f = alert.filters or {}
+                    nh = f.get("neighborhoods") or []
+                    bairros = ", ".join(nh) if nh else "Maceió"
+                    preco = f"{_fmt_money(f.get('price_min'))} - {_fmt_money(f.get('price_max'))}"
+                    search_url = build_search_url(f, page=1)
                     seed_text = (
-                        f"Alerta {alert.name} ativado! "
-                        f"Encontrei {count} imóveis que já correspondem aos seus critérios.\n"
-                        f"🔗 [Ver resultados no OLX]({search_url})\n\n"
-                        f"A partir de agora, verifico essa busca e vou te avisar "
-                        f"quando aparecer algum anúncio novo."
+                        f"✅ Alerta *{alert.name}* ativado!\n"
+                        f"Encontrei *{count}* imóveis em *{bairros}* com preço entre *{preco}*.\n\n"
+                        f"🔗 [Ver no OLX]({search_url}) _(resultado geral, sem filtro de bairro)_\n\n"
+                        f"A partir de agora, verifico essa busca e vou te avisar quando aparecer "
+                        f"algum anúncio novo. 🔔"
                     )
                     logger.info(
                         "seed_only: enviando resumo do alerta %s (%d imóveis) para tg_id=%s",

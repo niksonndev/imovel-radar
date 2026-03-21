@@ -22,7 +22,7 @@ from telegram.ext import (
 
 from bot import keyboards
 from database import crud
-from scraper.olx_scraper import build_search_url, extract_olx_id_from_url
+from scraper.olx_scraper import extract_olx_id_from_url
 
 logger = logging.getLogger(__name__)
 
@@ -400,6 +400,8 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         "neighborhoods": sorted(sel),
     }
 
+    await q.message.reply_text("⏳ Peraê, tô procurando imóveis pra você...")
+
     async with _session(context) as session:
         user = await crud.get_or_create_user(
             session, update.effective_user.id, update.effective_user.username
@@ -408,35 +410,12 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     context.user_data.pop("wizard_alert", None)
 
-    scraper = context.application.bot_data["scraper"]
-    try:
-        listings = await scraper.search_listings(filters_dict, max_pages=6)
-        async with _session(context) as session:
-            for ad in listings:
-                oid = ad.get("olx_id")
-                if oid:
-                    await crud.mark_seen(session, alert.id, oid)
-            await crud.update_alert_last_checked(session, alert.id)
-
-        count = len(listings)
-        search_url = build_search_url(filters_dict, page=1)
-        await q.message.reply_text(
-            f"Alerta {alert.name} ativado! "
-            f"Encontrei {count} imóveis que já correspondem aos seus critérios.\n"
-            f"🔗 [Ver resultados no OLX]({search_url})\n\n"
-            f"A partir de agora, verifico essa busca e vou te avisar "
-            f"quando aparecer algum anúncio novo.",
-            parse_mode="Markdown",
-            disable_web_page_preview=True,
-        )
-    except Exception:
-        logger.exception("Seed scan falhou para alerta %s", alert.id)
-        interval = context.application.bot_data.get("alert_min", 30)
-        await q.message.reply_text(
-            f"✅ Alerta *{alert.name}* criado (id `{alert.id}`).\n"
-            f"🔎 Primeira verificação em até {interval} min.",
-            parse_mode="Markdown",
-        )
+    interval = context.application.bot_data.get("alert_min", 30)
+    await q.message.reply_text(
+        f"✅ Alerta *{alert.name}* criado!\n"
+        f"🔎 Primeira verificação em até {interval} min.",
+        parse_mode="Markdown",
+    )
 
     return ConversationHandler.END
 
