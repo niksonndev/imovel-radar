@@ -421,10 +421,11 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         count = len(listings)
         search_url = build_search_url(filters_dict, page=1)
         await q.message.reply_text(
-            f"✅ Alerta *{alert.name}* ativado!\n"
-            f"Encontrei *{count}* imóveis que já correspondem aos seus critérios.\n"
+            f"Alerta {alert.name} ativado! "
+            f"Encontrei {count} imóveis que já correspondem aos seus critérios.\n"
             f"🔗 [Ver resultados no OLX]({search_url})\n\n"
-            f"Vou te avisar quando aparecer algo novo. 🔔",
+            f"A partir de agora, verifico essa busca e vou te avisar "
+            f"quando aparecer algum anúncio novo.",
             parse_mode="Markdown",
             disable_web_page_preview=True,
         )

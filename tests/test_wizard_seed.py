@@ -70,10 +70,10 @@ async def test_wizard_sends_seed_message_immediately(wizard_env):
     query.message.reply_text.assert_called()
     last_call = query.message.reply_text.call_args_list[-1]
     text = last_call[1].get("text") or last_call[0][0]
-    assert "Alerta *Ape noco* ativado" in text
-    assert "*2* imóveis" in text
+    assert "Alerta Ape noco ativado" in text
+    assert "2 imóveis" in text
     assert "Ver resultados no OLX" in text
-    assert "algo novo" in text
+    assert "verifico essa busca" in text
 
 
 async def test_wizard_populates_seen_listings(wizard_env):

@@ -87,10 +87,11 @@ async def job_alerts(app) -> None:
                     count = len(listings)
                     search_url = build_search_url(alert.filters or {}, page=1)
                     seed_text = (
-                        f"✅ Alerta *{alert.name}* ativado!\n"
-                        f"Encontrei *{count}* imóveis que já correspondem aos seus critérios.\n"
+                        f"Alerta {alert.name} ativado! "
+                        f"Encontrei {count} imóveis que já correspondem aos seus critérios.\n"
                         f"🔗 [Ver resultados no OLX]({search_url})\n\n"
-                        f"Vou te avisar quando aparecer algo novo. 🔔"
+                        f"A partir de agora, verifico essa busca e vou te avisar "
+                        f"quando aparecer algum anúncio novo."
                     )
                     logger.info(
                         "seed_only: enviando resumo do alerta %s (%d imóveis) para tg_id=%s",

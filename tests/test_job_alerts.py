@@ -72,8 +72,8 @@ async def test_seed_only_sends_summary_message(db_factory):
     bot.send_message.assert_called_once()
     call_kwargs = bot.send_message.call_args[1]
     assert call_kwargs["chat_id"] == 123456
-    assert "Alerta *Apt Jatiúca* ativado" in call_kwargs["text"]
-    assert "*2* imóveis" in call_kwargs["text"]
+    assert "Alerta Apt Jatiúca ativado" in call_kwargs["text"]
+    assert "2 imóveis" in call_kwargs["text"]
 
 
 async def test_seed_only_populates_seen_listings(db_factory):
@@ -141,7 +141,7 @@ async def test_seed_only_no_listings(db_factory):
     await job_alerts(app)
 
     bot.send_message.assert_called_once()
-    assert "*0* imóveis" in bot.send_message.call_args[1]["text"]
+    assert "0 imóveis" in bot.send_message.call_args[1]["text"]
 
 
 async def test_seed_message_contains_olx_link(db_factory):
@@ -228,4 +228,6 @@ async def test_wizard_filters_work_with_seed(db_factory):
     calls = bot.send_message.call_args_list
     seed_calls = [c for c in calls if "ativado" in c[1].get("text", "")]
     assert len(seed_calls) >= 1
-    assert "Ape noco" in seed_calls[-1][1]["text"]
+    text = seed_calls[-1][1]["text"]
+    assert "Ape noco" in text
+    assert "verifico essa busca" in text
