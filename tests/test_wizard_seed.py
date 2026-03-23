@@ -18,7 +18,6 @@ from bot.carousel import (
     _carousel_caption,
     _carousel_keyboard,
     PAGE_SIZE,
-    MAX_CAROUSEL,
 )
 from bot.conversations import wiz_confirm_cb
 
@@ -194,6 +193,18 @@ async def test_seed_sends_carousel_first_page(seed_env):
     assert "Página 1 de 1" in call_kw["caption"]
 
 
+async def test_seed_sends_confirmation_after_carousel(seed_env):
+    """Após carrossel, envia mensagem de confirmação do alerta."""
+    factory, app, alert, bot, user_data, scraper = seed_env
+
+    await immediate_seed(app, alert.id, 99999, alert.filters, user_data)
+
+    last_msg = bot.send_message.call_args_list[-1]
+    text = last_msg[1].get("text", "")
+    assert "Alerta criado" in text
+    assert "avisar" in text
+
+
 async def test_seed_stores_carousel_state(seed_env):
     """Seed armazena estado do carrossel em user_data."""
     factory, app, alert, bot, user_data, scraper = seed_env
@@ -209,8 +220,8 @@ async def test_seed_stores_carousel_state(seed_env):
     assert carousel["page_size"] == PAGE_SIZE
 
 
-async def test_seed_limits_to_max_carousel(seed_env):
-    """immediate_seed limita a MAX_CAROUSEL anúncios."""
+async def test_seed_passes_all_listings(seed_env):
+    """immediate_seed passa todos os anúncios para o carrossel (sem corte)."""
     factory, app, alert, bot, user_data, scraper = seed_env
 
     many = [
@@ -231,7 +242,7 @@ async def test_seed_limits_to_max_carousel(seed_env):
     await immediate_seed(app, alert.id, 99999, alert.filters, user_data)
 
     key = f"carousel_{alert.id}"
-    assert len(user_data[key]["listings"]) == MAX_CAROUSEL
+    assert len(user_data[key]["listings"]) == 9
 
 
 async def test_seed_no_listings_sends_empty_message(seed_env):
@@ -284,9 +295,10 @@ async def test_seed_text_fallback_when_no_thumbnail(seed_env):
     await immediate_seed(app, alert.id, 99999, alert.filters, user_data)
 
     bot.send_photo.assert_not_called()
-    bot.send_message.assert_called_once()
-    text = bot.send_message.call_args[1].get("text", "")
-    assert "Casa sem foto" in text
+    calls = bot.send_message.call_args_list
+    assert len(calls) == 2
+    assert "Casa sem foto" in calls[0][1].get("text", "")
+    assert "Alerta criado" in calls[1][1].get("text", "")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -415,7 +427,7 @@ def test_keyboard_single_page_first():
     assert "◀ Página anterior" not in labels
     assert "⏭ Próxima página" not in labels
     assert "🔗 Ver anúncio" in labels
-    assert "✅ Concluir" in labels
+    assert "✅ Concluir" not in labels
 
 
 def test_keyboard_single_page_middle():
@@ -438,7 +450,7 @@ def test_keyboard_single_page_last():
 
 
 def test_keyboard_single_item():
-    """Item único: apenas Ver anúncio e Concluir."""
+    """Item único: apenas Ver anúncio."""
     kb = _carousel_keyboard(carousel_id=1, index=0, total=1, url="https://olx.com.br/d/1")
     labels = _btn_labels(kb)
     assert "◀ Anterior" not in labels
@@ -446,7 +458,7 @@ def test_keyboard_single_item():
     assert "◀ Página anterior" not in labels
     assert "⏭ Próxima página" not in labels
     assert "🔗 Ver anúncio" in labels
-    assert "✅ Concluir" in labels
+    assert "✅ Concluir" not in labels
 
 
 def test_keyboard_multipage_first_page_first_item():
