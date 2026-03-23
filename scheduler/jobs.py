@@ -15,6 +15,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram import Bot
 from telegram.constants import ParseMode
 
+from bot.carousel import send_carousel, MAX_NOTIF_CAROUSEL
 from database import crud
 from database.models import User, WatchedListing
 from scraper.olx_scraper import build_search_url
@@ -44,44 +45,41 @@ async def job_alerts(app) -> None:
             listings = await scraper.search_listings(alert.filters or {}, max_pages=15)
             async with session_factory() as session:
                 seed_only = alert.last_checked is None
+                new_ads: list[dict] = []
                 for ad in listings:
                     oid = ad.get("olx_id")
                     if not oid:
                         continue
                     is_new = await crud.mark_seen(session, alert.id, oid)
-                    if seed_only or not is_new:
-                        continue
-                    title = ad.get("title") or "Imóvel"
-                    price = _fmt_money(ad.get("price"))
-                    area = ad.get("area_m2")
-                    bed = ad.get("bedrooms")
-                    nb = ad.get("neighborhood") or "—"
-                    url = ad.get("url") or ""
-                    area_s = f"{area:g}m²" if area else "—"
-                    bed_s = f"{bed} quartos" if bed is not None else "—"
-                    text = (
-                        f"🏠 *Novo imóvel encontrado!* — Alerta: _{alert.name}_\n\n"
-                        f"📍 {title}\n"
-                        f"💰 {price}\n"
-                        f"📐 {area_s} | 🛏 {bed_s}\n"
-                        f"📌 {nb}\n"
-                        f"🔗 [Ver anúncio]({url})"
-                    )
+                    if is_new and not seed_only:
+                        new_ads.append(ad)
+
+                if not seed_only and new_ads:
+                    count = len(new_ads)
+                    plural = "imóvel novo" if count == 1 else "imóveis novos"
                     try:
                         await bot.send_message(
                             chat_id=tg_id,
-                            text=text,
+                            text=(
+                                f"🔔 Alerta *{alert.name}* — "
+                                f"encontrei *{count}* {plural}!"
+                            ),
                             parse_mode=ParseMode.MARKDOWN,
-                            disable_web_page_preview=False,
                         )
-                        thumb = ad.get("thumbnail")
-                        if thumb and thumb.startswith("http"):
-                            try:
-                                await bot.send_photo(chat_id=tg_id, photo=thumb, caption=title[:200])
-                            except Exception:
-                                pass
                     except Exception as e:
                         logger.warning("Falha ao notificar %s: %s", tg_id, e)
+
+                    carousel_ads = new_ads[:MAX_NOTIF_CAROUSEL]
+                    transaction = (alert.filters or {}).get("transaction", "sale")
+                    carousel_id = f"{alert.id}_notif"
+                    user_data = app.user_data[tg_id]
+                    try:
+                        await send_carousel(
+                            bot, tg_id, carousel_ads, transaction,
+                            carousel_id, user_data,
+                        )
+                    except Exception as e:
+                        logger.warning("Falha ao enviar carrossel %s: %s", tg_id, e)
 
                 if seed_only:
                     count = len(listings)

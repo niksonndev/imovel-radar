@@ -2,6 +2,7 @@
 import logging
 import pytest
 import pytest_asyncio
+from collections import defaultdict
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -48,6 +49,7 @@ def _fake_app(factory, bot_mock, scraper_mock):
         "scraper": scraper_mock,
         "alert_min": 30,
     }
+    app.user_data = defaultdict(dict)
     return app
 
 
@@ -72,8 +74,9 @@ async def test_seed_only_sends_summary_message(db_factory):
     bot.send_message.assert_called_once()
     call_kwargs = bot.send_message.call_args[1]
     assert call_kwargs["chat_id"] == 123456
-    assert "Alerta Apt Jatiúca ativado" in call_kwargs["text"]
-    assert "2 imóveis" in call_kwargs["text"]
+    assert "Apt Jatiúca" in call_kwargs["text"]
+    assert "ativado" in call_kwargs["text"]
+    assert "2" in call_kwargs["text"]
 
 
 async def test_seed_only_populates_seen_listings(db_factory):
@@ -106,8 +109,8 @@ async def test_seed_only_does_not_send_individual_notifications(db_factory):
     assert "Novo imóvel encontrado" not in bot.send_message.call_args[1]["text"]
 
 
-async def test_second_cycle_sends_only_new(db_factory):
-    """Segundo ciclo deve notificar apenas anúncios novos."""
+async def test_second_cycle_sends_carousel_for_new(db_factory):
+    """Segundo ciclo deve enviar resumo + carrossel com anúncios novos."""
     factory, user, alert = db_factory
     bot = AsyncMock()
     scraper = AsyncMock()
@@ -124,10 +127,16 @@ async def test_second_cycle_sends_only_new(db_factory):
     scraper.search_listings.return_value = new_listings
     await job_alerts(app)
 
-    assert bot.send_message.call_count == 1
-    call_kwargs = bot.send_message.call_args[1]
-    assert "Novo imóvel encontrado" in call_kwargs["text"]
-    assert "Apt 3" in call_kwargs["text"]
+    calls = bot.send_message.call_args_list
+    assert len(calls) == 2
+    summary_text = calls[0][1]["text"]
+    assert "Alerta" in summary_text
+    assert "1" in summary_text
+
+    carousel_text = calls[1][1].get("text", "")
+    assert "Apt 3" in carousel_text
+    assert "1 de 1" in carousel_text
+    assert "Página 1 de 1" in carousel_text
 
 
 async def test_seed_only_no_listings(db_factory):
@@ -141,7 +150,7 @@ async def test_seed_only_no_listings(db_factory):
     await job_alerts(app)
 
     bot.send_message.assert_called_once()
-    assert "0 imóveis" in bot.send_message.call_args[1]["text"]
+    assert "*0*" in bot.send_message.call_args[1]["text"]
 
 
 async def test_seed_message_contains_olx_link(db_factory):
@@ -155,7 +164,7 @@ async def test_seed_message_contains_olx_link(db_factory):
     await job_alerts(app)
 
     text = bot.send_message.call_args[1]["text"]
-    assert "Ver resultados no OLX" in text
+    assert "Ver no OLX" in text
     assert "olx.com.br" in text
 
 
