@@ -34,6 +34,9 @@ def _fmt_money(v: float | None) -> str:
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # /start também funciona como "reset geral" de estado da conversa.
+    context.user_data.clear()
+
     # Garante linha no banco para esse usuário do Telegram
     async with _session(context) as session:
         await crud.get_or_create_user(
