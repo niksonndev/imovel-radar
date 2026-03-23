@@ -23,6 +23,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 
 import config
+from bot.carousel import carousel_cb
 from bot.conversations import conversation_novo_alerta, conversation_acompanhar_anuncio
 from bot.handlers import (
     cmd_ajuda,
@@ -109,6 +110,10 @@ def main() -> None:
         CallbackQueryHandler(menu_meus_alertas_cb, pattern=r"^menu_meus_alertas$")
     )
     app.add_handler(CallbackQueryHandler(menu_ajuda_cb, pattern=r"^menu_ajuda$"))
+    # Carrossel de anúncios (navegação inline após seed imediato)
+    app.add_handler(
+        CallbackQueryHandler(carousel_cb, pattern=r"^crs_\d+_(prev|next|done)$")
+    )
     # "👁 Acompanhar Anúncio" (conversa curta)
     app.add_handler(conversation_acompanhar_anuncio())
     logger.info("Polling…")

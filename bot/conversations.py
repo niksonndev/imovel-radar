@@ -7,6 +7,7 @@ ConversationHandler = máquina de estados:
 
 range(10) gera 0,1,...,9 — só precisamos de IDs únicos para os estados.
 """
+import asyncio
 import logging
 import re
 
@@ -21,6 +22,7 @@ from telegram.ext import (
 )
 
 from bot import keyboards
+from bot.carousel import immediate_seed
 from database import crud
 from scraper.olx_scraper import extract_olx_id_from_url
 
@@ -410,12 +412,16 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     context.user_data.pop("wizard_alert", None)
 
-    interval = context.application.bot_data.get("alert_min", 30)
-    await q.message.reply_text(
-        f"✅ Alerta *{alert.name}* criado!\n"
-        f"🔎 Primeira verificação em até {interval} min.",
-        parse_mode="Markdown",
+    task = asyncio.create_task(
+        immediate_seed(
+            context.application,
+            alert.id,
+            update.effective_user.id,
+            filters_dict,
+            context.user_data,
+        )
     )
+    context.user_data[f"_seed_task_{alert.id}"] = task
 
     return ConversationHandler.END
 
