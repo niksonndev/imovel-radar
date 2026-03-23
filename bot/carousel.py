@@ -1,7 +1,8 @@
 """
-Carrossel de anúncios: exibe até 5 imóveis após confirmação do alerta.
+Carrossel de anúncios: exibe imóveis em mensagem interativa navegável.
 
-immediate_seed  — scrape imediato + seed seen_listings + mostra carrossel
+send_carousel   — envia a primeira página e guarda estado em user_data
+immediate_seed  — scrape imediato + seed seen_listings + carrossel
 carousel_cb     — navega ◀ Anterior / Próximo ▶ / ✅ Concluir
 """
 from __future__ import annotations
@@ -21,6 +22,7 @@ from database import crud
 logger = logging.getLogger(__name__)
 
 MAX_CAROUSEL = 5
+MAX_NOTIF_CAROUSEL = 10
 
 
 def _fmt_money(v: float | None) -> str:
@@ -48,23 +50,27 @@ def _carousel_caption(ad: dict, index: int, total: int, transaction: str) -> str
 
 
 def _carousel_keyboard(
-    alert_id: int, index: int, total: int, url: str | None
+    carousel_id, index: int, total: int, url: str | None
 ) -> InlineKeyboardMarkup:
     nav_row: list[InlineKeyboardButton] = []
     if index > 0:
         nav_row.append(
-            InlineKeyboardButton("◀ Anterior", callback_data=f"crs_{alert_id}_prev")
+            InlineKeyboardButton(
+                "◀ Anterior", callback_data=f"crs_{carousel_id}_prev"
+            )
         )
     if index < total - 1:
         nav_row.append(
-            InlineKeyboardButton("Próximo ▶", callback_data=f"crs_{alert_id}_next")
+            InlineKeyboardButton(
+                "Próximo ▶", callback_data=f"crs_{carousel_id}_next"
+            )
         )
 
     link_row = [
         InlineKeyboardButton("🔗 Ver anúncio", url=url or "https://www.olx.com.br")
     ]
     done_row = [
-        InlineKeyboardButton("✅ Concluir", callback_data=f"crs_{alert_id}_done")
+        InlineKeyboardButton("✅ Concluir", callback_data=f"crs_{carousel_id}_done")
     ]
 
     rows: list[list[InlineKeyboardButton]] = []
@@ -80,13 +86,57 @@ def _has_photo(ad: dict) -> bool:
     return bool(thumb and isinstance(thumb, str) and thumb.startswith("http"))
 
 
+# ────────────────────── enviar carrossel (reutilizável) ──────────────────────
+
+
+async def send_carousel(
+    bot,
+    chat_id: int,
+    ads: list[dict],
+    transaction: str,
+    carousel_id: str,
+    user_data: dict,
+) -> None:
+    """Envia a primeira página do carrossel e armazena estado em *user_data*."""
+    total = len(ads)
+    ad = ads[0]
+    caption = _carousel_caption(ad, 0, total, transaction)
+    keyboard = _carousel_keyboard(carousel_id, 0, total, ad.get("url"))
+
+    is_photo = False
+    if _has_photo(ad):
+        try:
+            await bot.send_photo(
+                chat_id=chat_id,
+                photo=ad["thumbnail"],
+                caption=caption,
+                reply_markup=keyboard,
+            )
+            is_photo = True
+        except Exception:
+            await bot.send_message(
+                chat_id=chat_id, text=caption, reply_markup=keyboard
+            )
+    else:
+        await bot.send_message(
+            chat_id=chat_id, text=caption, reply_markup=keyboard
+        )
+
+    user_data[f"carousel_{carousel_id}"] = {
+        "ads": ads,
+        "index": 0,
+        "transaction": transaction,
+        "is_photo": is_photo,
+    }
+
+
 # ────────────────────── seed imediato ──────────────────────
 
 
 async def immediate_seed(
     app, alert_id: int, tg_id: int, filters: dict, user_data: dict
 ) -> None:
-    """Scrape → seed seen_listings → exibe carrossel (até 5 anúncios)."""
+    """Scrape → seed seen_listings → exibe carrossel (até MAX_CAROUSEL anúncios)."""
     session_factory = app.bot_data["session_factory"]
     scraper = app.bot_data["scraper"]
     bot = app.bot
@@ -125,36 +175,9 @@ async def immediate_seed(
         )
         return
 
-    ad = carousel_ads[0]
-    total = len(carousel_ads)
-    caption = _carousel_caption(ad, 0, total, transaction)
-    keyboard = _carousel_keyboard(alert_id, 0, total, ad.get("url"))
-
-    is_photo = False
-    if _has_photo(ad):
-        try:
-            await bot.send_photo(
-                chat_id=tg_id,
-                photo=ad["thumbnail"],
-                caption=caption,
-                reply_markup=keyboard,
-            )
-            is_photo = True
-        except Exception:
-            await bot.send_message(
-                chat_id=tg_id, text=caption, reply_markup=keyboard
-            )
-    else:
-        await bot.send_message(
-            chat_id=tg_id, text=caption, reply_markup=keyboard
-        )
-
-    user_data[f"carousel_{alert_id}"] = {
-        "ads": carousel_ads,
-        "index": 0,
-        "transaction": transaction,
-        "is_photo": is_photo,
-    }
+    await send_carousel(
+        bot, tg_id, carousel_ads, transaction, str(alert_id), user_data
+    )
 
 
 # ────────────────────── navegação do carrossel ──────────────────────
@@ -172,13 +195,9 @@ async def carousel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if len(parts) < 3:
         return
 
-    try:
-        alert_id = int(parts[1])
-    except ValueError:
-        return
-
-    action = parts[2]
-    key = f"carousel_{alert_id}"
+    action = parts[-1]
+    carousel_id = "_".join(parts[1:-1])
+    key = f"carousel_{carousel_id}"
     carousel = context.user_data.get(key)
 
     if not carousel:
@@ -193,16 +212,18 @@ async def carousel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 pass
         return
 
-    # ── Concluir ──
+    # ── Concluir: sempre texto simples, sem foto, sem botões ──
     if action == "done":
         if carousel.get("is_photo"):
+            chat_id = q.message.chat_id
             try:
-                await q.edit_message_caption(caption=_DONE_TEXT, reply_markup=None)
+                await q.message.delete()
             except Exception:
-                try:
-                    await q.edit_message_text(text=_DONE_TEXT)
-                except Exception:
-                    pass
+                pass
+            try:
+                await context.bot.send_message(chat_id=chat_id, text=_DONE_TEXT)
+            except Exception:
+                pass
         else:
             try:
                 await q.edit_message_text(text=_DONE_TEXT)
@@ -231,7 +252,7 @@ async def carousel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     ad = ads[new_idx]
 
     caption = _carousel_caption(ad, new_idx, total, transaction)
-    keyboard = _carousel_keyboard(alert_id, new_idx, total, ad.get("url"))
+    keyboard = _carousel_keyboard(carousel_id, new_idx, total, ad.get("url"))
     photo = _has_photo(ad)
     was_photo = carousel.get("is_photo", False)
 
