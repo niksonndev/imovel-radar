@@ -13,7 +13,13 @@ from database.crud import (
     get_or_create_user,
     seen_olx_ids,
 )
-from bot.carousel import immediate_seed, _carousel_caption, _carousel_keyboard, MAX_CAROUSEL
+from bot.carousel import (
+    immediate_seed,
+    _carousel_caption,
+    _carousel_keyboard,
+    PAGE_SIZE,
+    MAX_CAROUSEL,
+)
 from bot.conversations import wiz_confirm_cb
 
 pytestmark = pytest.mark.asyncio
@@ -142,6 +148,11 @@ async def _await_seed_tasks(user_data: dict) -> None:
             await val
 
 
+def _btn_labels(kb):
+    """Extrai labels de todos os botões de um InlineKeyboardMarkup."""
+    return [b.text for row in kb.inline_keyboard for b in row]
+
+
 # ═══════════════════════════════════════════════════════════════
 # Testes de immediate_seed (unidade)
 # ═══════════════════════════════════════════════════════════════
@@ -180,6 +191,7 @@ async def test_seed_sends_carousel_first_page(seed_env):
     assert call_kw["chat_id"] == 99999
     assert "Apt 1" in call_kw["caption"]
     assert "1 de 2" in call_kw["caption"]
+    assert "Página 1 de 1" in call_kw["caption"]
 
 
 async def test_seed_stores_carousel_state(seed_env):
@@ -191,13 +203,14 @@ async def test_seed_stores_carousel_state(seed_env):
     key = f"carousel_{alert.id}"
     assert key in user_data
     carousel = user_data[key]
-    assert len(carousel["ads"]) == 2
+    assert len(carousel["listings"]) == 2
     assert carousel["index"] == 0
     assert carousel["transaction"] == "sale"
+    assert carousel["page_size"] == PAGE_SIZE
 
 
 async def test_seed_limits_to_max_carousel(seed_env):
-    """Carrossel mostra no máximo MAX_CAROUSEL anúncios."""
+    """immediate_seed limita a MAX_CAROUSEL anúncios."""
     factory, app, alert, bot, user_data, scraper = seed_env
 
     many = [
@@ -218,7 +231,7 @@ async def test_seed_limits_to_max_carousel(seed_env):
     await immediate_seed(app, alert.id, 99999, alert.filters, user_data)
 
     key = f"carousel_{alert.id}"
-    assert len(user_data[key]["ads"]) == MAX_CAROUSEL
+    assert len(user_data[key]["listings"]) == MAX_CAROUSEL
 
 
 async def test_seed_no_listings_sends_empty_message(seed_env):
@@ -369,39 +382,104 @@ def test_carousel_caption_format():
     assert "Ponta Verde" in caption
     assert "Venda" in caption
     assert "1 de 3" in caption
+    assert "Página 1 de 1" in caption
 
 
-def test_carousel_keyboard_first_page():
-    kb = _carousel_keyboard(carousel_id=1, index=0, total=3, url="https://olx.com.br/d/123")
-    flat = [btn for row in kb.inline_keyboard for btn in row]
-    labels = [b.text for b in flat]
+def test_carousel_caption_multipage():
+    """Contador mostra página correta para itens além da primeira página."""
+    ad = {"title": "X", "price": 100000}
+    caption = _carousel_caption(ad, 7, 12, "rent")
+    assert "3 de 5" in caption
+    assert "Página 2 de 3" in caption
+
+
+def test_carousel_caption_last_partial_page():
+    """Última página parcial mostra quantidade certa de itens."""
+    ad = {"title": "X", "price": 100000}
+    caption = _carousel_caption(ad, 10, 12, "sale")
+    assert "1 de 2" in caption
+    assert "Página 3 de 3" in caption
+
+
+# ═══════════════════════════════════════════════════════════════
+# Testes do teclado do carrossel
+# ═══════════════════════════════════════════════════════════════
+
+
+def test_keyboard_single_page_first():
+    """Primeiro item, página única: sem Anterior, com Próximo, sem botões de página."""
+    kb = _carousel_keyboard(carousel_id=1, index=0, total=3, url="https://olx.com.br/d/1")
+    labels = _btn_labels(kb)
     assert "◀ Anterior" not in labels
     assert "Próximo ▶" in labels
+    assert "◀ Página anterior" not in labels
+    assert "⏭ Próxima página" not in labels
     assert "🔗 Ver anúncio" in labels
     assert "✅ Concluir" in labels
 
 
-def test_carousel_keyboard_middle_page():
-    kb = _carousel_keyboard(carousel_id=1, index=1, total=3, url="https://olx.com.br/d/123")
-    flat = [btn for row in kb.inline_keyboard for btn in row]
-    labels = [b.text for b in flat]
+def test_keyboard_single_page_middle():
+    """Item do meio, página única: com Anterior e Próximo, sem página."""
+    kb = _carousel_keyboard(carousel_id=1, index=1, total=3, url="https://olx.com.br/d/1")
+    labels = _btn_labels(kb)
     assert "◀ Anterior" in labels
     assert "Próximo ▶" in labels
+    assert "◀ Página anterior" not in labels
+    assert "⏭ Próxima página" not in labels
 
 
-def test_carousel_keyboard_last_page():
-    kb = _carousel_keyboard(carousel_id=1, index=2, total=3, url="https://olx.com.br/d/123")
-    flat = [btn for row in kb.inline_keyboard for btn in row]
-    labels = [b.text for b in flat]
+def test_keyboard_single_page_last():
+    """Último item, página única: com Anterior, sem Próximo, sem página."""
+    kb = _carousel_keyboard(carousel_id=1, index=2, total=3, url="https://olx.com.br/d/1")
+    labels = _btn_labels(kb)
     assert "◀ Anterior" in labels
     assert "Próximo ▶" not in labels
+    assert "⏭ Próxima página" not in labels
 
 
-def test_carousel_keyboard_single_item():
-    kb = _carousel_keyboard(carousel_id=1, index=0, total=1, url="https://olx.com.br/d/123")
-    flat = [btn for row in kb.inline_keyboard for btn in row]
-    labels = [b.text for b in flat]
+def test_keyboard_single_item():
+    """Item único: apenas Ver anúncio e Concluir."""
+    kb = _carousel_keyboard(carousel_id=1, index=0, total=1, url="https://olx.com.br/d/1")
+    labels = _btn_labels(kb)
     assert "◀ Anterior" not in labels
     assert "Próximo ▶" not in labels
+    assert "◀ Página anterior" not in labels
+    assert "⏭ Próxima página" not in labels
     assert "🔗 Ver anúncio" in labels
     assert "✅ Concluir" in labels
+
+
+def test_keyboard_multipage_first_page_first_item():
+    """Primeiro item da primeira página com múltiplas: Próximo + Próxima página."""
+    kb = _carousel_keyboard(carousel_id=1, index=0, total=12, url="https://olx.com.br/d/1")
+    labels = _btn_labels(kb)
+    assert "◀ Anterior" not in labels
+    assert "Próximo ▶" in labels
+    assert "◀ Página anterior" not in labels
+    assert "⏭ Próxima página" in labels
+
+
+def test_keyboard_multipage_first_page_last_item():
+    """Último item da primeira página: Anterior + Próxima página, sem Próximo."""
+    kb = _carousel_keyboard(carousel_id=1, index=4, total=12, url="https://olx.com.br/d/1")
+    labels = _btn_labels(kb)
+    assert "◀ Anterior" in labels
+    assert "Próximo ▶" not in labels
+    assert "◀ Página anterior" not in labels
+    assert "⏭ Próxima página" in labels
+
+
+def test_keyboard_multipage_middle_page():
+    """Página do meio: ambos botões de página presentes."""
+    kb = _carousel_keyboard(carousel_id=1, index=5, total=12, url="https://olx.com.br/d/1")
+    labels = _btn_labels(kb)
+    assert "◀ Página anterior" in labels
+    assert "⏭ Próxima página" in labels
+
+
+def test_keyboard_multipage_last_page():
+    """Última página: Página anterior, sem Próxima página."""
+    kb = _carousel_keyboard(carousel_id=1, index=10, total=12, url="https://olx.com.br/d/1")
+    labels = _btn_labels(kb)
+    assert "◀ Página anterior" in labels
+    assert "⏭ Próxima página" not in labels

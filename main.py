@@ -112,7 +112,7 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(menu_ajuda_cb, pattern=r"^menu_ajuda$"))
     # Carrossel de anúncios (navegação inline após seed imediato)
     app.add_handler(
-        CallbackQueryHandler(carousel_cb, pattern=r"^crs_\d+(?:_notif)?_(prev|next|done)$")
+        CallbackQueryHandler(carousel_cb, pattern=r"^crs_\d+(?:_notif)?_(prev|next|done|pgn|pgp)$")
     )
     # "👁 Acompanhar Anúncio" (conversa curta)
     app.add_handler(conversation_acompanhar_anuncio())

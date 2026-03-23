@@ -136,6 +136,7 @@ async def test_second_cycle_sends_carousel_for_new(db_factory):
     carousel_text = calls[1][1].get("text", "")
     assert "Apt 3" in carousel_text
     assert "1 de 1" in carousel_text
+    assert "Página 1 de 1" in carousel_text
 
 
 async def test_seed_only_no_listings(db_factory):
