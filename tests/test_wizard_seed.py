@@ -372,7 +372,7 @@ def test_carousel_caption_format():
 
 
 def test_carousel_keyboard_first_page():
-    kb = _carousel_keyboard(alert_id=1, index=0, total=3, url="https://olx.com.br/d/123")
+    kb = _carousel_keyboard(carousel_id=1, index=0, total=3, url="https://olx.com.br/d/123")
     flat = [btn for row in kb.inline_keyboard for btn in row]
     labels = [b.text for b in flat]
     assert "◀ Anterior" not in labels
@@ -382,7 +382,7 @@ def test_carousel_keyboard_first_page():
 
 
 def test_carousel_keyboard_middle_page():
-    kb = _carousel_keyboard(alert_id=1, index=1, total=3, url="https://olx.com.br/d/123")
+    kb = _carousel_keyboard(carousel_id=1, index=1, total=3, url="https://olx.com.br/d/123")
     flat = [btn for row in kb.inline_keyboard for btn in row]
     labels = [b.text for b in flat]
     assert "◀ Anterior" in labels
@@ -390,7 +390,7 @@ def test_carousel_keyboard_middle_page():
 
 
 def test_carousel_keyboard_last_page():
-    kb = _carousel_keyboard(alert_id=1, index=2, total=3, url="https://olx.com.br/d/123")
+    kb = _carousel_keyboard(carousel_id=1, index=2, total=3, url="https://olx.com.br/d/123")
     flat = [btn for row in kb.inline_keyboard for btn in row]
     labels = [b.text for b in flat]
     assert "◀ Anterior" in labels
@@ -398,7 +398,7 @@ def test_carousel_keyboard_last_page():
 
 
 def test_carousel_keyboard_single_item():
-    kb = _carousel_keyboard(alert_id=1, index=0, total=1, url="https://olx.com.br/d/123")
+    kb = _carousel_keyboard(carousel_id=1, index=0, total=1, url="https://olx.com.br/d/123")
     flat = [btn for row in kb.inline_keyboard for btn in row]
     labels = [b.text for b in flat]
     assert "◀ Anterior" not in labels
