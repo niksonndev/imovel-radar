@@ -6,7 +6,7 @@ da página e salto entre páginas.
 
 send_carousel   — envia a primeira página e guarda estado em user_data
 immediate_seed  — scrape imediato + seed seen_listings + carrossel
-carousel_cb     — navega ◀/▶ (anúncio), ◀ Página/⏭ Página, ✅ Concluir
+carousel_cb     — navega ◀/▶ (anúncio), ◀ Página/⏭ Página
 """
 from __future__ import annotations
 
@@ -26,7 +26,6 @@ from database import crud
 logger = logging.getLogger(__name__)
 
 PAGE_SIZE = 5
-MAX_CAROUSEL = 5
 MAX_NOTIF_CAROUSEL = 10
 
 
@@ -106,9 +105,6 @@ def _carousel_keyboard(
     link_row = [
         InlineKeyboardButton("🔗 Ver anúncio", url=url or "https://www.olx.com.br")
     ]
-    done_row = [
-        InlineKeyboardButton("✅ Concluir", callback_data=f"crs_{carousel_id}_done")
-    ]
 
     rows: list[list[InlineKeyboardButton]] = []
     if nav_row:
@@ -116,7 +112,6 @@ def _carousel_keyboard(
     if page_row:
         rows.append(page_row)
     rows.append(link_row)
-    rows.append(done_row)
     return InlineKeyboardMarkup(rows)
 
 
@@ -179,7 +174,7 @@ async def send_carousel(
 async def immediate_seed(
     app, alert_id: int, tg_id: int, filters: dict, user_data: dict
 ) -> None:
-    """Scrape → seed seen_listings → exibe carrossel (até MAX_CAROUSEL anúncios)."""
+    """Scrape → seed seen_listings → exibe carrossel com todos os anúncios."""
     session_factory = app.bot_data["session_factory"]
     scraper = app.bot_data["scraper"]
     bot = app.bot
@@ -206,9 +201,8 @@ async def immediate_seed(
         await crud.update_alert_last_checked(session, alert_id)
 
     transaction = filters.get("transaction", "sale")
-    carousel_ads = listings[:MAX_CAROUSEL]
 
-    if not carousel_ads:
+    if not listings:
         await bot.send_message(
             chat_id=tg_id,
             text=(
@@ -219,7 +213,11 @@ async def immediate_seed(
         return
 
     await send_carousel(
-        bot, tg_id, carousel_ads, transaction, str(alert_id), user_data
+        bot, tg_id, listings, transaction, str(alert_id), user_data
+    )
+    await bot.send_message(
+        chat_id=tg_id,
+        text="✅ Alerta criado! Vou te avisar quando aparecer algo novo. 🔔",
     )
 
 
@@ -227,7 +225,7 @@ async def immediate_seed(
 
 
 async def carousel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handler para ◀/▶, ◀ Página/⏭ Página, ✅ Concluir."""
+    """Handler para ◀/▶ (anúncio) e ◀ Página/⏭ Página."""
     q = update.callback_query
     await q.answer()
 
@@ -246,15 +244,6 @@ async def carousel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await q.edit_message_reply_markup(reply_markup=None)
         except Exception:
             pass
-        return
-
-    # ── Concluir: remove botões, mantém mensagem do anúncio ──
-    if action == "done":
-        try:
-            await q.edit_message_reply_markup(reply_markup=None)
-        except Exception:
-            pass
-        context.user_data.pop(key, None)
         return
 
     # ── Navegação ──
