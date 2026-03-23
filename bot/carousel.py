@@ -1,13 +1,17 @@
 """
 Carrossel de anúncios: exibe imóveis em mensagem interativa navegável.
 
+Paginação em grupos de PAGE_SIZE (5). Navegação anúncio-a-anúncio dentro
+da página e salto entre páginas.
+
 send_carousel   — envia a primeira página e guarda estado em user_data
 immediate_seed  — scrape imediato + seed seen_listings + carrossel
-carousel_cb     — navega ◀ Anterior / Próximo ▶ / ✅ Concluir
+carousel_cb     — navega ◀/▶ (anúncio), ◀ Página/⏭ Página, ✅ Concluir
 """
 from __future__ import annotations
 
 import logging
+import math
 
 from telegram import (
     InlineKeyboardButton,
@@ -21,6 +25,7 @@ from database import crud
 
 logger = logging.getLogger(__name__)
 
+PAGE_SIZE = 5
 MAX_CAROUSEL = 5
 MAX_NOTIF_CAROUSEL = 10
 
@@ -29,6 +34,16 @@ def _fmt_money(v: float | None) -> str:
     if v is None:
         return "—"
     return f"R$ {v:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _page_info(index: int, total: int):
+    """Retorna (page 0-based, total_pages, idx_in_page, items_on_page)."""
+    page = index // PAGE_SIZE
+    total_pages = max(1, math.ceil(total / PAGE_SIZE))
+    page_start = page * PAGE_SIZE
+    items_on_page = min(PAGE_SIZE, total - page_start)
+    idx_in_page = index - page_start
+    return page, total_pages, idx_in_page, items_on_page
 
 
 def _carousel_caption(ad: dict, index: int, total: int, transaction: str) -> str:
@@ -41,28 +56,50 @@ def _carousel_caption(ad: dict, index: int, total: int, transaction: str) -> str
     neighborhood = ad.get("neighborhood") or "—"
     tr_label = {"sale": "Venda", "rent": "Aluguel"}.get(transaction, transaction or "")
 
+    page, total_pages, idx_in_page, items_on_page = _page_info(index, total)
+    counter = (
+        f"{idx_in_page + 1} de {items_on_page} — "
+        f"Página {page + 1} de {total_pages}"
+    )
+
     return (
         f"🏠 {title}\n"
         f"💰 {price} | 🛏 {bed_s} | 📐 {area_s}\n"
         f"📍 {neighborhood} · {tr_label}\n\n"
-        f"{index + 1} de {total}"
+        f"{counter}"
     )
 
 
 def _carousel_keyboard(
     carousel_id, index: int, total: int, url: str | None
 ) -> InlineKeyboardMarkup:
+    page, total_pages, idx_in_page, items_on_page = _page_info(index, total)
+
     nav_row: list[InlineKeyboardButton] = []
-    if index > 0:
+    if idx_in_page > 0:
         nav_row.append(
             InlineKeyboardButton(
                 "◀ Anterior", callback_data=f"crs_{carousel_id}_prev"
             )
         )
-    if index < total - 1:
+    if idx_in_page < items_on_page - 1:
         nav_row.append(
             InlineKeyboardButton(
                 "Próximo ▶", callback_data=f"crs_{carousel_id}_next"
+            )
+        )
+
+    page_row: list[InlineKeyboardButton] = []
+    if page > 0:
+        page_row.append(
+            InlineKeyboardButton(
+                "◀ Página anterior", callback_data=f"crs_{carousel_id}_pgp"
+            )
+        )
+    if page < total_pages - 1:
+        page_row.append(
+            InlineKeyboardButton(
+                "⏭ Próxima página", callback_data=f"crs_{carousel_id}_pgn"
             )
         )
 
@@ -76,6 +113,8 @@ def _carousel_keyboard(
     rows: list[list[InlineKeyboardButton]] = []
     if nav_row:
         rows.append(nav_row)
+    if page_row:
+        rows.append(page_row)
     rows.append(link_row)
     rows.append(done_row)
     return InlineKeyboardMarkup(rows)
@@ -98,6 +137,9 @@ async def send_carousel(
     user_data: dict,
 ) -> None:
     """Envia a primeira página do carrossel e armazena estado em *user_data*."""
+    if not ads:
+        return
+
     total = len(ads)
     ad = ads[0]
     caption = _carousel_caption(ad, 0, total, transaction)
@@ -123,9 +165,10 @@ async def send_carousel(
         )
 
     user_data[f"carousel_{carousel_id}"] = {
-        "ads": ads,
+        "listings": ads,
         "index": 0,
         "transaction": transaction,
+        "page_size": PAGE_SIZE,
         "is_photo": is_photo,
     }
 
@@ -182,11 +225,9 @@ async def immediate_seed(
 
 # ────────────────────── navegação do carrossel ──────────────────────
 
-_DONE_TEXT = "✅ Pronto! Vou te avisar quando aparecer algo novo. 🔔"
-
 
 async def carousel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handler para ◀ Anterior / Próximo ▶ / ✅ Concluir."""
+    """Handler para ◀/▶, ◀ Página/⏭ Página, ✅ Concluir."""
     q = update.callback_query
     await q.answer()
 
@@ -202,46 +243,38 @@ async def carousel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     if not carousel:
         try:
-            await q.edit_message_text("Carrossel expirado.")
+            await q.edit_message_reply_markup(reply_markup=None)
         except Exception:
-            try:
-                await q.edit_message_caption(
-                    caption="Carrossel expirado.", reply_markup=None
-                )
-            except Exception:
-                pass
+            pass
         return
 
-    # ── Concluir: sempre texto simples, sem foto, sem botões ──
+    # ── Concluir: remove botões, mantém mensagem do anúncio ──
     if action == "done":
-        if carousel.get("is_photo"):
-            chat_id = q.message.chat_id
-            try:
-                await q.message.delete()
-            except Exception:
-                pass
-            try:
-                await context.bot.send_message(chat_id=chat_id, text=_DONE_TEXT)
-            except Exception:
-                pass
-        else:
-            try:
-                await q.edit_message_text(text=_DONE_TEXT)
-            except Exception:
-                pass
+        try:
+            await q.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
         context.user_data.pop(key, None)
         return
 
     # ── Navegação ──
-    ads = carousel["ads"]
+    ads = carousel["listings"]
     current_idx = carousel["index"]
     transaction = carousel["transaction"]
     total = len(ads)
 
+    page = current_idx // PAGE_SIZE
+    page_start = page * PAGE_SIZE
+    page_end = min(page_start + PAGE_SIZE, total)
+
     if action == "next":
-        new_idx = min(current_idx + 1, total - 1)
+        new_idx = min(current_idx + 1, page_end - 1)
     elif action == "prev":
-        new_idx = max(current_idx - 1, 0)
+        new_idx = max(current_idx - 1, page_start)
+    elif action == "pgn":
+        new_idx = min((page + 1) * PAGE_SIZE, total - 1)
+    elif action == "pgp":
+        new_idx = max((page - 1) * PAGE_SIZE, 0)
     else:
         return
 
