@@ -180,7 +180,7 @@ async def immediate_seed(
     bot = app.bot
 
     try:
-        listings = await scraper.search_listings(filters, max_pages=15)
+        listings = await scraper.search_listings(filters, max_pages=5)
     except Exception:
         logger.exception("Seed imediato falhou para alerta %s", alert_id)
         try:
