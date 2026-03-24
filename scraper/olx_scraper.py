@@ -76,6 +76,7 @@ def extract_olx_id_from_url(url: str) -> str | None:
 class OLXScraper:
     def __init__(self) -> None:
         self._scraper = cloudscraper.create_scraper()
+        self._cycle_headers: dict[str, str] | None = None
 
     async def close(self) -> None:
         self._scraper.close()
@@ -83,18 +84,46 @@ class OLXScraper:
     async def _delay(self) -> None:
         await asyncio.sleep(random.uniform(config.SCRAPER_DELAY_MIN, config.SCRAPER_DELAY_MAX))
 
-    def _sync_get(self, url: str) -> tuple[int, str]:
+    def _build_headers(self) -> dict[str, str]:
+        user_agents = config.USER_AGENTS or [
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+        ]
+        user_agent = random.choice(user_agents)
+        return {
+            "User-Agent": user_agent,
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                "image/avif,image/webp,image/apng,*/*;q=0.8"
+            ),
+            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Cache-Control": "max-age=0",
+            "Pragma": "no-cache",
+            "Referer": "https://www.olx.com.br/",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+            "Connection": "keep-alive",
+        }
+
+    def _sync_get(self, url: str, headers: dict[str, str]) -> tuple[int, str]:
         """GET síncrono via cloudscraper (roda em thread separada)."""
         r = self._scraper.get(
             url,
             timeout=90,
-            headers={"Accept-Language": "pt-BR,pt;q=0.9"},
+            headers=headers,
         )
         return r.status_code, r.text
 
-    async def fetch(self, url: str) -> str:
+    async def fetch(self, url: str, headers: dict[str, str] | None = None) -> str:
         await self._delay()
-        status_code, text = await asyncio.to_thread(self._sync_get, url)
+        req_headers = headers or self._cycle_headers or self._build_headers()
+        status_code, text = await asyncio.to_thread(self._sync_get, url, req_headers)
         if status_code >= 400:
             raise FetchError(status_code, url)
         return text
@@ -105,21 +134,26 @@ class OLXScraper:
         Depois filtra em Python o que a URL do OLX não filtrou (quartos, m², bairro no texto).
         """
         all_ads: dict[str, dict] = {}
-        for page in range(1, max_pages + 1):
-            url = build_search_url(filters, page)
-            try:
-                html = await self.fetch(url)
-            except Exception as e:
-                logger.exception("Erro ao buscar %s: %s", url, e)
-                break
-            ads = parse_search_page(html)
-            logger.info("Página %s: %s anúncios brutos", page, len(ads))
-            if not ads:
-                break
-            for ad in ads:
-                all_ads[ad["olx_id"]] = ad
-            if len(ads) < 20:
-                break
+        # Sticky fingerprint por ciclo de busca/paginação.
+        self._cycle_headers = self._build_headers()
+        try:
+            for page in range(1, max_pages + 1):
+                url = build_search_url(filters, page)
+                try:
+                    html = await self.fetch(url)
+                except Exception as e:
+                    logger.exception("Erro ao buscar %s: %s", url, e)
+                    break
+                ads = parse_search_page(html)
+                logger.info("Página %s: %s anúncios brutos", page, len(ads))
+                if not ads:
+                    break
+                for ad in ads:
+                    all_ads[ad["olx_id"]] = ad
+                if len(ads) < 20:
+                    break
+        finally:
+            self._cycle_headers = None
         out = list(all_ads.values())
         out = self._apply_local_filters(out, filters)
         logger.info("Total bruto: %s | Após filtro: %s", len(all_ads), len(out))
