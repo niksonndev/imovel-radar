@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from bot import keyboards
@@ -49,8 +49,19 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def menu_home_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Mostra o menu principal sem depender de /start."""
+    q = update.callback_query
+    await q.answer()
+    await q.message.reply_text(
+        "🏠 *Menu principal*\nEscolha uma opção:",
+        parse_mode="Markdown",
+        reply_markup=keyboards.main_menu_keyboard(),
+    )
+
+
 async def menu_meus_alertas_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Callback do botão '📋 Meus Alertas' (mostra lista resumida)."""
+    """Callback do botão '📋 Meus Alertas' com ações inline."""
     q = update.callback_query
     await q.answer()
 
@@ -61,17 +72,71 @@ async def menu_meus_alertas_cb(update: Update, context: ContextTypes.DEFAULT_TYP
         alerts = await crud.list_alerts(session, user.id)
 
     if not alerts:
-        await q.message.reply_text("Nenhum alerta. Use /novo_alerta")
+        await q.message.reply_text(
+            "Nenhum alerta criado ainda.",
+            reply_markup=keyboards.home_keyboard(),
+        )
         return
 
-    lines = []
     for a in alerts:
         st = "▶️ ativo" if a.is_active else "⏸ pausado"
-        lines.append(f"• `id {a.id}` — *{a.name}* ({st})")
+        action_label = "⏸ Pausar" if a.is_active else "▶️ Reativar"
+        kb = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(action_label, callback_data=f"alert_toggle_{a.id}"),
+                    InlineKeyboardButton("🗑 Deletar", callback_data=f"alert_delete_{a.id}"),
+                ],
+                [InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")],
+            ]
+        )
+        await q.message.reply_text(
+            f"• `id {a.id}` — *{a.name}* ({st})",
+            parse_mode="Markdown",
+            reply_markup=kb,
+        )
+
+
+async def alert_toggle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    q = update.callback_query
+    await q.answer()
+    data = q.data or ""
+    try:
+        aid = int(data.rsplit("_", 1)[-1])
+    except ValueError:
+        await q.message.reply_text("ID de alerta inválido.", reply_markup=keyboards.home_keyboard())
+        return
+
+    async with _session(context) as session:
+        user = await crud.get_or_create_user(session, q.from_user.id, q.from_user.username)
+        active = await crud.toggle_alert_active(session, aid, user.id)
+    if active is None:
+        await q.message.reply_text("Alerta não encontrado.", reply_markup=keyboards.home_keyboard())
+        return
+    await q.message.reply_text(
+        "✅ Alerta agora está *" + ("ativo" if active else "pausado") + "*.",
+        parse_mode="Markdown",
+        reply_markup=keyboards.main_menu_keyboard(),
+    )
+
+
+async def alert_delete_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    q = update.callback_query
+    await q.answer()
+    data = q.data or ""
+    try:
+        aid = int(data.rsplit("_", 1)[-1])
+    except ValueError:
+        await q.message.reply_text("ID de alerta inválido.", reply_markup=keyboards.home_keyboard())
+        return
+
+    async with _session(context) as session:
+        user = await crud.get_or_create_user(session, q.from_user.id, q.from_user.username)
+        ok = await crud.delete_alert(session, aid, user.id)
 
     await q.message.reply_text(
-        "*Seus alertas*\n" + "\n".join(lines),
-        parse_mode="Markdown",
+        "🗑 Alerta removido." if ok else "Alerta não encontrado.",
+        reply_markup=keyboards.main_menu_keyboard(),
     )
 
 
@@ -80,20 +145,76 @@ async def menu_ajuda_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     q = update.callback_query
     await q.answer()
     await q.message.reply_text(
-        "*Comandos*\n"
-        "/start — boas-vindas\n"
-        "/novo_alerta — criar alerta (aluguel/venda, preço, bairros, nome)\n"
-        "/meus_alertas — listar alertas (id, nome, ativo/pausado)\n"
-        "/pausar_alerta [id] — pausar ou reativar\n"
-        "/deletar_alerta [id] — apagar alerta\n"
-        "/observar [url OLX] — monitorar preço do anúncio\n"
-        "/watchlist — listar observados\n"
-        "/remover [id] — tirar da watchlist\n"
-        "/status — intervalos e próximas execuções\n"
-        "/cancelar — cancelar wizard\n\n"
-        "Alertas disparam quando aparece anúncio novo nos filtros. "
-        "Watchlist avisa mudança de preço ou remoção.",
+        "*Como usar sem digitar comandos*\n\n"
+        "Use os botões do menu principal para criar e gerenciar alertas, "
+        "acompanhar anúncios, abrir watchlist e ver status.\n\n"
+        "Você pode voltar ao menu principal pelos botões em cada tela.",
         parse_mode="Markdown",
+        reply_markup=keyboards.home_keyboard(),
+    )
+
+
+async def menu_watchlist_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    q = update.callback_query
+    await q.answer()
+    async with _session(context) as session:
+        user = await crud.get_or_create_user(session, q.from_user.id, q.from_user.username)
+        items = await crud.list_watched(session, user.id)
+
+    if not items:
+        await q.message.reply_text("Watchlist vazia.", reply_markup=keyboards.home_keyboard())
+        return
+
+    for w in items:
+        kb = InlineKeyboardMarkup(
+            [
+                [InlineKeyboardButton("🗑 Remover", callback_data=f"watch_remove_{w.id}")],
+                [InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")],
+            ]
+        )
+        await q.message.reply_text(
+            f"• `id {w.id}` — {w.title or 'Anúncio'}\n"
+            f"  {_fmt_money(w.current_price)} — [link]({w.url})",
+            parse_mode="Markdown",
+            disable_web_page_preview=True,
+            reply_markup=kb,
+        )
+
+
+async def watch_remove_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    q = update.callback_query
+    await q.answer()
+    data = q.data or ""
+    try:
+        wid = int(data.rsplit("_", 1)[-1])
+    except ValueError:
+        await q.message.reply_text("ID da watchlist inválido.", reply_markup=keyboards.home_keyboard())
+        return
+    async with _session(context) as session:
+        user = await crud.get_or_create_user(session, q.from_user.id, q.from_user.username)
+        ok = await crud.remove_watched(session, wid, user.id)
+    await q.message.reply_text(
+        "✅ Removido da watchlist." if ok else "Item não encontrado.",
+        reply_markup=keyboards.main_menu_keyboard(),
+    )
+
+
+async def menu_status_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    q = update.callback_query
+    await q.answer()
+    am = context.application.bot_data.get("alert_min", 30)
+    wh = context.application.bot_data.get("watch_hours", 6)
+    next_a = context.application.bot_data.get("next_alert_run")
+    next_w = context.application.bot_data.get("next_watch_run")
+    na = next_a.strftime("%d/%m %H:%M") if next_a else "—"
+    nw = next_w.strftime("%d/%m %H:%M") if next_w else "—"
+    await q.message.reply_text(
+        f"*Status*\n"
+        f"• Alertas: a cada *{am}* min (próx.: _{na}_)\n"
+        f"• Watchlist: a cada *{wh}* h (próx.: _{nw}_)\n"
+        f"• Região: Maceió/AL",
+        parse_mode="Markdown",
+        reply_markup=keyboards.home_keyboard(),
     )
 
 

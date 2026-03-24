@@ -26,6 +26,8 @@ import config
 from bot.carousel import carousel_cb
 from bot.conversations import conversation_novo_alerta, conversation_acompanhar_anuncio
 from bot.handlers import (
+    alert_delete_cb,
+    alert_toggle_cb,
     cmd_ajuda,
     cmd_deletar_alerta,
     cmd_meus_alertas,
@@ -36,7 +38,11 @@ from bot.handlers import (
     cmd_status,
     cmd_watchlist,
     menu_ajuda_cb,
+    menu_home_cb,
     menu_meus_alertas_cb,
+    menu_status_cb,
+    menu_watchlist_cb,
+    watch_remove_cb,
 )
 from database.crud import create_engine_and_session, init_db
 from scheduler.jobs import register_jobs
@@ -110,6 +116,12 @@ def main() -> None:
         CallbackQueryHandler(menu_meus_alertas_cb, pattern=r"^menu_meus_alertas$")
     )
     app.add_handler(CallbackQueryHandler(menu_ajuda_cb, pattern=r"^menu_ajuda$"))
+    app.add_handler(CallbackQueryHandler(menu_home_cb, pattern=r"^menu_home$"))
+    app.add_handler(CallbackQueryHandler(menu_watchlist_cb, pattern=r"^menu_watchlist$"))
+    app.add_handler(CallbackQueryHandler(menu_status_cb, pattern=r"^menu_status$"))
+    app.add_handler(CallbackQueryHandler(alert_toggle_cb, pattern=r"^alert_toggle_\d+$"))
+    app.add_handler(CallbackQueryHandler(alert_delete_cb, pattern=r"^alert_delete_\d+$"))
+    app.add_handler(CallbackQueryHandler(watch_remove_cb, pattern=r"^watch_remove_\d+$"))
     # Carrossel de anúncios (navegação inline após seed imediato)
     app.add_handler(
         CallbackQueryHandler(carousel_cb, pattern=r"^crs_\d+(?:_notif)?_(prev|next|pgp|pgn)$")

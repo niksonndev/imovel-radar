@@ -97,24 +97,29 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     callback_data:
       - menu_novo_alerta
       - menu_meus_alertas
+      - menu_watchlist
+      - menu_status
       - menu_ajuda
       - menu_acompanhar
     """
     return InlineKeyboardMarkup(
         [
+            [InlineKeyboardButton("🔔 Novo Alerta", callback_data="menu_novo_alerta")],
+            [InlineKeyboardButton("📋 Meus Alertas", callback_data="menu_meus_alertas")],
+            [InlineKeyboardButton("👁 Acompanhar Anúncio", callback_data="menu_acompanhar")],
             [
-                InlineKeyboardButton("🔔 Novo Alerta", callback_data="menu_novo_alerta"),
+                InlineKeyboardButton("👀 Watchlist", callback_data="menu_watchlist"),
+                InlineKeyboardButton("📊 Status", callback_data="menu_status"),
             ],
-            [
-                InlineKeyboardButton("📋 Meus Alertas", callback_data="menu_meus_alertas"),
-            ],
-            [
-                InlineKeyboardButton("❓ Ajuda", callback_data="menu_ajuda"),
-            ],
-            [
-                InlineKeyboardButton("👁 Acompanhar Anúncio", callback_data="menu_acompanhar"),
-            ],
+            [InlineKeyboardButton("❓ Ajuda", callback_data="menu_ajuda")],
         ]
+    )
+
+
+def home_keyboard() -> InlineKeyboardMarkup:
+    """Botão simples para voltar ao menu principal."""
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")]]
     )
 
 

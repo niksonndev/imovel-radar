@@ -21,6 +21,7 @@ from telegram import (
 )
 from telegram.ext import ContextTypes
 
+from bot import keyboards
 from database import crud
 
 logger = logging.getLogger(__name__)
@@ -209,6 +210,7 @@ async def immediate_seed(
                 "🔍 Nenhum imóvel encontrado com esses filtros no momento.\n"
                 "Vou te avisar quando aparecer algo novo. 🔔"
             ),
+            reply_markup=keyboards.main_menu_keyboard(),
         )
         return
 
@@ -218,6 +220,7 @@ async def immediate_seed(
     await bot.send_message(
         chat_id=tg_id,
         text="✅ Alerta criado! Vou te avisar quando aparecer algo novo. 🔔",
+        reply_markup=keyboards.main_menu_keyboard(),
     )
 
 

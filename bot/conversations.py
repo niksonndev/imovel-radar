@@ -382,7 +382,10 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     if data == "wiz_confirm_no":
         context.user_data.pop("wizard_alert", None)
-        await q.message.reply_text("Ok! O alerta não foi salvo.")
+        await q.message.reply_text(
+            "Ok! O alerta não foi salvo.",
+            reply_markup=keyboards.main_menu_keyboard(),
+        )
         return ConversationHandler.END
 
     if data != "wiz_confirm_yes":
@@ -391,7 +394,10 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     name = w.get("name")
     if not name:
         context.user_data.pop("wizard_alert", None)
-        await q.message.reply_text("Nome do alerta ausente. Tente novamente com /novo_alerta.")
+        await q.message.reply_text(
+            "Nome do alerta ausente. Tente novamente pelo menu.",
+            reply_markup=keyboards.main_menu_keyboard(),
+        )
         return ConversationHandler.END
 
     sel = w.get("neighborhoods_selected") or set()
@@ -450,7 +456,10 @@ async def wiz_neighborhoods_cb(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def cancel_wiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.pop("wizard_alert", None)
-    await update.message.reply_text("Wizard cancelado.")
+    await update.message.reply_text(
+        "Criação de alerta cancelada.",
+        reply_markup=keyboards.main_menu_keyboard(),
+    )
     return ConversationHandler.END
 
 
@@ -501,7 +510,10 @@ async def acompanhar_url(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return ACOMP_URL
 
     if info.get("removed") or info.get("not_found"):
-        await update.message.reply_text("Anúncio indisponível ou removido.")
+        await update.message.reply_text(
+            "Anúncio indisponível ou removido.",
+            reply_markup=keyboards.main_menu_keyboard(),
+        )
         return ConversationHandler.END
 
     async with _session(context) as session:
@@ -520,12 +532,16 @@ async def acompanhar_url(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.message.reply_text(
         f"✅ Na watchlist. Preço atual: {_fmt_money(info.get('price'))}",
         parse_mode="Markdown",
+        reply_markup=keyboards.main_menu_keyboard(),
     )
     return ConversationHandler.END
 
 
 async def cancel_acompanhar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("Acompanhar Anúncio cancelado.")
+    await update.message.reply_text(
+        "Acompanhar Anúncio cancelado.",
+        reply_markup=keyboards.main_menu_keyboard(),
+    )
     return ConversationHandler.END
 
 
