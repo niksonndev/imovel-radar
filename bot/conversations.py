@@ -24,8 +24,6 @@ from telegram.ext import (
 from bot import keyboards
 from bot.carousel import immediate_seed
 from database import crud
-from scraper.olx_scraper import extract_olx_id_from_url
-
 logger = logging.getLogger(__name__)
 
 (
@@ -488,50 +486,9 @@ async def acompanhar_entry_cb(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def acompanhar_url(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Recebe a URL digitada e chama a mesma lógica de /observar para salvar na watchlist."""
-    url = (update.message.text or "").strip()
-    if not url or "olx.com.br" not in url.lower():
-        await update.message.reply_text(
-            "URL inválida. Envie uma URL do OLX (ex.: https://www.olx.com.br/d/...).",
-            parse_mode="Markdown",
-        )
-        return ACOMP_URL
-
-    oid = extract_olx_id_from_url(url)
-    if not oid:
-        await update.message.reply_text("Não consegui extrair o ID do anúncio pela URL.")
-        return ACOMP_URL
-
-    scraper = context.application.bot_data["scraper"]
-    try:
-        info = await scraper.fetch_listing(url)
-    except Exception:
-        await update.message.reply_text("Erro ao ler o anúncio. Tente de novo mais tarde.")
-        return ACOMP_URL
-
-    if info.get("removed") or info.get("not_found"):
-        await update.message.reply_text(
-            "Anúncio indisponível ou removido.",
-            reply_markup=keyboards.main_menu_keyboard(),
-        )
-        return ConversationHandler.END
-
-    async with _session(context) as session:
-        user = await crud.get_or_create_user(
-            session, update.effective_user.id, update.effective_user.username
-        )
-        await crud.add_watched(
-            session,
-            user.id,
-            oid,
-            url.split("?")[0],
-            info.get("title"),
-            info.get("price"),
-        )
-
+    """Fluxo por URL em revisão."""
     await update.message.reply_text(
-        f"✅ Na watchlist. Preço atual: {_fmt_money(info.get('price'))}",
-        parse_mode="Markdown",
+        "Acompanhar por URL está temporariamente indisponível.",
         reply_markup=keyboards.main_menu_keyboard(),
     )
     return ConversationHandler.END

@@ -16,8 +16,6 @@ from telegram.ext import ContextTypes
 
 from bot import keyboards
 from database import crud
-from scraper.olx_scraper import extract_olx_id_from_url
-
 logger = logging.getLogger(__name__)
 
 
@@ -280,46 +278,9 @@ async def cmd_deletar_alerta(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def cmd_observar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    /observar https://... → baixa a página do anúncio, lê preço/título,
-    salva na watchlist para o job periódico comparar depois.
-    """
-    args = context.args or []
-    url = " ".join(args).strip()
-    if not url or "olx.com.br" not in url.lower():
-        await update.message.reply_text(
-            "Uso: `/observar https://www.olx.com.br/d/...`", parse_mode="Markdown"
-        )
-        return
-    oid = extract_olx_id_from_url(url)
-    if not oid:
-        await update.message.reply_text("Não consegui extrair o ID do anúncio na URL.")
-        return
-    scraper = context.application.bot_data["scraper"]
-    try:
-        info = await scraper.fetch_listing(url)
-    except Exception as e:
-        logger.exception(e)
-        await update.message.reply_text("Erro ao ler o anúncio. Tente de novo mais tarde.")
-        return
-    if info.get("removed") or info.get("not_found"):
-        await update.message.reply_text("Anúncio indisponível ou removido.")
-        return
-    async with _session(context) as session:
-        user = await crud.get_or_create_user(
-            session, update.effective_user.id, update.effective_user.username
-        )
-        await crud.add_watched(
-            session,
-            user.id,
-            oid,
-            url.split("?")[0],
-            info.get("title"),
-            info.get("price"),
-        )
+    """Fluxo por URL em revisão; watchlist via jobs continua usando fetch_listing no scheduler."""
     await update.message.reply_text(
-        f"✅ Na watchlist. Preço atual: {_fmt_money(info.get('price'))}",
-        parse_mode="Markdown",
+        "`/observar` por URL está temporariamente indisponível.", parse_mode="Markdown"
     )
 
 

@@ -12,7 +12,7 @@ from db.cache import deactivate_missing, upsert_listing
 from db.database import init_db as init_cache_db
 from db.parsers import parse_listing
 from scheduler.jobs import _filter_listings_inhouse
-from scraper.olx_scraper import OLXScraper
+from scraper import olx_scraper
 
 
 logging.basicConfig(
@@ -27,13 +27,12 @@ async def run_once() -> int:
     await init_models_db(engine)
     init_cache_db()
 
-    scraper = OLXScraper()
     cycle_seen_ids: set[int] = set()
     cache_stats = Counter({"created": 0, "updated": 0, "unchanged": 0})
     total_alerts = 0
 
     try:
-        listings = await scraper.search_all_rent_maceio()
+        listings = await olx_scraper.search_all_rent_maceio()
         logger.info("Scrape global concluído com %s anúncio(s) brutos.", len(listings))
 
         for raw in listings:
@@ -74,7 +73,7 @@ async def run_once() -> int:
         )
         return 0
     finally:
-        await scraper.close()
+        await olx_scraper.close()
         await engine.dispose()
 
 

@@ -85,7 +85,7 @@ playwright-report/
 test-results/
 
 # Arquivos gerados por scripts de debug
-debug_page.html
 debug_ad.json
+debug_ad_parsed.json
 scripts/*.html
 scripts/*.json

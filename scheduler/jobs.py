@@ -21,7 +21,7 @@ from database import crud
 from database.models import User, WatchedListing
 from db.cache import deactivate_missing, upsert_listing
 from db.parsers import parse_listing
-from scraper.olx_scraper import build_search_url
+from scraper.olx_scraper import fetch_listing, search_all_rent_maceio
 
 logger = logging.getLogger(__name__)
 MACEIO_TZ = ZoneInfo("America/Maceio")
@@ -70,12 +70,11 @@ def _filter_listings_inhouse(listings: list[dict], filters: dict) -> list[dict]:
 
 async def job_alerts(app) -> None:
     session_factory = app.bot_data["session_factory"]
-    scraper = app.bot_data["scraper"]
     bot: Bot = app.bot
     async with session_factory() as session:
         alerts = await crud.active_alerts(session)
     try:
-        full_listings = await scraper.search_all_rent_maceio()
+        full_listings = await search_all_rent_maceio()
     except Exception as e:
         logger.exception("Falha no scrape global de aluguel Maceió: %s", e)
         app.bot_data["next_alert_run"] = _next_maceio_3am()
@@ -148,11 +147,9 @@ async def job_alerts(app) -> None:
                     nh = f.get("neighborhoods") or []
                     bairros = ", ".join(nh) if nh else "Maceió"
                     preco = f"{_fmt_money(f.get('price_min'))} - {_fmt_money(f.get('price_max'))}"
-                    search_url = build_search_url(f, page=1)
                     seed_text = (
                         f"✅ Alerta *{alert.name}* ativado!\n"
                         f"Encontrei *{count}* imóveis em *{bairros}* com preço entre *{preco}*.\n\n"
-                        f"🔗 [Ver no OLX]({search_url}) _(resultado geral, sem filtro de bairro)_\n\n"
                         f"A partir de agora, verifico essa busca e vou te avisar quando aparecer "
                         f"algum anúncio novo. 🔔"
                     )
@@ -190,13 +187,12 @@ async def job_alerts(app) -> None:
 
 async def job_watchlist(app) -> None:
     session_factory = app.bot_data["session_factory"]
-    scraper = app.bot_data["scraper"]
     bot: Bot = app.bot
     async with session_factory() as session:
         watched = await crud.all_active_watched(session)
     for w in watched:
         try:
-            info = await scraper.fetch_listing(w.url)
+            info = await fetch_listing(w.url)
         except Exception as e:
             logger.warning("Watch %s: %s", w.id, e)
             continue

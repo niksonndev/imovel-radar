@@ -1,9 +1,4 @@
 """
-PONTO DE ENTRADA DO PROGRAMA (equivalente ao index.js que você dá node).
-
-Sempre rode na pasta do projeto:
-  py main.py
-
 O bot fica num loop infinito ouvindo o Telegram até você dar Ctrl+C.
 """
 from __future__ import annotations
@@ -47,7 +42,7 @@ from bot.handlers import (
 from database.crud import create_engine_and_session, init_db as init_models_db
 from db.database import init_db as init_cache_db
 from scheduler.jobs import register_jobs
-from scraper.olx_scraper import OLXScraper
+from scraper import olx_scraper
 
 # logging = imprimir mensagens de debug/erro no terminal (tipo console.log)
 logging.basicConfig(
@@ -70,7 +65,6 @@ async def post_init(app: Application) -> None:
     # bot_data = "armário global" compartilhado por todo o bot (tipo um singleton)
     app.bot_data["engine"] = engine
     app.bot_data["session_factory"] = session_factory
-    app.bot_data["scraper"] = OLXScraper()  # quem baixa páginas do OLX
     app.bot_data["scrape_days"] = config.SCRAPE_CHECK_INTERVAL_DAYS
     app.bot_data["watch_days"] = config.WATCHLIST_CHECK_INTERVAL_DAYS
 
@@ -84,9 +78,7 @@ async def post_init(app: Application) -> None:
 
 async def post_shutdown(app: Application) -> None:
     # Ao fechar o programa: libera conexões HTTP e para o agendador
-    scraper: OLXScraper = app.bot_data.get("scraper")
-    if scraper:
-        await scraper.close()
+    await olx_scraper.close()
     sched = app.bot_data.get("scheduler")
     if sched:
         sched.shutdown(wait=False)
