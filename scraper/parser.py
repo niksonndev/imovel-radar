@@ -2,7 +2,8 @@
 PARSER = HTML → dados estruturados (dict/list).
 
 O site OLX usa Next.js: muitos dados vêm num <script id="__NEXT_DATA__"> em JSON gigante.
-_walk_find_ads percorre esse JSON (dict/list aninhados) e acha objetos que parecem anúncio.
+_walk_find_ads percorre esse JSON (dict/list aninhados) e acha objetos que parecem anúncio;
+para cada um, padroniza um dict enxuto (ids, url, preços, local, propriedades filtradas, categoria, imagens webp).
 Se não achar o suficiente, fallback: links <a href="/d/..."> no HTML.
 """
 from __future__ import annotations
@@ -18,6 +19,32 @@ from bs4 import BeautifulSoup
 logger = logging.getLogger(__name__)
 
 OLX_ID_RE = re.compile(r"/(\d{8,})(?:\?|$|/)", re.I)
+
+_OLX_LISTING_PROPERTY_NAMES = frozenset(
+    {"size", "rooms", "bathrooms", "garage_spaces", "real_estate_type"}
+)
+
+
+def _filter_listing_properties(props: Any) -> list[dict]:
+    if not isinstance(props, list):
+        return []
+    out: list[dict] = []
+    for p in props:
+        if isinstance(p, dict) and p.get("name") in _OLX_LISTING_PROPERTY_NAMES:
+            out.append(p)
+    return out
+
+
+def _images_original_webp_list(images: Any) -> list[str]:
+    if not isinstance(images, list):
+        return []
+    urls: list[str] = []
+    for item in images:
+        if isinstance(item, dict):
+            w = item.get("originalWebp")
+            if w:
+                urls.append(str(w))
+    return urls
 
 
 def _normalize_url(href: str) -> str:
@@ -105,77 +132,28 @@ def _walk_find_ads(obj: Any, out: list[dict], depth: int = 0) -> None:
             url = obj.get("url") or obj.get("friendlyUrl")
             if url and not url.startswith("http"):
                 url = "https://www.olx.com.br" + url
-            images = obj.get("images") or obj.get("image") or []
-            thumb = None
-            if isinstance(images, list) and images:
-                first = images[0]
-                thumb = first if isinstance(first, str) else first.get("url") or first.get("original")
-            elif isinstance(images, dict):
-                thumb = images.get("url") or images.get("original")
             loc_details = obj.get("locationDetails") or {}
-            neighborhood = ""
+            municipality = ""
+            neighbourhood = ""
             if isinstance(loc_details, dict):
-                neighborhood = loc_details.get("neighbourhood") or ""
-            props = obj.get("properties") or []
-            bedrooms = None
-            area_m2 = None
-            bathrooms = None
-            garage_spaces = None
-            if isinstance(props, list):
-                for p in props:
-                    if not isinstance(p, dict):
-                        continue
-                    name = (p.get("name") or "").lower()
-                    val = p.get("value")
-                    if "quarto" in name or name in ("bedrooms", "rooms"):
-                        try:
-                            bedrooms = int(re.sub(r"\D", "", str(val)) or 0)
-                        except ValueError:
-                            pass
-                    if name == "bathrooms":
-                        try:
-                            bathrooms = int(re.sub(r"\D", "", str(val)) or 0)
-                        except ValueError:
-                            pass
-                    if name == "garage_spaces":
-                        try:
-                            garage_spaces = int(re.sub(r"\D", "", str(val)) or 0)
-                        except ValueError:
-                            pass
-                    if "m²" in str(val) or "area" in name or "área" in name or name == "size":
-                        try:
-                            area_m2 = float(re.sub(r"[^\d.,]", "", str(val)).replace(",", "."))
-                        except ValueError:
-                            pass
+                municipality = str(loc_details.get("municipality") or "")
+                neighbourhood = str(loc_details.get("neighbourhood") or "")
+            images_raw = obj.get("images") or obj.get("image") or []
+            props = _filter_listing_properties(obj.get("properties") or [])
             category = str(obj.get("categoryName") or obj.get("category") or "")
             old_price = _parse_price(obj.get("oldPrice"))
-            pub_raw = obj.get("origListTime")
-            if pub_raw is None:
-                pub_raw = obj.get("date")
-            if isinstance(pub_raw, (int, float)):
-                published_at = int(pub_raw)
-            else:
-                published_at = None
-            is_professional = bool(obj.get("professionalAd"))
-            feat = obj.get("featured")
-            is_featured = isinstance(feat, list) and len(feat) > 0
             out.append(
                 {
                     "olx_id": lid,
                     "title": str(title)[:500],
                     "price": price,
                     "url": url or f"https://www.olx.com.br/d/oferta-{lid}",
-                    "thumbnail": thumb,
-                    "neighborhood": str(neighborhood),
-                    "bedrooms": bedrooms,
-                    "area_m2": area_m2,
-                    "category": category,
                     "old_price": old_price,
-                    "published_at": published_at,
-                    "is_professional": is_professional,
-                    "is_featured": is_featured,
-                    "bathrooms": bathrooms,
-                    "garage_spaces": garage_spaces,
+                    "municipality": municipality,
+                    "neighbourhood": neighbourhood,
+                    "properties": props,
+                    "category": category,
+                    "images": _images_original_webp_list(images_raw),
                 }
             )
         for v in obj.values():
@@ -225,10 +203,12 @@ def parse_search_page(html: str) -> list[dict]:
                 "title": (a.get_text() or "Anúncio")[:500],
                 "price": None,
                 "url": _normalize_url(href),
-                "thumbnail": None,
-                "neighborhood": "",
-                "bedrooms": None,
-                "area_m2": None,
+                "old_price": None,
+                "municipality": "",
+                "neighbourhood": "",
+                "properties": [],
+                "category": "",
+                "images": [],
             }
         result = list(dedup.values())
 

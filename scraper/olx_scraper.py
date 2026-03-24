@@ -96,9 +96,9 @@ async def fetch(url: str, headers: dict[str, str] | None = None) -> str:
     return text
 
 
-async def search_listings_maceio_rent(max_pages: int | None = 15) -> list[dict]:
+async def search_all_rent_maceio() -> list[dict]:
     """
-    A partir da página 1 (sem query). Seguintes: ?o=2, ?o=3, ...
+    Todas as páginas de aluguel Maceió (1, depois ?o=2, ?o=3, ...).
     Deduplica por olx_id; sem filtros locais (parser/job decidem depois).
     """
     global _cycle_headers
@@ -107,8 +107,6 @@ async def search_listings_maceio_rent(max_pages: int | None = 15) -> list[dict]:
     try:
         page = 1
         while True:
-            if max_pages is not None and page > max_pages:
-                break
             url = _rent_maceio_listings_url(page)
             try:
                 html = await fetch(url)
@@ -133,10 +131,6 @@ async def search_listings_maceio_rent(max_pages: int | None = 15) -> list[dict]:
     out = list(all_ads.values())
     logger.info("Total anúncios únicos (scraping): %s", len(out))
     return out
-
-
-async def search_all_rent_maceio() -> list[dict]:
-    return await search_listings_maceio_rent(max_pages=None)
 
 
 async def fetch_listing(url: str) -> dict[str, Any]:

@@ -1,6 +1,6 @@
 """
 Busca listagem OLX, extrai __NEXT_DATA__, acha o primeiro anúncio (listId/adId numérico)
-e imprime + grava em debug_ad.json; em seguida aplica parse_listing e grava debug_ad_parsed.json.
+e imprime + grava em debug_ad.json.
 
 Uso: python scripts/debug_parser.py
 """
@@ -13,15 +13,12 @@ from typing import Any
 import cloudscraper
 from bs4 import BeautifulSoup
 
-from db.parsers import parse_listing
-
 URL = (
     "https://www.olx.com.br/imoveis/aluguel/estado-al/alagoas/maceio"
 )
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT_JSON = ROOT / "debug_ad.json"
-OUT_PARSED_JSON = ROOT / "debug_ad_parsed.json"
 
 
 def _is_numeric_id(val: Any) -> bool:
@@ -79,25 +76,6 @@ def main() -> None:
     print(formatted)
     OUT_JSON.write_text(formatted + "\n", encoding="utf-8")
     print(f"Salvo: {OUT_JSON}", flush=True)
-
-    raw_for_parse: dict[str, Any] = dict(ad)
-    if (
-        raw_for_parse.get("listId") is None
-        and raw_for_parse.get("olx_id") is None
-        and _is_numeric_id(raw_for_parse.get("adId"))
-    ):
-        aid = raw_for_parse["adId"]
-        raw_for_parse["listId"] = int(aid) if isinstance(aid, str) else int(aid)
-
-    try:
-        parsed = parse_listing(raw_for_parse)
-    except ValueError as e:
-        raise SystemExit(f"parse_listing falhou: {e}") from e
-
-    parsed_text = json.dumps(parsed, indent=2, ensure_ascii=False)
-    print(parsed_text)
-    OUT_PARSED_JSON.write_text(parsed_text + "\n", encoding="utf-8")
-    print(f"Salvo: {OUT_PARSED_JSON}", flush=True)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,6 @@ from scraper.olx_scraper import (
     fetch,
     fetch_listing,
     search_all_rent_maceio,
-    search_listings_maceio_rent,
 )
 
 __all__ = [
@@ -13,5 +12,4 @@ __all__ = [
     "fetch",
     "fetch_listing",
     "search_all_rent_maceio",
-    "search_listings_maceio_rent",
 ]

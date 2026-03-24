@@ -23,6 +23,7 @@ from telegram.ext import ContextTypes
 
 from bot import keyboards
 from db.cache import get_active_listings
+from db.parsers import area_m2_from_properties, rooms_from_properties
 from database import crud
 
 logger = logging.getLogger(__name__)
@@ -51,10 +52,14 @@ def _carousel_caption(ad: dict, index: int, total: int, transaction: str) -> str
     title = ad.get("title") or "Imóvel"
     price = _fmt_money(ad.get("price"))
     bedrooms = ad.get("bedrooms")
+    if bedrooms is None:
+        bedrooms = rooms_from_properties(ad.get("properties"))
     bed_s = f"{bedrooms} quartos" if bedrooms is not None else "—"
     area = ad.get("area_m2")
+    if area is None:
+        area = area_m2_from_properties(ad.get("properties"))
     area_s = f"{area:g}m²" if area else "—"
-    neighborhood = ad.get("neighborhood") or "—"
+    neighborhood = ad.get("neighbourhood") or ad.get("neighborhood") or "—"
     tr_label = {"sale": "Venda", "rent": "Aluguel"}.get(transaction, transaction or "")
 
     page, total_pages, idx_in_page, items_on_page = _page_info(index, total)
@@ -117,9 +122,20 @@ def _carousel_keyboard(
     return InlineKeyboardMarkup(rows)
 
 
+def _carousel_photo_url(ad: dict) -> str | None:
+    t = ad.get("thumbnail")
+    if isinstance(t, str) and t.startswith("http"):
+        return t
+    imgs = ad.get("images")
+    if isinstance(imgs, list) and imgs:
+        u = imgs[0]
+        if isinstance(u, str) and u.startswith("http"):
+            return u
+    return None
+
+
 def _has_photo(ad: dict) -> bool:
-    thumb = ad.get("thumbnail")
-    return bool(thumb and isinstance(thumb, str) and thumb.startswith("http"))
+    return _carousel_photo_url(ad) is not None
 
 
 def _cached_to_carousel_ad(row: dict) -> dict:
@@ -132,9 +148,12 @@ def _cached_to_carousel_ad(row: dict) -> dict:
             "price": row.get("price"),
             "url": row.get("url"),
             "thumbnail": row.get("thumbnail"),
-            "neighborhood": row.get("neighborhood"),
+            "neighbourhood": row.get("neighbourhood") or row.get("neighborhood"),
+            "neighborhood": row.get("neighborhood") or row.get("neighbourhood"),
             "bedrooms": row.get("bedrooms"),
             "area_m2": row.get("area_m2"),
+            "properties": row.get("properties"),
+            "images": row.get("images"),
         }
 
     return {
@@ -143,9 +162,12 @@ def _cached_to_carousel_ad(row: dict) -> dict:
         "price": row.get("current_price"),
         "url": row.get("url"),
         "thumbnail": None,  # cache local de listagens não guarda thumb principal
+        "neighbourhood": row.get("neighbourhood"),
         "neighborhood": row.get("neighbourhood"),
         "bedrooms": row.get("rooms"),
         "area_m2": row.get("size_m2"),
+        "properties": None,
+        "images": None,
     }
 
 
@@ -164,14 +186,21 @@ def _filter_cached_ads(ads: list[dict], filters: dict) -> list[dict]:
             continue
         if pmax is not None and ad.get("price") is not None and ad["price"] > pmax:
             continue
-        if bmin is not None and ad.get("bedrooms") is not None and ad["bedrooms"] < bmin:
+        rooms = ad.get("bedrooms")
+        if rooms is None:
+            rooms = rooms_from_properties(ad.get("properties"))
+        if bmin is not None and rooms is not None and rooms < bmin:
             continue
-        if amin is not None and ad.get("area_m2") is not None and ad["area_m2"] < amin:
+        area = ad.get("area_m2")
+        if area is None:
+            area = area_m2_from_properties(ad.get("properties"))
+        if amin is not None and area is not None and area < amin:
             continue
-        if amax is not None and ad.get("area_m2") is not None and ad["area_m2"] > amax:
+        if amax is not None and area is not None and area > amax:
             continue
         if neighborhoods:
-            blob = ((ad.get("title") or "") + " " + (ad.get("neighborhood") or "")).lower()
+            loc = ad.get("neighbourhood") or ad.get("neighborhood") or ""
+            blob = ((ad.get("title") or "") + " " + loc).lower()
             if not any(n in blob for n in neighborhoods):
                 continue
         out.append(ad)
@@ -199,11 +228,12 @@ async def send_carousel(
     keyboard = _carousel_keyboard(carousel_id, 0, total, ad.get("url"))
 
     is_photo = False
-    if _has_photo(ad):
+    photo_url = _carousel_photo_url(ad)
+    if photo_url:
         try:
             await bot.send_photo(
                 chat_id=chat_id,
-                photo=ad["thumbnail"],
+                photo=photo_url,
                 caption=caption,
                 reply_markup=keyboard,
             )
@@ -336,14 +366,15 @@ async def carousel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     caption = _carousel_caption(ad, new_idx, total, transaction)
     keyboard = _carousel_keyboard(carousel_id, new_idx, total, ad.get("url"))
-    photo = _has_photo(ad)
+    photo_url = _carousel_photo_url(ad)
+    photo = photo_url is not None
     was_photo = carousel.get("is_photo", False)
 
     # Mesmo tipo → edita in-place
     if photo and was_photo:
         try:
             await q.edit_message_media(
-                media=InputMediaPhoto(media=ad["thumbnail"], caption=caption),
+                media=InputMediaPhoto(media=photo_url, caption=caption),
                 reply_markup=keyboard,
             )
             return
@@ -364,11 +395,11 @@ async def carousel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     except Exception:
         pass
 
-    if photo:
+    if photo and photo_url:
         try:
             await context.bot.send_photo(
                 chat_id=chat_id,
-                photo=ad["thumbnail"],
+                photo=photo_url,
                 caption=caption,
                 reply_markup=keyboard,
             )
