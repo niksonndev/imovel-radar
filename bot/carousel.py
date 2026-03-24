@@ -22,6 +22,7 @@ from telegram import (
 from telegram.ext import ContextTypes
 
 from bot import keyboards
+from db.cache import get_active_listings
 from database import crud
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,62 @@ def _has_photo(ad: dict) -> bool:
     return bool(thumb and isinstance(thumb, str) and thumb.startswith("http"))
 
 
+def _cached_to_carousel_ad(row: dict) -> dict:
+    """Converte linha do cache local para o formato usado no carrossel."""
+    # Compatibilidade: se já vier no formato de anúncio do scraper, reaproveita.
+    if row.get("olx_id"):
+        return {
+            "olx_id": str(row.get("olx_id")),
+            "title": row.get("title"),
+            "price": row.get("price"),
+            "url": row.get("url"),
+            "thumbnail": row.get("thumbnail"),
+            "neighborhood": row.get("neighborhood"),
+            "bedrooms": row.get("bedrooms"),
+            "area_m2": row.get("area_m2"),
+        }
+
+    return {
+        "olx_id": str(row.get("list_id") or ""),
+        "title": row.get("title"),
+        "price": row.get("current_price"),
+        "url": row.get("url"),
+        "thumbnail": None,  # cache local de listagens não guarda thumb principal
+        "neighborhood": row.get("neighbourhood"),
+        "bedrooms": row.get("rooms"),
+        "area_m2": row.get("size_m2"),
+    }
+
+
+def _filter_cached_ads(ads: list[dict], filters: dict) -> list[dict]:
+    """Aplica filtros locais do alerta sobre anúncios vindos do cache."""
+    pmin = filters.get("price_min")
+    pmax = filters.get("price_max")
+    bmin = filters.get("bedrooms_min")
+    amin = filters.get("area_min")
+    amax = filters.get("area_max")
+    neighborhoods = [n.lower() for n in (filters.get("neighborhoods") or [])]
+
+    out: list[dict] = []
+    for ad in ads:
+        if pmin is not None and ad.get("price") is not None and ad["price"] < pmin:
+            continue
+        if pmax is not None and ad.get("price") is not None and ad["price"] > pmax:
+            continue
+        if bmin is not None and ad.get("bedrooms") is not None and ad["bedrooms"] < bmin:
+            continue
+        if amin is not None and ad.get("area_m2") is not None and ad["area_m2"] < amin:
+            continue
+        if amax is not None and ad.get("area_m2") is not None and ad["area_m2"] > amax:
+            continue
+        if neighborhoods:
+            blob = ((ad.get("title") or "") + " " + (ad.get("neighborhood") or "")).lower()
+            if not any(n in blob for n in neighborhoods):
+                continue
+        out.append(ad)
+    return out
+
+
 # ────────────────────── enviar carrossel (reutilizável) ──────────────────────
 
 
@@ -175,19 +232,20 @@ async def send_carousel(
 async def immediate_seed(
     app, alert_id: int, tg_id: int, filters: dict, user_data: dict
 ) -> None:
-    """Scrape → seed seen_listings → exibe carrossel com todos os anúncios."""
+    """Seed via cache local (SQLite) → seen_listings → carrossel."""
     session_factory = app.bot_data["session_factory"]
-    scraper = app.bot_data["scraper"]
     bot = app.bot
 
     try:
-        listings = await scraper.search_listings(filters, max_pages=5)
+        cached_rows = get_active_listings()
+        listings = [_cached_to_carousel_ad(row) for row in cached_rows]
+        listings = _filter_cached_ads(listings, filters)
     except Exception:
-        logger.exception("Seed imediato falhou para alerta %s", alert_id)
+        logger.exception("Seed imediato via cache falhou para alerta %s", alert_id)
         try:
             await bot.send_message(
                 chat_id=tg_id,
-                text="⚠️ Não consegui buscar imóveis agora. "
+                text="⚠️ Não consegui consultar os imóveis no banco local agora. "
                 "Vou tentar na próxima verificação automática. 🔔",
             )
         except Exception:

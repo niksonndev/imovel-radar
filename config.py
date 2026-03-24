@@ -28,9 +28,9 @@ DATABASE_URL = os.getenv(
     f"sqlite+aiosqlite:///{DATA_DIR / 'bot.db'}",
 ).strip()
 
-# int(...) converte string para número inteiro (como Number() no JS)
-ALERT_CHECK_INTERVAL_MINUTES = int(os.getenv("ALERT_CHECK_INTERVAL_MINUTES", "30"))
-WATCHLIST_CHECK_INTERVAL_HOURS = int(os.getenv("WATCHLIST_CHECK_INTERVAL_HOURS", "6"))
+# Intervalos fixos do scheduler (sem controle por .env)
+SCRAPE_CHECK_INTERVAL_DAYS = 1
+WATCHLIST_CHECK_INTERVAL_DAYS = 1
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
 # Entre uma requisição ao OLX e outra esperamos 2–5 s (menos agressivo que um robô "martelando" o site)

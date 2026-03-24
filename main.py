@@ -44,7 +44,8 @@ from bot.handlers import (
     menu_watchlist_cb,
     watch_remove_cb,
 )
-from database.crud import create_engine_and_session, init_db
+from database.crud import create_engine_and_session, init_db as init_models_db
+from db.database import init_db as init_cache_db
 from scheduler.jobs import register_jobs
 from scraper.olx_scraper import OLXScraper
 
@@ -63,14 +64,15 @@ logger = logging.getLogger(__name__)
 async def post_init(app: Application) -> None:
     # Conexão com SQLite + fábrica de "sessões" (cada operação no banco usa uma sessão)
     engine, session_factory = create_engine_and_session(config.DATABASE_URL)
-    await init_db(engine)  # cria tabelas se não existirem
+    await init_models_db(engine)  # cria tabelas do ORM se não existirem
+    init_cache_db()  # cria schema de cache sqlite (db/schema.sql)
 
     # bot_data = "armário global" compartilhado por todo o bot (tipo um singleton)
     app.bot_data["engine"] = engine
     app.bot_data["session_factory"] = session_factory
     app.bot_data["scraper"] = OLXScraper()  # quem baixa páginas do OLX
-    app.bot_data["alert_min"] = config.ALERT_CHECK_INTERVAL_MINUTES
-    app.bot_data["watch_hours"] = config.WATCHLIST_CHECK_INTERVAL_HOURS
+    app.bot_data["scrape_days"] = config.SCRAPE_CHECK_INTERVAL_DAYS
+    app.bot_data["watch_days"] = config.WATCHLIST_CHECK_INTERVAL_DAYS
 
     # Agendador: dispara tarefas de tempo em tempo (tipo setInterval no Node)
     sched = AsyncIOScheduler()

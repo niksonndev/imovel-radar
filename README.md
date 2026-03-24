@@ -24,7 +24,7 @@ O programa **não expõe servidor HTTP**: roda em **long polling** (`py main.py`
 ## O que o projeto faz (fluxo)
 
 1. **`main.py`** — Ponto de entrada. Sobe o bot, registra comandos e, ao iniciar, abre o banco, o scraper e o agendador.
-2. **`config.py`** — Lê `.env` (token, intervalos, caminho do banco). Sem `TELEGRAM_BOT_TOKEN` o app nem sobe.
+2. **`config.py`** — Lê `.env` (token e caminho do banco). Sem `TELEGRAM_BOT_TOKEN` o app nem sobe. O scheduler roda fixo 1x por dia.
 3. **`bot/handlers.py`** — Comandos do Telegram (`/start`, `/observar`, …) e callbacks do menu (Meus Alertas, Ajuda).
 4. **`bot/conversations.py`** — Wizard do `/novo_alerta` e fluxo curto “Acompanhar Anúncio”.
 5. **`bot/carousel.py`** — Navegação inline após o seed imediato de anúncios.
@@ -116,8 +116,6 @@ imovel-radar/
 
 | Variável                         | Padrão                    |
 | -------------------------------- | ------------------------- |
-| `ALERT_CHECK_INTERVAL_MINUTES`   | 30                        |
-| `WATCHLIST_CHECK_INTERVAL_HOURS` | 6                         |
 | `DATABASE_URL`                   | SQLite em `./data/bot.db` |
 | `SCRAPER_DELAY_MIN` / `MAX`      | 2–5 s entre requests      |
 
@@ -142,3 +140,14 @@ Cobertura principal:
 - `tests/test_wizard_seed.py` — carrossel e fluxos auxiliares do wizard
 
 ---
+
+## Verificação manual sem bot
+
+Para rodar uma checagem manual de scraping + atualização de cache sem subir o Telegram:
+
+```bash
+py scripts/run_scrape_once.py
+```
+
+O script processa todos os alertas ativos, atualiza `listings/price_history/listing_images`,
+marca vistos em `seen_listings` e atualiza `last_checked`.

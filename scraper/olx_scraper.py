@@ -128,7 +128,9 @@ class OLXScraper:
             raise FetchError(status_code, url)
         return text
 
-    async def search_listings(self, filters: dict[str, Any], max_pages: int = 15) -> list[dict]:
+    async def search_listings(
+        self, filters: dict[str, Any], max_pages: int | None = 15
+    ) -> list[dict]:
         """
         Várias páginas de resultados; dict[olx_id] evita duplicata.
         Depois filtra em Python o que a URL do OLX não filtrou (quartos, m², bairro no texto).
@@ -137,7 +139,10 @@ class OLXScraper:
         # Sticky fingerprint por ciclo de busca/paginação.
         self._cycle_headers = self._build_headers()
         try:
-            for page in range(1, max_pages + 1):
+            page = 1
+            while True:
+                if max_pages is not None and page > max_pages:
+                    break
                 url = build_search_url(filters, page)
                 try:
                     html = await self.fetch(url)
@@ -148,16 +153,32 @@ class OLXScraper:
                 logger.info("Página %s: %s anúncios brutos", page, len(ads))
                 if not ads:
                     break
+                new_in_page = 0
                 for ad in ads:
-                    all_ads[ad["olx_id"]] = ad
-                if len(ads) < 20:
+                    oid = ad["olx_id"]
+                    if oid not in all_ads:
+                        new_in_page += 1
+                    all_ads[oid] = ad
+                # Se a página não trouxe IDs novos, consideramos fim da listagem.
+                if new_in_page == 0:
                     break
+                page += 1
         finally:
             self._cycle_headers = None
         out = list(all_ads.values())
         out = self._apply_local_filters(out, filters)
         logger.info("Total bruto: %s | Após filtro: %s", len(all_ads), len(out))
         return out
+
+    async def search_all_rent_maceio(self) -> list[dict]:
+        """
+        Coleta completa de aluguel em Maceió.
+        Percorre todas as páginas até não haver mais anúncios novos.
+        """
+        return await self.search_listings(
+            {"transaction": "rent", "property_type": "all"},
+            max_pages=None,
+        )
 
     def _apply_local_filters(self, ads: list[dict], filters: dict[str, Any]) -> list[dict]:
         # log temporário

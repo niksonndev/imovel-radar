@@ -30,7 +30,7 @@ async def db_factory():
         alert = Alert(
             user_id=user.id,
             name="Apt Jatiúca",
-            filters={"transaction": "sale", "property_type": "apartment"},
+            filters={"transaction": "rent", "property_type": "apartment"},
             is_active=True,
             last_checked=None,
         )
@@ -47,7 +47,8 @@ def _fake_app(factory, bot_mock, scraper_mock):
     app.bot_data = {
         "session_factory": factory,
         "scraper": scraper_mock,
-        "alert_min": 30,
+        "scrape_days": 1,
+        "watch_days": 1,
     }
     app.user_data = defaultdict(dict)
     return app
@@ -66,7 +67,7 @@ async def test_seed_only_sends_summary_message(db_factory):
     factory, user, alert = db_factory
     bot = AsyncMock()
     scraper = AsyncMock()
-    scraper.search_listings.return_value = FAKE_LISTINGS
+    scraper.search_all_rent_maceio.return_value = FAKE_LISTINGS
 
     app = _fake_app(factory, bot, scraper)
     await job_alerts(app)
@@ -84,7 +85,7 @@ async def test_seed_only_populates_seen_listings(db_factory):
     factory, user, alert = db_factory
     bot = AsyncMock()
     scraper = AsyncMock()
-    scraper.search_listings.return_value = FAKE_LISTINGS
+    scraper.search_all_rent_maceio.return_value = FAKE_LISTINGS
 
     app = _fake_app(factory, bot, scraper)
     await job_alerts(app)
@@ -100,7 +101,7 @@ async def test_seed_only_does_not_send_individual_notifications(db_factory):
     factory, user, alert = db_factory
     bot = AsyncMock()
     scraper = AsyncMock()
-    scraper.search_listings.return_value = FAKE_LISTINGS
+    scraper.search_all_rent_maceio.return_value = FAKE_LISTINGS
 
     app = _fake_app(factory, bot, scraper)
     await job_alerts(app)
@@ -115,7 +116,7 @@ async def test_second_cycle_sends_carousel_for_new(db_factory):
     bot = AsyncMock()
     scraper = AsyncMock()
 
-    scraper.search_listings.return_value = FAKE_LISTINGS
+    scraper.search_all_rent_maceio.return_value = FAKE_LISTINGS
     app = _fake_app(factory, bot, scraper)
     await job_alerts(app)
 
@@ -124,7 +125,7 @@ async def test_second_cycle_sends_carousel_for_new(db_factory):
         {"olx_id": "333333333", "title": "Apt 3", "price": 500000, "url": "https://olx.com.br/d/333333333",
          "thumbnail": None, "neighborhood": "Pajuçara", "bedrooms": 3, "area_m2": 90},
     ]
-    scraper.search_listings.return_value = new_listings
+    scraper.search_all_rent_maceio.return_value = new_listings
     await job_alerts(app)
 
     calls = bot.send_message.call_args_list
@@ -144,7 +145,7 @@ async def test_seed_only_no_listings(db_factory):
     factory, user, alert = db_factory
     bot = AsyncMock()
     scraper = AsyncMock()
-    scraper.search_listings.return_value = []
+    scraper.search_all_rent_maceio.return_value = []
 
     app = _fake_app(factory, bot, scraper)
     await job_alerts(app)
@@ -158,7 +159,7 @@ async def test_seed_message_contains_olx_link(db_factory):
     factory, user, alert = db_factory
     bot = AsyncMock()
     scraper = AsyncMock()
-    scraper.search_listings.return_value = FAKE_LISTINGS
+    scraper.search_all_rent_maceio.return_value = FAKE_LISTINGS
 
     app = _fake_app(factory, bot, scraper)
     await job_alerts(app)
@@ -173,7 +174,7 @@ async def test_seed_logs_before_and_after(db_factory, caplog):
     factory, user, alert = db_factory
     bot = AsyncMock()
     scraper = AsyncMock()
-    scraper.search_listings.return_value = FAKE_LISTINGS
+    scraper.search_all_rent_maceio.return_value = FAKE_LISTINGS
 
     app = _fake_app(factory, bot, scraper)
     with caplog.at_level(logging.INFO, logger="scheduler.jobs"):
@@ -191,7 +192,7 @@ async def test_seed_send_failure_logs_exception(db_factory, caplog):
     bot = AsyncMock()
     bot.send_message.side_effect = Exception("Telegram API error")
     scraper = AsyncMock()
-    scraper.search_listings.return_value = FAKE_LISTINGS
+    scraper.search_all_rent_maceio.return_value = FAKE_LISTINGS
 
     app = _fake_app(factory, bot, scraper)
     with caplog.at_level(logging.ERROR, logger="scheduler.jobs"):
@@ -205,7 +206,7 @@ async def test_seed_sets_last_checked(db_factory):
     factory, user, alert = db_factory
     bot = AsyncMock()
     scraper = AsyncMock()
-    scraper.search_listings.return_value = FAKE_LISTINGS
+    scraper.search_all_rent_maceio.return_value = FAKE_LISTINGS
 
     app = _fake_app(factory, bot, scraper)
     await job_alerts(app)
@@ -221,7 +222,7 @@ async def test_wizard_filters_work_with_seed(db_factory):
 
     async with factory() as session:
         alert = await create_alert(session, user.id, "Ape noco", {
-            "transaction": "sale",
+            "transaction": "rent",
             "price_min": None,
             "price_max": 300000,
             "neighborhoods": [],
@@ -229,7 +230,7 @@ async def test_wizard_filters_work_with_seed(db_factory):
 
     bot = AsyncMock()
     scraper = AsyncMock()
-    scraper.search_listings.return_value = FAKE_LISTINGS
+    scraper.search_all_rent_maceio.return_value = FAKE_LISTINGS
 
     app = _fake_app(factory, bot, scraper)
     await job_alerts(app)

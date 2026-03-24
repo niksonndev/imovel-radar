@@ -202,16 +202,16 @@ async def watch_remove_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def menu_status_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     await q.answer()
-    am = context.application.bot_data.get("alert_min", 30)
-    wh = context.application.bot_data.get("watch_hours", 6)
+    scrape_days = context.application.bot_data.get("scrape_days", 1)
+    watch_days = context.application.bot_data.get("watch_days", 1)
     next_a = context.application.bot_data.get("next_alert_run")
     next_w = context.application.bot_data.get("next_watch_run")
     na = next_a.strftime("%d/%m %H:%M") if next_a else "—"
     nw = next_w.strftime("%d/%m %H:%M") if next_w else "—"
     await q.message.reply_text(
         f"*Status*\n"
-        f"• Alertas: a cada *{am}* min (próx.: _{na}_)\n"
-        f"• Watchlist: a cada *{wh}* h (próx.: _{nw}_)\n"
+        f"• Scrape/alertas: diariamente às *03:00* (Maceió) (próx.: _{na}_)\n"
+        f"• Watchlist: a cada *{watch_days}* dia(s) (próx.: _{nw}_)\n"
         f"• Região: Maceió/AL",
         parse_mode="Markdown",
         reply_markup=keyboards.home_keyboard(),
@@ -363,16 +363,16 @@ async def cmd_remover(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Horários que o scheduler atualizou em bot_data (próxima janela aproximada)
-    am = context.application.bot_data.get("alert_min", 30)
-    wh = context.application.bot_data.get("watch_hours", 6)
+    scrape_days = context.application.bot_data.get("scrape_days", 1)
+    watch_days = context.application.bot_data.get("watch_days", 1)
     next_a = context.application.bot_data.get("next_alert_run")
     next_w = context.application.bot_data.get("next_watch_run")
     na = next_a.strftime("%d/%m %H:%M") if next_a else "—"
     nw = next_w.strftime("%d/%m %H:%M") if next_w else "—"
     await update.message.reply_text(
         f"*Status*\n"
-        f"• Alertas: a cada *{am}* min (próx.: _{na}_)\n"
-        f"• Watchlist: a cada *{wh}* h (próx.: _{nw}_)\n"
+        f"• Scrape/alertas: diariamente às *03:00* (Maceió) (próx.: _{na}_)\n"
+        f"• Watchlist: a cada *{watch_days}* dia(s) (próx.: _{nw}_)\n"
         f"• Região: Maceió/AL",
         parse_mode="Markdown",
     )

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram import Bot
@@ -18,9 +19,20 @@ from telegram.constants import ParseMode
 from bot.carousel import send_carousel, MAX_NOTIF_CAROUSEL
 from database import crud
 from database.models import User, WatchedListing
+from db.cache import deactivate_missing, upsert_listing
+from db.parsers import parse_listing
 from scraper.olx_scraper import build_search_url
 
 logger = logging.getLogger(__name__)
+MACEIO_TZ = ZoneInfo("America/Maceio")
+
+
+def _next_maceio_3am() -> datetime:
+    now = datetime.now(MACEIO_TZ)
+    target = now.replace(hour=3, minute=0, second=0, microsecond=0)
+    if target <= now:
+        target += timedelta(days=1)
+    return target
 
 
 def _fmt_money(v: float | None) -> str:
@@ -29,12 +41,57 @@ def _fmt_money(v: float | None) -> str:
     return f"R$ {v:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def _filter_listings_inhouse(listings: list[dict], filters: dict) -> list[dict]:
+    pmin = filters.get("price_min")
+    pmax = filters.get("price_max")
+    bmin = filters.get("bedrooms_min")
+    amin = filters.get("area_min")
+    amax = filters.get("area_max")
+    neighborhoods = [n.lower() for n in (filters.get("neighborhoods") or [])]
+    out: list[dict] = []
+    for ad in listings:
+        if pmin is not None and ad.get("price") is not None and ad["price"] < pmin:
+            continue
+        if pmax is not None and ad.get("price") is not None and ad["price"] > pmax:
+            continue
+        if bmin is not None and ad.get("bedrooms") is not None and ad["bedrooms"] < bmin:
+            continue
+        if amin is not None and ad.get("area_m2") is not None and ad["area_m2"] < amin:
+            continue
+        if amax is not None and ad.get("area_m2") is not None and ad["area_m2"] > amax:
+            continue
+        if neighborhoods:
+            blob = ((ad.get("title") or "") + " " + (ad.get("neighborhood") or "")).lower()
+            if not any(n in blob for n in neighborhoods):
+                continue
+        out.append(ad)
+    return out
+
+
 async def job_alerts(app) -> None:
     session_factory = app.bot_data["session_factory"]
     scraper = app.bot_data["scraper"]
     bot: Bot = app.bot
     async with session_factory() as session:
         alerts = await crud.active_alerts(session)
+    try:
+        full_listings = await scraper.search_all_rent_maceio()
+    except Exception as e:
+        logger.exception("Falha no scrape global de aluguel Maceió: %s", e)
+        app.bot_data["next_alert_run"] = _next_maceio_3am()
+        return
+
+    cycle_seen_ids: set[int] = set()
+    cycle_cache_stats = {"created": 0, "updated": 0, "unchanged": 0}
+    for raw in full_listings:
+        try:
+            parsed = parse_listing(raw)
+            status = upsert_listing(parsed)
+            cycle_cache_stats[status] += 1
+            cycle_seen_ids.add(parsed["list_id"])
+        except Exception as e:
+            logger.warning("Falha ao atualizar cache do anuncio: %s", e)
+
     for alert in alerts:
         try:
             async with session_factory() as session:
@@ -42,7 +99,11 @@ async def job_alerts(app) -> None:
                 if not user:
                     continue
                 tg_id = user.telegram_id
-            listings = await scraper.search_listings(alert.filters or {}, max_pages=15)
+            if (alert.filters or {}).get("transaction") == "sale":
+                listings = []
+            else:
+                listings = _filter_listings_inhouse(full_listings, alert.filters or {})
+
             async with session_factory() as session:
                 seed_only = alert.last_checked is None
                 new_ads: list[dict] = []
@@ -118,9 +179,13 @@ async def job_alerts(app) -> None:
                 await crud.update_alert_last_checked(session, alert.id)
         except Exception as e:
             logger.exception("Alerta %s: %s", alert.id, e)
-    app.bot_data["next_alert_run"] = datetime.utcnow() + timedelta(
-        minutes=app.bot_data.get("alert_min", 30)
+    deactivated = deactivate_missing(list(cycle_seen_ids))
+    logger.info(
+        "Cache do ciclo: %s | desativados=%s",
+        cycle_cache_stats,
+        deactivated,
     )
+    app.bot_data["next_alert_run"] = _next_maceio_3am()
 
 
 async def job_watchlist(app) -> None:
@@ -188,14 +253,14 @@ async def job_watchlist(app) -> None:
                 },
             )
     app.bot_data["next_watch_run"] = datetime.utcnow() + timedelta(
-        hours=app.bot_data.get("watch_hours", 6)
+        days=app.bot_data.get("watch_days", 1)
     )
 
 
 def register_jobs(scheduler: AsyncIOScheduler, application) -> None:
-    """Agenda dois intervalos: alertas (minutos) e watchlist (horas)."""
-    am = application.bot_data.get("alert_min", 30)
-    wh = application.bot_data.get("watch_hours", 6)
+    """Agenda scraping diário 03:00 (Maceió) e watchlist diária."""
+    scrape_days = application.bot_data.get("scrape_days", 1)
+    watch_days = application.bot_data.get("watch_days", 1)
 
     async def run_alerts():
         await job_alerts(application)
@@ -205,18 +270,23 @@ def register_jobs(scheduler: AsyncIOScheduler, application) -> None:
 
     scheduler.add_job(
         run_alerts,
-        "interval",
-        minutes=am,
+        "cron",
+        hour=3,
+        minute=0,
+        timezone=MACEIO_TZ,
         id="alerts",
         replace_existing=True,
     )
     scheduler.add_job(
         run_watch,
         "interval",
-        hours=wh,
+        days=watch_days,
         id="watchlist",
         replace_existing=True,
     )
-    application.bot_data["next_alert_run"] = datetime.utcnow() + timedelta(minutes=am)
-    application.bot_data["next_watch_run"] = datetime.utcnow() + timedelta(hours=wh)
-    logger.info("Jobs registrados: alertas %s min, watchlist %s h", am, wh)
+    application.bot_data["next_alert_run"] = _next_maceio_3am()
+    application.bot_data["next_watch_run"] = datetime.utcnow() + timedelta(days=watch_days)
+    logger.info(
+        "Jobs registrados: scraping diario as 03:00 (America/Maceio), watchlist a cada %s dia(s)",
+        watch_days,
+    )

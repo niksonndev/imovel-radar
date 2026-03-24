@@ -13,12 +13,7 @@ from database.crud import (
     get_or_create_user,
     seen_olx_ids,
 )
-from bot.carousel import (
-    immediate_seed,
-    _carousel_caption,
-    _carousel_keyboard,
-    PAGE_SIZE,
-)
+from bot.carousel import immediate_seed, _carousel_caption, _carousel_keyboard, PAGE_SIZE
 from bot.conversations import wiz_confirm_cb
 
 pytestmark = pytest.mark.asyncio
@@ -66,27 +61,24 @@ async def seed_env():
             {
                 "transaction": "sale",
                 "price_min": None,
-                "price_max": 300000,
+                "price_max": None,
                 "neighborhoods": [],
             },
         )
-
-    scraper = AsyncMock()
-    scraper.search_listings.return_value = FAKE_LISTINGS
 
     bot = AsyncMock()
 
     app = MagicMock()
     app.bot_data = {
         "session_factory": factory,
-        "scraper": scraper,
-        "alert_min": 3,
+        "scrape_days": 1,
+        "watch_days": 1,
     }
     app.bot = bot
 
     user_data: dict = {}
 
-    yield factory, app, alert, bot, user_data, scraper
+    yield factory, app, alert, bot, user_data
 
 
 # ─── fixture para testes via wiz_confirm_cb ───
@@ -99,16 +91,13 @@ async def wizard_env():
         await conn.run_sync(Base.metadata.create_all)
     factory = async_sessionmaker(engine, expire_on_commit=False)
 
-    scraper = AsyncMock()
-    scraper.search_listings.return_value = FAKE_LISTINGS
-
     bot = AsyncMock()
 
     app = MagicMock()
     app.bot_data = {
         "session_factory": factory,
-        "scraper": scraper,
-        "alert_min": 3,
+        "scrape_days": 1,
+        "watch_days": 1,
     }
     app.bot = bot
 
@@ -129,12 +118,12 @@ async def wizard_env():
             "name": "Ape noco",
             "transaction": "sale",
             "price_min": None,
-            "price_max": 300000,
+            "price_max": None,
             "neighborhoods_selected": set(),
         }
     }
 
-    yield factory, update, context, scraper, query, bot
+    yield factory, update, context, query, bot
 
 
 # ─── helpers ───
@@ -157,9 +146,10 @@ def _btn_labels(kb):
 # ═══════════════════════════════════════════════════════════════
 
 
-async def test_seed_populates_seen_listings(seed_env):
+async def test_seed_populates_seen_listings(seed_env, monkeypatch):
     """Seed marca todos os OLX IDs como vistos no banco."""
-    factory, app, alert, bot, user_data, scraper = seed_env
+    factory, app, alert, bot, user_data = seed_env
+    monkeypatch.setattr("bot.carousel.get_active_listings", lambda filters=None: FAKE_LISTINGS)
 
     await immediate_seed(app, alert.id, 99999, alert.filters, user_data)
 
@@ -168,9 +158,10 @@ async def test_seed_populates_seen_listings(seed_env):
     assert seen == {"111111111", "222222222"}
 
 
-async def test_seed_sets_last_checked(seed_env):
+async def test_seed_sets_last_checked(seed_env, monkeypatch):
     """Após seed, last_checked não deve ser None."""
-    factory, app, alert, bot, user_data, scraper = seed_env
+    factory, app, alert, bot, user_data = seed_env
+    monkeypatch.setattr("bot.carousel.get_active_listings", lambda filters=None: FAKE_LISTINGS)
 
     await immediate_seed(app, alert.id, 99999, alert.filters, user_data)
 
@@ -179,9 +170,10 @@ async def test_seed_sets_last_checked(seed_env):
         assert refreshed.last_checked is not None
 
 
-async def test_seed_sends_carousel_first_page(seed_env):
+async def test_seed_sends_carousel_first_page(seed_env, monkeypatch):
     """Seed envia o primeiro anúncio (com foto) via send_photo."""
-    factory, app, alert, bot, user_data, scraper = seed_env
+    factory, app, alert, bot, user_data = seed_env
+    monkeypatch.setattr("bot.carousel.get_active_listings", lambda filters=None: FAKE_LISTINGS)
 
     await immediate_seed(app, alert.id, 99999, alert.filters, user_data)
 
@@ -193,9 +185,10 @@ async def test_seed_sends_carousel_first_page(seed_env):
     assert "Página 1 de 1" in call_kw["caption"]
 
 
-async def test_seed_sends_confirmation_after_carousel(seed_env):
+async def test_seed_sends_confirmation_after_carousel(seed_env, monkeypatch):
     """Após carrossel, envia mensagem de confirmação do alerta."""
-    factory, app, alert, bot, user_data, scraper = seed_env
+    factory, app, alert, bot, user_data = seed_env
+    monkeypatch.setattr("bot.carousel.get_active_listings", lambda filters=None: FAKE_LISTINGS)
 
     await immediate_seed(app, alert.id, 99999, alert.filters, user_data)
 
@@ -205,9 +198,10 @@ async def test_seed_sends_confirmation_after_carousel(seed_env):
     assert "avisar" in text
 
 
-async def test_seed_stores_carousel_state(seed_env):
+async def test_seed_stores_carousel_state(seed_env, monkeypatch):
     """Seed armazena estado do carrossel em user_data."""
-    factory, app, alert, bot, user_data, scraper = seed_env
+    factory, app, alert, bot, user_data = seed_env
+    monkeypatch.setattr("bot.carousel.get_active_listings", lambda filters=None: FAKE_LISTINGS)
 
     await immediate_seed(app, alert.id, 99999, alert.filters, user_data)
 
@@ -220,9 +214,9 @@ async def test_seed_stores_carousel_state(seed_env):
     assert carousel["page_size"] == PAGE_SIZE
 
 
-async def test_seed_passes_all_listings(seed_env):
+async def test_seed_passes_all_listings(seed_env, monkeypatch):
     """immediate_seed passa todos os anúncios para o carrossel (sem corte)."""
-    factory, app, alert, bot, user_data, scraper = seed_env
+    factory, app, alert, bot, user_data = seed_env
 
     many = [
         {
@@ -237,7 +231,7 @@ async def test_seed_passes_all_listings(seed_env):
         }
         for i in range(1, 10)
     ]
-    scraper.search_listings.return_value = many
+    monkeypatch.setattr("bot.carousel.get_active_listings", lambda filters=None: many)
 
     await immediate_seed(app, alert.id, 99999, alert.filters, user_data)
 
@@ -245,10 +239,10 @@ async def test_seed_passes_all_listings(seed_env):
     assert len(user_data[key]["listings"]) == 9
 
 
-async def test_seed_no_listings_sends_empty_message(seed_env):
+async def test_seed_no_listings_sends_empty_message(seed_env, monkeypatch):
     """Sem anúncios, envia mensagem informando."""
-    factory, app, alert, bot, user_data, scraper = seed_env
-    scraper.search_listings.return_value = []
+    factory, app, alert, bot, user_data = seed_env
+    monkeypatch.setattr("bot.carousel.get_active_listings", lambda filters=None: [])
 
     await immediate_seed(app, alert.id, 99999, alert.filters, user_data)
 
@@ -257,16 +251,20 @@ async def test_seed_no_listings_sends_empty_message(seed_env):
     assert "Nenhum" in text or "nenhum" in text
 
 
-async def test_seed_fallback_on_scrape_failure(seed_env):
-    """Se scraping falhar, envia aviso e NÃO seta last_checked."""
-    factory, app, alert, bot, user_data, scraper = seed_env
-    scraper.search_listings.side_effect = Exception("OLX bloqueou")
+async def test_seed_fallback_on_scrape_failure(seed_env, monkeypatch):
+    """Se leitura do cache falhar, envia aviso e NÃO seta last_checked."""
+    factory, app, alert, bot, user_data = seed_env
+
+    def _boom(filters=None):
+        raise Exception("sqlite indisponivel")
+
+    monkeypatch.setattr("bot.carousel.get_active_listings", _boom)
 
     await immediate_seed(app, alert.id, 99999, alert.filters, user_data)
 
     bot.send_message.assert_called_once()
     text = bot.send_message.call_args[1].get("text", "")
-    assert "Não consegui" in text
+    assert "banco local" in text
 
     async with factory() as session:
         refreshed = await session.get(Alert, alert.id)
@@ -276,10 +274,10 @@ async def test_seed_fallback_on_scrape_failure(seed_env):
     assert key not in user_data
 
 
-async def test_seed_text_fallback_when_no_thumbnail(seed_env):
+async def test_seed_text_fallback_when_no_thumbnail(seed_env, monkeypatch):
     """Anúncio sem thumbnail envia send_message em vez de send_photo."""
-    factory, app, alert, bot, user_data, scraper = seed_env
-    scraper.search_listings.return_value = [
+    factory, app, alert, bot, user_data = seed_env
+    monkeypatch.setattr("bot.carousel.get_active_listings", lambda filters=None: [
         {
             "olx_id": "333333333",
             "title": "Casa sem foto",
@@ -290,7 +288,7 @@ async def test_seed_text_fallback_when_no_thumbnail(seed_env):
             "bedrooms": 3,
             "area_m2": 90,
         }
-    ]
+    ])
 
     await immediate_seed(app, alert.id, 99999, alert.filters, user_data)
 
@@ -308,7 +306,7 @@ async def test_seed_text_fallback_when_no_thumbnail(seed_env):
 
 async def test_wizard_creates_seed_task(wizard_env):
     """wiz_confirm_cb cria uma task de seed em background."""
-    factory, update, context, scraper, query, bot = wizard_env
+    factory, update, context, query, bot = wizard_env
 
     await wiz_confirm_cb(update, context)
 
@@ -322,7 +320,7 @@ async def test_wizard_creates_seed_task(wizard_env):
 
 async def test_wizard_sends_loading_message(wizard_env):
     """wiz_confirm_cb envia '⏳ Peraê...' antes do seed."""
-    factory, update, context, scraper, query, bot = wizard_env
+    factory, update, context, query, bot = wizard_env
 
     await wiz_confirm_cb(update, context)
 
@@ -331,9 +329,10 @@ async def test_wizard_sends_loading_message(wizard_env):
     assert any("Peraê" in t for t in texts)
 
 
-async def test_wizard_populates_seen_after_seed(wizard_env):
+async def test_wizard_populates_seen_after_seed(wizard_env, monkeypatch):
     """Após await da task, seen_listings deve estar populado."""
-    factory, update, context, scraper, query, bot = wizard_env
+    factory, update, context, query, bot = wizard_env
+    monkeypatch.setattr("bot.carousel.get_active_listings", lambda filters=None: FAKE_LISTINGS)
 
     await wiz_confirm_cb(update, context)
     await _await_seed_tasks(context.user_data)
@@ -348,9 +347,10 @@ async def test_wizard_populates_seen_after_seed(wizard_env):
     assert seen == {"111111111", "222222222"}
 
 
-async def test_wizard_sets_last_checked_after_seed(wizard_env):
+async def test_wizard_sets_last_checked_after_seed(wizard_env, monkeypatch):
     """Após seed via wizard, last_checked deve ser preenchido."""
-    factory, update, context, scraper, query, bot = wizard_env
+    factory, update, context, query, bot = wizard_env
+    monkeypatch.setattr("bot.carousel.get_active_listings", lambda filters=None: FAKE_LISTINGS)
 
     await wiz_confirm_cb(update, context)
     await _await_seed_tasks(context.user_data)
@@ -363,9 +363,10 @@ async def test_wizard_sets_last_checked_after_seed(wizard_env):
         assert alerts[0].last_checked is not None
 
 
-async def test_wizard_carousel_sent_after_seed(wizard_env):
+async def test_wizard_carousel_sent_after_seed(wizard_env, monkeypatch):
     """Após seed via wizard, bot.send_photo deve ter sido chamado (carrossel)."""
-    factory, update, context, scraper, query, bot = wizard_env
+    factory, update, context, query, bot = wizard_env
+    monkeypatch.setattr("bot.carousel.get_active_listings", lambda filters=None: FAKE_LISTINGS)
 
     await wiz_confirm_cb(update, context)
     await _await_seed_tasks(context.user_data)
