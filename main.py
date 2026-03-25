@@ -1,18 +1,12 @@
 """
 O bot fica num loop infinito ouvindo o Telegram até você dar Ctrl+C.
 """
+
 from __future__ import annotations
 
 import logging
 import sys
 from pathlib import Path
-
-# __file__ = caminho deste arquivo. .parent = pasta onde está o main.py.
-# sys.path = lista de pastas onde o Python procura módulos ao dar "import".
-# Sem isso, "import database" poderia falhar dependendo de onde você rodou o comando.
-ROOT = Path(__file__).resolve().parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
@@ -39,10 +33,14 @@ from bot.handlers import (
     menu_watchlist_cb,
     watch_remove_cb,
 )
-from database.crud import create_engine_and_session, init_db as init_models_db
-from db.database import init_db as init_cache_db
-from scheduler.jobs import register_jobs
 from scraper import olx_scraper
+
+# __file__ = caminho deste arquivo. .parent = pasta onde está o main.py.
+# sys.path = lista de pastas onde o Python procura módulos ao dar "import".
+# Sem isso, "import database" poderia falhar dependendo de onde você rodou o comando.
+ROOT = Path(__file__).resolve().parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 # logging = imprimir mensagens de debug/erro no terminal (tipo console.log)
 logging.basicConfig(
@@ -57,20 +55,12 @@ logger = logging.getLogger(__name__)
 # "async def" = função assíncrona (pode esperar rede/DB sem travar tudo).
 # O python-telegram-bot chama isso depois que o app está pronto.
 async def post_init(app: Application) -> None:
-    # Conexão com SQLite + fábrica de "sessões" (cada operação no banco usa uma sessão)
-    engine, session_factory = create_engine_and_session(config.DATABASE_URL)
-    await init_models_db(engine)  # cria tabelas do ORM se não existirem
-    init_cache_db()  # cria schema de cache sqlite (db/schema.sql)
-
     # bot_data = "armário global" compartilhado por todo o bot (tipo um singleton)
-    app.bot_data["engine"] = engine
-    app.bot_data["session_factory"] = session_factory
     app.bot_data["scrape_days"] = config.SCRAPE_CHECK_INTERVAL_DAYS
     app.bot_data["watch_days"] = config.WATCHLIST_CHECK_INTERVAL_DAYS
 
     # Agendador: dispara tarefas de tempo em tempo (tipo setInterval no Node)
     sched = AsyncIOScheduler()
-    register_jobs(sched, app)
     sched.start()
     app.bot_data["scheduler"] = sched
     logger.info("Bot iniciado.")
@@ -111,14 +101,24 @@ def main() -> None:
     )
     app.add_handler(CallbackQueryHandler(menu_ajuda_cb, pattern=r"^menu_ajuda$"))
     app.add_handler(CallbackQueryHandler(menu_home_cb, pattern=r"^menu_home$"))
-    app.add_handler(CallbackQueryHandler(menu_watchlist_cb, pattern=r"^menu_watchlist$"))
+    app.add_handler(
+        CallbackQueryHandler(menu_watchlist_cb, pattern=r"^menu_watchlist$")
+    )
     app.add_handler(CallbackQueryHandler(menu_status_cb, pattern=r"^menu_status$"))
-    app.add_handler(CallbackQueryHandler(alert_toggle_cb, pattern=r"^alert_toggle_\d+$"))
-    app.add_handler(CallbackQueryHandler(alert_delete_cb, pattern=r"^alert_delete_\d+$"))
-    app.add_handler(CallbackQueryHandler(watch_remove_cb, pattern=r"^watch_remove_\d+$"))
+    app.add_handler(
+        CallbackQueryHandler(alert_toggle_cb, pattern=r"^alert_toggle_\d+$")
+    )
+    app.add_handler(
+        CallbackQueryHandler(alert_delete_cb, pattern=r"^alert_delete_\d+$")
+    )
+    app.add_handler(
+        CallbackQueryHandler(watch_remove_cb, pattern=r"^watch_remove_\d+$")
+    )
     # Carrossel de anúncios (navegação inline após seed imediato)
     app.add_handler(
-        CallbackQueryHandler(carousel_cb, pattern=r"^crs_\d+(?:_notif)?_(prev|next|pgp|pgn)$")
+        CallbackQueryHandler(
+            carousel_cb, pattern=r"^crs_\d+(?:_notif)?_(prev|next|pgp|pgn)$"
+        )
     )
     # "👁 Acompanhar Anúncio" (conversa curta)
     app.add_handler(conversation_acompanhar_anuncio())

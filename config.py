@@ -5,6 +5,7 @@ Este arquivo roda assim que alguém dá "import config".
 load_dotenv() lê o arquivo .env na pasta do projeto e coloca as variáveis
 no ambiente — depois os.getenv("NOME") pegam os valores (parecido com process.env no Node).
 """
+
 import os
 from pathlib import Path
 
@@ -12,23 +13,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Pasta onde está este arquivo (raiz do projeto)
-BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)  # cria pasta data/ se não existir
+DATA_DIR = Path(__file__).resolve().parent / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+DB_PATH = DATA_DIR / "new_bot.db"
 
 # Token do BotFather — obrigatório; sem ele o bot não autentica no Telegram
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 if not TELEGRAM_BOT_TOKEN:
     raise RuntimeError("Defina TELEGRAM_BOT_TOKEN no .env")
 
-# URL do banco: SQLite em arquivo local (não precisa instalar servidor de banco)
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    f"sqlite+aiosqlite:///{DATA_DIR / 'bot.db'}",
-).strip()
-
-# Intervalos fixos do scheduler (sem controle por .env)
+# Intervalos fixos do scheduler
 SCRAPE_CHECK_INTERVAL_DAYS = 1
 WATCHLIST_CHECK_INTERVAL_DAYS = 1
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()

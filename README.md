@@ -29,8 +29,6 @@ O programa **não expõe servidor HTTP**: roda em **long polling** (`py main.py`
 4. **`bot/conversations.py`** — Wizard do `/novo_alerta` e fluxo curto “Acompanhar Anúncio”.
 5. **`bot/carousel.py`** — Navegação inline após o seed imediato de anúncios.
 6. **`scraper/`** — Baixa páginas do OLX, monta URL de busca Maceió, extrai lista de anúncios (HTML + JSON embutido).
-7. **`database/`** — Usuários, alertas, “já vistos”, watchlist (SQLite em `data/bot.db`).
-8. **`scheduler/jobs.py`** — De tempo em tempo: (a) busca anúncios novos para cada alerta e manda mensagem; (b) confere preço dos links da watchlist.
 
 ---
 
@@ -75,6 +73,23 @@ Deixe essa janela aberta. Pare com **Ctrl+C**.
 O SQLite fica em **`data/bot.db`** (criado automaticamente).
 
 ---
+## Lint com Ruff
+
+Rodar o lint:
+
+```bash
+py -m ruff check .
+```
+
+Se quiser aplicar correções automáticas:
+
+```bash
+py -m ruff check . --fix
+```
+
+(O Ruff está configurado no `pyproject.toml` para focar em erros reais e imports, sem reclamar de `E501` por enquanto.)
+
+---
 
 ## Comandos no Telegram
 
@@ -114,30 +129,10 @@ imovel-radar/
 
 ## Variáveis `.env` (opcionais)
 
-| Variável                         | Padrão                    |
-| -------------------------------- | ------------------------- |
-| `DATABASE_URL`                   | SQLite em `./data/bot.db` |
-| `SCRAPER_DELAY_MIN` / `MAX`      | 2–5 s entre requests      |
-
----
-
-## Testes
-
-O projeto tem testes com **pytest** em `tests/` (incluídos em `requirements.txt`: `pytest`, `pytest-asyncio`).
-
-```bash
-py -m pip install -r requirements.txt
-py -m pytest -q
-```
-
-Cobertura principal:
-
-- `tests/test_crud.py` — CRUD no SQLite (async)
-- `tests/test_job_alerts.py` — lógica dos jobs de alerta
-- `tests/test_parser.py` — parsing do `__NEXT_DATA__` e normalização de campos
-- `tests/test_scraper_url.py` — montagem de URL de busca + extração do ID
-- `tests/test_local_filters.py` — filtros pós-scraping (quartos, m² e bairros)
-- `tests/test_wizard_seed.py` — carrossel e fluxos auxiliares do wizard
+| Variável                    | Padrão                    |
+| --------------------------- | ------------------------- |
+| `DATABASE_URL`              | SQLite em `./data/bot.db` |
+| `SCRAPER_DELAY_MIN` / `MAX` | 2–5 s entre requests      |
 
 ---
 
@@ -148,6 +143,3 @@ Para rodar uma checagem manual de scraping + atualização de cache sem subir o 
 ```bash
 py scripts/run_scrape_once.py
 ```
-
-O script processa todos os alertas ativos, atualiza `listings/price_history/listing_images`,
-marca vistos em `seen_listings` e atualiza `last_checked`.

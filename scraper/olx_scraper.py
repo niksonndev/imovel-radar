@@ -2,8 +2,7 @@
 Cliente HTTP para o OLX (cloudscraper) + extração de __NEXT_DATA__ / fallback HTML.
 
 A listagem é sempre aluguel Maceió; cada anúncio é normalizado por
-``parser.normalize_olx_listing`` (dict enxuto). Páginas de detalhe também
-expõem *title* / *price* (float) para compatibilidade com watchlist.
+``parser.normalize_olx_listing`` (dict enxuto).
 """
 from __future__ import annotations
 
@@ -18,7 +17,7 @@ import cloudscraper
 from bs4 import BeautifulSoup
 
 import config
-from scraper.parser import normalize_olx_listing, price_value_to_float
+from scraper.parser import normalize_olx_listing
 
 logger = logging.getLogger(__name__)
 
@@ -57,24 +56,6 @@ def _walk_collect_listings(obj: Any, out: list[dict], depth: int = 0) -> None:
     elif isinstance(obj, list):
         for item in obj:
             _walk_collect_listings(item, out, depth + 1)
-
-
-def _walk_first_raw_ad(obj: Any, depth: int = 0) -> dict | None:
-    if depth > 25 or obj is None:
-        return None
-    if isinstance(obj, dict):
-        if "listId" in obj or "adId" in obj:
-            return obj
-        for v in obj.values():
-            found = _walk_first_raw_ad(v, depth + 1)
-            if found is not None:
-                return found
-    elif isinstance(obj, list):
-        for item in obj:
-            found = _walk_first_raw_ad(item, depth + 1)
-            if found is not None:
-                return found
-    return None
 
 
 def parse_search_page(html: str) -> list[dict]:
@@ -130,57 +111,6 @@ def parse_search_page(html: str) -> list[dict]:
         result = list(dedup.values())
 
     return result
-
-
-def parse_listing_page(html: str) -> dict[str, Any]:
-    """Página de detalhe: campos normalizados + *price* (float) e *removed* para watchlist."""
-    removed = False
-    lower = html.lower()
-    if (
-        "não encontrado" in lower
-        or "nao encontrado" in lower
-        or "anúncio expirado" in lower
-    ):
-        removed = True
-    title: str | None = None
-    price: float | None = None
-    normalized: dict[str, Any] | None = None
-
-    soup = BeautifulSoup(html, "lxml")
-    if "404" in html[:2000] and len(html) < 15000:
-        removed = True
-
-    script = soup.find("script", id="__NEXT_DATA__")
-    if script and script.string:
-        try:
-            data = json.loads(script.string)
-            raw = _walk_first_raw_ad(data)
-            if isinstance(raw, dict):
-                normalized = normalize_olx_listing(raw)
-                title = normalized.get("title") or None
-                price = price_value_to_float(normalized.get("priceValue"))
-        except json.JSONDecodeError:
-            pass
-
-    if not title:
-        h1 = soup.find("h1")
-        if h1:
-            title = h1.get_text(strip=True)[:500]
-    if price is None:
-        for el in soup.find_all(string=re.compile(r"R\$\s*[\d.]")):
-            price = price_value_to_float(el)
-            if price:
-                break
-
-    base: dict[str, Any] = {
-        "title": title,
-        "price": price,
-        "removed": removed,
-        "not_found": "404" in html[:3000] and "olx" in lower,
-    }
-    if normalized is not None:
-        base.update(normalized)
-    return base
 
 
 def _rent_maceio_listings_url(page: int) -> str:
@@ -291,16 +221,3 @@ async def search_all_rent_maceio() -> list[dict]:
     out = list(all_ads.values())
     logger.info("Total anúncios únicos (scraping): %s", len(out))
     return out
-
-
-async def fetch_listing(url: str) -> dict[str, Any]:
-    """Uma página de anúncio (watchlist / detalhe)."""
-    if not url.startswith("http"):
-        url = BASE + url
-    try:
-        html = await fetch(url)
-    except FetchError as e:
-        if e.status_code == 404:
-            return {"removed": True, "not_found": True, "price": None, "title": None}
-        raise
-    return parse_listing_page(html)
