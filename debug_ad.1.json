@@ -1,0 +1,216 @@
+{
+  "subject": "Apto mobiliado com 2 quartos no Farol, próximo ao Cesmac",
+  "priceValue": "R$ 2.700",
+  "oldPrice": "R$ 2.800",
+  "origListTime": 1774432621,
+  "professionalAd": false,
+  "friendlyUrl": "https://al.olx.com.br/alagoas/imoveis/apto-mobiliado-com-2-quartos-no-farol-proximo-ao-cesmac-1471185334",
+  "listId": 1471185334,
+  "featured": [
+    "VISUAL_FEATURED"
+  ],
+  "lastBumpAgeSecs": "1083",
+  "categoryName": "Apartamentos",
+  "adReply": "0",
+  "fixedOnTop": false,
+  "isFavorited": false,
+  "hasRealEstateHighlight": false,
+  "priceReductionBadge": false,
+  "view360": {
+    "url": null
+  },
+  "user": null,
+  "images": [
+    {
+      "original": "https://img.olx.com.br/images/48/484671001329085.jpg",
+      "originalWebp": "https://img.olx.com.br/images/48/484671001329085.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/58/585601612888009.jpg",
+      "originalWebp": "https://img.olx.com.br/images/58/585601612888009.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/59/592641010850091.jpg",
+      "originalWebp": "https://img.olx.com.br/images/59/592641010850091.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/60/608689731884172.jpg",
+      "originalWebp": "https://img.olx.com.br/images/60/608689731884172.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/62/623600610061534.jpg",
+      "originalWebp": "https://img.olx.com.br/images/62/623600610061534.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/63/638612251561930.jpg",
+      "originalWebp": "https://img.olx.com.br/images/63/638612251561930.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/66/666659371048475.jpg",
+      "originalWebp": "https://img.olx.com.br/images/66/666659371048475.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/67/679621133238540.jpg",
+      "originalWebp": "https://img.olx.com.br/images/67/679621133238540.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/68/685656858138656.jpg",
+      "originalWebp": "https://img.olx.com.br/images/68/685656858138656.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/89/894660010453568.jpg",
+      "originalWebp": "https://img.olx.com.br/images/89/894660010453568.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/91/919617370833248.jpg",
+      "originalWebp": "https://img.olx.com.br/images/91/919617370833248.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/93/933656015774231.jpg",
+      "originalWebp": "https://img.olx.com.br/images/93/933656015774231.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/94/941651738858392.jpg",
+      "originalWebp": "https://img.olx.com.br/images/94/941651738858392.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/96/962692015357189.jpg",
+      "originalWebp": "https://img.olx.com.br/images/96/962692015357189.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/97/976653733596124.jpg",
+      "originalWebp": "https://img.olx.com.br/images/97/976653733596124.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/99/994602853155106.jpg",
+      "originalWebp": "https://img.olx.com.br/images/99/994602853155106.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/10/105653257346442.jpg",
+      "originalWebp": "https://img.olx.com.br/images/10/105653257346442.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/12/128607859417594.jpg",
+      "originalWebp": "https://img.olx.com.br/images/12/128607859417594.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/14/147607371014936.jpg",
+      "originalWebp": "https://img.olx.com.br/images/14/147607371014936.webp"
+    }
+  ],
+  "videoCount": 0,
+  "location": "Maceió, Farol",
+  "properties": [
+    {
+      "name": "category",
+      "label": "Categoria",
+      "value": "Apartamentos"
+    },
+    {
+      "name": "real_estate_type",
+      "label": "Tipo",
+      "value": "Aluguel - apartamento padrão"
+    },
+    {
+      "name": "condominio",
+      "label": "Condomínio",
+      "value": "R$ 0"
+    },
+    {
+      "name": "iptu",
+      "label": "IPTU",
+      "value": "R$ 0"
+    },
+    {
+      "name": "size",
+      "label": "Área útil",
+      "value": "50m²"
+    },
+    {
+      "name": "rooms",
+      "label": "Quartos",
+      "value": "2"
+    },
+    {
+      "name": "bathrooms",
+      "label": "Banheiros",
+      "value": "1"
+    },
+    {
+      "name": "garage_spaces",
+      "label": "Vagas na garagem",
+      "value": "1"
+    },
+    {
+      "name": "re_features",
+      "label": "Detalhes do imóvel",
+      "value": "Academia, Ar condicionado, Área de serviço, Armários na cozinha, Armários no quarto, Mobiliado"
+    },
+    {
+      "name": "re_complex_features",
+      "label": "Detalhes do condomínio",
+      "value": "Academia, Condomínio fechado, Elevador, Permitido animais, Portaria, Salão de festas, Segurança 24h"
+    },
+    {
+      "name": "re_types",
+      "label": "Tipo",
+      "value": "Padrão"
+    }
+  ],
+  "searchCategoryLevelZero": 1000,
+  "searchCategoryLevelOne": 1002,
+  "accountActivityStatus": {
+    "isOnline": false
+  },
+  "olxPay": {
+    "enabled": false,
+    "dynamicBadgeProps": [],
+    "transactionalBadges": [],
+    "installments": []
+  },
+  "zapDetails": null,
+  "olxDelivery": {
+    "enabled": false,
+    "weight": null
+  },
+  "vehicleReport": {
+    "enabled": false,
+    "title": null,
+    "description": null,
+    "reportLink": null,
+    "reportTitle": null,
+    "tags": null
+  },
+  "vehicleTags": [],
+  "carSpecificData": null,
+  "tags": null,
+  "trackingSpecificData": [
+    {
+      "key": "region",
+      "value": "Alagoas"
+    }
+  ],
+  "title": "Apto mobiliado com 2 quartos no Farol, próximo ao Cesmac",
+  "price": "R$ 2.700",
+  "userGoogleReviewsVisible": false,
+  "userGoogleRating": null,
+  "isFeatured": true,
+  "listingCategoryId": "1002",
+  "isChatEnabled": true,
+  "url": "https://al.olx.com.br/alagoas/imoveis/apto-mobiliado-com-2-quartos-no-farol-proximo-ao-cesmac-1471185334",
+  "date": 1774432621,
+  "imageCount": 19,
+  "category": "Apartamentos",
+  "position": 0,
+  "olxPayBadgeEnabled": false,
+  "olxDeliveryBadgeEnabled": false,
+  "installments": false,
+  "vehicleHasInspectionReport": false,
+  "vehiclePills": null,
+  "locationDetails": {
+    "municipality": "Maceió",
+    "ddd": "82",
+    "neighbourhood": "Farol",
+    "uf": "AL"
+  }
+}

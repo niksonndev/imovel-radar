@@ -1,29 +1,186 @@
 """
-Cliente HTTP para o OLX (cloudscraper) + HTML → dict via parser.py.
+Cliente HTTP para o OLX (cloudscraper) + extração de __NEXT_DATA__ / fallback HTML.
 
-A listagem é sempre aluguel Maceió; filtragem fica a cargo do parser (ou camadas acima).
+A listagem é sempre aluguel Maceió; cada anúncio é normalizado por
+``parser.normalize_olx_listing`` (dict enxuto). Páginas de detalhe também
+expõem *title* / *price* (float) para compatibilidade com watchlist.
 """
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import random
+import re
 from typing import Any
 
 import cloudscraper
+from bs4 import BeautifulSoup
 
 import config
-from scraper.parser import parse_listing_page, parse_search_page
+from scraper.parser import normalize_olx_listing, price_value_to_float
 
 logger = logging.getLogger(__name__)
 
 BASE = "https://www.olx.com.br"
+OLX_ID_RE = re.compile(r"/(\d{8,})(?:\?|$|/)", re.I)
 MACEIO_RENT_LISTINGS_URL = (
     "https://www.olx.com.br/imoveis/aluguel/estado-al/alagoas/maceio"
 )
 
 _http = cloudscraper.create_scraper()
 _cycle_headers: dict[str, str] | None = None
+
+
+def _normalize_url(href: str) -> str:
+    if href.startswith("http"):
+        return href.split("?")[0].rstrip("/")
+    return BASE + href.split("?")[0].rstrip("/")
+
+
+def _walk_collect_listings(obj: Any, out: list[dict], depth: int = 0) -> None:
+    """Percorre JSON do __NEXT_DATA__ e acumula dicts normalizados com listId válido."""
+    if depth > 25 or obj is None:
+        return
+    if isinstance(obj, dict):
+        lid = str(obj.get("listId") or obj.get("adId") or "")
+        if not lid.isdigit() or len(lid) < 6:
+            if isinstance(obj.get("url"), str):
+                m = OLX_ID_RE.search(obj["url"])
+                lid = m.group(1) if m else ""
+        if lid.isdigit() and len(lid) >= 6:
+            normalized = normalize_olx_listing(obj)
+            if normalized.get("listId") is not None:
+                out.append(normalized)
+        for v in obj.values():
+            _walk_collect_listings(v, out, depth + 1)
+    elif isinstance(obj, list):
+        for item in obj:
+            _walk_collect_listings(item, out, depth + 1)
+
+
+def _walk_first_raw_ad(obj: Any, depth: int = 0) -> dict | None:
+    if depth > 25 or obj is None:
+        return None
+    if isinstance(obj, dict):
+        if "listId" in obj or "adId" in obj:
+            return obj
+        for v in obj.values():
+            found = _walk_first_raw_ad(v, depth + 1)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = _walk_first_raw_ad(item, depth + 1)
+            if found is not None:
+                return found
+    return None
+
+
+def parse_search_page(html: str) -> list[dict]:
+    """HTML da listagem → lista de anúncios (formato normalizado)."""
+    out: list[dict] = []
+    seen_ids: set[str] = set()
+
+    soup = BeautifulSoup(html, "lxml")
+    script = soup.find("script", id="__NEXT_DATA__")
+    if script and script.string:
+        try:
+            data = json.loads(script.string)
+            _walk_collect_listings(data, out)
+        except json.JSONDecodeError as e:
+            logger.warning("__NEXT_DATA__ JSON: %s", e)
+
+    dedup: dict[str, dict] = {}
+    for ad in out:
+        lid = ad.get("listId")
+        oid = str(lid) if lid is not None else ""
+        if not oid or oid in seen_ids:
+            continue
+        if oid not in dedup or (
+            ad.get("url") and "olx.com.br/d/" in str(ad.get("url"))
+        ):
+            dedup[oid] = ad
+        seen_ids.add(oid)
+    result = list(dedup.values())
+
+    if len(result) < 3:
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if "/d/" not in href:
+                continue
+            m = OLX_ID_RE.search(href)
+            if not m:
+                continue
+            oid = m.group(1)
+            if oid in dedup:
+                continue
+            dedup[oid] = {
+                "listId": int(oid),
+                "url": _normalize_url(href),
+                "title": (a.get_text() or "Anúncio")[:500],
+                "priceValue": None,
+                "oldPrice": None,
+                "municipality": "",
+                "neighbourhood": "",
+                "properties": [],
+                "category": "",
+                "images": [],
+            }
+        result = list(dedup.values())
+
+    return result
+
+
+def parse_listing_page(html: str) -> dict[str, Any]:
+    """Página de detalhe: campos normalizados + *price* (float) e *removed* para watchlist."""
+    removed = False
+    lower = html.lower()
+    if (
+        "não encontrado" in lower
+        or "nao encontrado" in lower
+        or "anúncio expirado" in lower
+    ):
+        removed = True
+    title: str | None = None
+    price: float | None = None
+    normalized: dict[str, Any] | None = None
+
+    soup = BeautifulSoup(html, "lxml")
+    if "404" in html[:2000] and len(html) < 15000:
+        removed = True
+
+    script = soup.find("script", id="__NEXT_DATA__")
+    if script and script.string:
+        try:
+            data = json.loads(script.string)
+            raw = _walk_first_raw_ad(data)
+            if isinstance(raw, dict):
+                normalized = normalize_olx_listing(raw)
+                title = normalized.get("title") or None
+                price = price_value_to_float(normalized.get("priceValue"))
+        except json.JSONDecodeError:
+            pass
+
+    if not title:
+        h1 = soup.find("h1")
+        if h1:
+            title = h1.get_text(strip=True)[:500]
+    if price is None:
+        for el in soup.find_all(string=re.compile(r"R\$\s*[\d.]")):
+            price = price_value_to_float(el)
+            if price:
+                break
+
+    base: dict[str, Any] = {
+        "title": title,
+        "price": price,
+        "removed": removed,
+        "not_found": "404" in html[:3000] and "olx" in lower,
+    }
+    if normalized is not None:
+        base.update(normalized)
+    return base
 
 
 def _rent_maceio_listings_url(page: int) -> str:
@@ -99,7 +256,7 @@ async def fetch(url: str, headers: dict[str, str] | None = None) -> str:
 async def search_all_rent_maceio() -> list[dict]:
     """
     Todas as páginas de aluguel Maceió (1, depois ?o=2, ?o=3, ...).
-    Deduplica por olx_id; sem filtros locais (parser/job decidem depois).
+    Deduplica por listId; sem filtros locais (job decidem depois).
     """
     global _cycle_headers
     all_ads: dict[str, dict] = {}
@@ -119,7 +276,10 @@ async def search_all_rent_maceio() -> list[dict]:
                 break
             new_in_page = 0
             for ad in ads:
-                oid = ad["olx_id"]
+                lid = ad.get("listId")
+                oid = str(lid) if lid is not None else ""
+                if not oid:
+                    continue
                 if oid not in all_ads:
                     new_in_page += 1
                 all_ads[oid] = ad

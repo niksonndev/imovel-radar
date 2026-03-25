@@ -59,9 +59,11 @@ async def run_once() -> int:
                 if not user:
                     continue
                 for ad in filtered:
-                    oid = ad.get("olx_id")
+                    oid = ad.get("listId")
+                    if oid is None:
+                        oid = ad.get("olx_id")
                     if oid:
-                        await crud.mark_seen(session, alert.id, oid)
+                        await crud.mark_seen(session, alert.id, str(oid))
                 await crud.update_alert_last_checked(session, alert.id)
 
         deactivated = deactivate_missing(list(cycle_seen_ids))

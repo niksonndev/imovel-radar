@@ -1,6 +1,6 @@
 """
 Busca listagem OLX, extrai __NEXT_DATA__, acha o primeiro anúncio (listId/adId numérico)
-e imprime + grava em debug_ad.json.
+e imprime + grava em debug_ad.json; aplica normalize_olx_listing e grava parsed_debug_ad.json.
 
 Uso: python scripts/debug_parser.py
 """
@@ -13,12 +13,15 @@ from typing import Any
 import cloudscraper
 from bs4 import BeautifulSoup
 
+from scraper.parser import normalize_olx_listing
+
 URL = (
     "https://www.olx.com.br/imoveis/aluguel/estado-al/alagoas/maceio"
 )
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT_JSON = ROOT / "debug_ad.json"
+OUT_PARSED = ROOT / "parsed_debug_ad.json"
 
 
 def _is_numeric_id(val: Any) -> bool:
@@ -76,6 +79,11 @@ def main() -> None:
     print(formatted)
     OUT_JSON.write_text(formatted + "\n", encoding="utf-8")
     print(f"Salvo: {OUT_JSON}", flush=True)
+
+    parsed = normalize_olx_listing(ad)
+    parsed_text = json.dumps(parsed, indent=2, ensure_ascii=False)
+    OUT_PARSED.write_text(parsed_text + "\n", encoding="utf-8")
+    print(f"Salvo: {OUT_PARSED}", flush=True)
 
 
 if __name__ == "__main__":

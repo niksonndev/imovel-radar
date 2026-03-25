@@ -25,6 +25,7 @@ from bot import keyboards
 from db.cache import get_active_listings
 from db.parsers import area_m2_from_properties, rooms_from_properties
 from database import crud
+from scraper.parser import price_value_to_float
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,16 @@ def _fmt_money(v: float | None) -> str:
     if v is None:
         return "—"
     return f"R$ {v:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _ad_price_caption(ad: dict) -> str:
+    pv = ad.get("priceValue")
+    if isinstance(pv, str) and pv.strip():
+        return pv.strip()
+    p = ad.get("price")
+    if p is not None:
+        return _fmt_money(float(p))
+    return _fmt_money(price_value_to_float(pv))
 
 
 def _page_info(index: int, total: int):
@@ -50,7 +61,7 @@ def _page_info(index: int, total: int):
 
 def _carousel_caption(ad: dict, index: int, total: int, transaction: str) -> str:
     title = ad.get("title") or "Imóvel"
-    price = _fmt_money(ad.get("price"))
+    price = _ad_price_caption(ad)
     bedrooms = ad.get("bedrooms")
     if bedrooms is None:
         bedrooms = rooms_from_properties(ad.get("properties"))
@@ -131,6 +142,10 @@ def _carousel_photo_url(ad: dict) -> str | None:
         u = imgs[0]
         if isinstance(u, str) and u.startswith("http"):
             return u
+        if isinstance(u, dict):
+            w = u.get("originalWebp") or u.get("original")
+            if isinstance(w, str) and w.startswith("http"):
+                return w
     return None
 
 
@@ -140,12 +155,15 @@ def _has_photo(ad: dict) -> bool:
 
 def _cached_to_carousel_ad(row: dict) -> dict:
     """Converte linha do cache local para o formato usado no carrossel."""
-    # Compatibilidade: se já vier no formato de anúncio do scraper, reaproveita.
-    if row.get("olx_id"):
+    # Compatibilidade: formato do scraper (listId) ou cache legado (list_id / olx_id).
+    if row.get("listId") is not None or row.get("olx_id"):
+        oid = row.get("listId") if row.get("listId") is not None else row.get("olx_id")
         return {
-            "olx_id": str(row.get("olx_id")),
+            "olx_id": str(oid),
+            "listId": row.get("listId"),
             "title": row.get("title"),
             "price": row.get("price"),
+            "priceValue": row.get("priceValue"),
             "url": row.get("url"),
             "thumbnail": row.get("thumbnail"),
             "neighbourhood": row.get("neighbourhood") or row.get("neighborhood"),
@@ -182,9 +200,12 @@ def _filter_cached_ads(ads: list[dict], filters: dict) -> list[dict]:
 
     out: list[dict] = []
     for ad in ads:
-        if pmin is not None and ad.get("price") is not None and ad["price"] < pmin:
+        ad_price = ad.get("price")
+        if ad_price is None:
+            ad_price = price_value_to_float(ad.get("priceValue"))
+        if pmin is not None and ad_price is not None and ad_price < pmin:
             continue
-        if pmax is not None and ad.get("price") is not None and ad["price"] > pmax:
+        if pmax is not None and ad_price is not None and ad_price > pmax:
             continue
         rooms = ad.get("bedrooms")
         if rooms is None:
@@ -284,9 +305,11 @@ async def immediate_seed(
 
     async with session_factory() as session:
         for ad in listings:
-            oid = ad.get("olx_id")
+            oid = ad.get("listId")
+            if oid is None:
+                oid = ad.get("olx_id")
             if oid:
-                await crud.mark_seen(session, alert_id, oid)
+                await crud.mark_seen(session, alert_id, str(oid))
         await crud.update_alert_last_checked(session, alert_id)
 
     transaction = filters.get("transaction", "sale")

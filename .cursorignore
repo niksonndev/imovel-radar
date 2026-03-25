@@ -1,0 +1,27 @@
+# Cache e compilados Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Ambiente virtual
+.venv/
+venv/
+env/
+
+# Dados e arquivos grandes
+data/
+*.csv
+*.parquet
+*.db
+*.sqlite
+*.sqlite3
+
+.env
+
+# Git
+.git/
+
+# Assets (imagens, fontes, etc.)
+assets/

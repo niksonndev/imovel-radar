@@ -86,6 +86,6 @@ test-results/
 
 # Arquivos gerados por scripts de debug
 debug_ad.json
-debug_ad_parsed.json
+parsed_debug_ad.json
 scripts/*.html
 scripts/*.json
