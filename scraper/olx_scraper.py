@@ -4,13 +4,13 @@ Cliente HTTP para o OLX (cloudscraper) + extração de __NEXT_DATA__ / fallback 
 A listagem é sempre aluguel Maceió; cada anúncio é normalizado por
 ``parser.normalize_olx_listing`` (dict enxuto).
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
 import random
-import re
 from typing import Any
 
 import cloudscraper
@@ -21,8 +21,6 @@ from scraper.parser import normalize_olx_listing
 
 logger = logging.getLogger(__name__)
 
-BASE = "https://www.olx.com.br"
-OLX_ID_RE = re.compile(r"/(\d{8,})(?:\?|$|/)", re.I)
 MACEIO_RENT_LISTINGS_URL = (
     "https://www.olx.com.br/imoveis/aluguel/estado-al/alagoas/maceio"
 )
@@ -31,23 +29,26 @@ _http = cloudscraper.create_scraper()
 _cycle_headers: dict[str, str] | None = None
 
 
-def _normalize_url(href: str) -> str:
-    if href.startswith("http"):
-        return href.split("?")[0].rstrip("/")
-    return BASE + href.split("?")[0].rstrip("/")
-
-
 def _walk_collect_listings(obj: Any, out: list[dict], depth: int = 0) -> None:
-    """Percorre JSON do __NEXT_DATA__ e acumula dicts normalizados com listId válido."""
+    """Percorre JSON do __NEXT_DATA__ e acumula anúncios normalizados.
+    A ideia é deixar `normalize_olx_listing` (parser.py) com a responsabilidade de:
+    - descobrir `listId` / `adId`
+    - validar/filtrar
+    - normalizar `url`, `properties`, `images`, etc.
+    """
     if depth > 25 or obj is None:
         return
     if isinstance(obj, dict):
-        lid = str(obj.get("listId") or obj.get("adId") or "")
-        if not lid.isdigit() or len(lid) < 6:
-            if isinstance(obj.get("url"), str):
-                m = OLX_ID_RE.search(obj["url"])
-                lid = m.group(1) if m else ""
-        if lid.isdigit() and len(lid) >= 6:
+        # Heurística mínima para reduzir chamadas de normalização:
+        # objetos com `listId`/`adId` ou com URL de anúncio (/d/).
+        has_explicit_id = obj.get("listId") is not None or obj.get("adId") is not None
+        url_val = (
+            obj.get("url")
+            if isinstance(obj.get("url"), str)
+            else obj.get("friendlyUrl")
+        )
+        has_url_hint = isinstance(url_val, str) and "/d/" in url_val
+        if has_explicit_id or has_url_hint:
             normalized = normalize_olx_listing(obj)
             if normalized.get("listId") is not None:
                 out.append(normalized)
@@ -90,24 +91,21 @@ def parse_search_page(html: str) -> list[dict]:
             href = a["href"]
             if "/d/" not in href:
                 continue
-            m = OLX_ID_RE.search(href)
-            if not m:
-                continue
-            oid = m.group(1)
-            if oid in dedup:
-                continue
-            dedup[oid] = {
-                "listId": int(oid),
-                "url": _normalize_url(href),
-                "title": (a.get_text() or "Anúncio")[:500],
-                "priceValue": None,
-                "oldPrice": None,
-                "municipality": "",
-                "neighbourhood": "",
-                "properties": [],
-                "category": "",
-                "images": [],
+            # Fallback quando o `__NEXT_DATA__` falha/retorna pouco:
+            # reaproveita o parser para garantir o formato fixo.
+            raw = {
+                "url": href,
+                "friendlyUrl": href,
+                "title": a.get_text() or "Anúncio",
             }
+            normalized = normalize_olx_listing(raw)
+            oid = normalized.get("listId")
+            if oid is None:
+                continue
+            oid_s = str(oid)
+            if oid_s in dedup:
+                continue
+            dedup[oid_s] = normalized
         result = list(dedup.values())
 
     return result
@@ -134,7 +132,9 @@ async def close() -> None:
 
 
 async def _delay() -> None:
-    await asyncio.sleep(random.uniform(config.SCRAPER_DELAY_MIN, config.SCRAPER_DELAY_MAX))
+    await asyncio.sleep(
+        random.uniform(config.SCRAPER_DELAY_MIN, config.SCRAPER_DELAY_MAX)
+    )
 
 
 def _build_headers() -> dict[str, str]:
