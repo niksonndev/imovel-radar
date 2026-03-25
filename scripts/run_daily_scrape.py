@@ -34,10 +34,23 @@ COLUMNS = [
 ]
 
 INSERT_SQL = """
-INSERT OR REPLACE INTO listings (
+INSERT INTO listings (
     listId, url, title, priceValue, oldPrice,
-    municipality, neighbourhood, category, images, properties
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    municipality, neighbourhood, category, images, properties,
+    first_seen_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+ON CONFLICT(listId) DO UPDATE SET
+    url = excluded.url,
+    title = excluded.title,
+    priceValue = excluded.priceValue,
+    oldPrice = excluded.oldPrice,
+    municipality = excluded.municipality,
+    neighbourhood = excluded.neighbourhood,
+    category = excluded.category,
+    images = excluded.images,
+    properties = excluded.properties,
+    active = 1
 """.strip()
 
 
@@ -78,38 +91,42 @@ def run_insert_batch(ads: list[dict[str, Any]]) -> tuple[int, int, int, int]:
     conn = get_connection()
     try:
         cur = conn.cursor()
-        for idx, ad in enumerate(ads, start=1):
-            row = ad_to_row(ad)
-            list_id = ad.get("listId")
+        try:
+            for idx, ad in enumerate(ads, start=1):
+                row = ad_to_row(ad)
+                list_id = ad.get("listId")
 
-            if row is None:
-                total_skipped += 1
-                logger.info(
-                    "[%s/%s] Skipped (sem listId)",
-                    idx,
-                    total_fetched,
-                )
-                continue
+                if row is None:
+                    total_skipped += 1
+                    logger.info(
+                        "[%s/%s] Skipped (sem listId)",
+                        idx,
+                        total_fetched,
+                    )
+                    continue
 
-            try:
-                cur.execute(INSERT_SQL, row)
-                conn.commit()
-                total_inserted += 1
-                logger.info(
-                    "[%s/%s] Inserted/Updated listId=%s",
-                    idx,
-                    total_fetched,
-                    list_id,
-                )
-            except Exception:
-                total_errors += 1
-                conn.rollback()
-                logger.exception(
-                    "[%s/%s] Erro ao inserir listId=%s",
-                    idx,
-                    total_fetched,
-                    list_id,
-                )
+                try:
+                    cur.execute(INSERT_SQL, row)
+                    total_inserted += 1
+                    logger.debug(
+                        "[%s/%s] Inserted/Updated listId=%s",
+                        idx,
+                        total_fetched,
+                        list_id,
+                    )
+                except Exception:
+                    total_errors += 1
+                    logger.exception(
+                        "[%s/%s] Erro ao inserir listId=%s",
+                        idx,
+                        total_fetched,
+                        list_id,
+                    )
+        except Exception:
+            conn.rollback()
+            raise
+        else:
+            conn.commit()
     finally:
         conn.close()
 
@@ -119,6 +136,27 @@ def run_insert_batch(ads: list[dict[str, Any]]) -> tuple[int, int, int, int]:
         total_skipped,
         total_errors,
     )
+
+
+def deactivate_missing(scraped_ids: set[int]) -> int:
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT listId FROM listings WHERE active = 1;")
+        active_in_db = {int(row[0]) for row in cur.fetchall()}
+
+        missing_ids = active_in_db - scraped_ids
+        if not missing_ids:
+            return 0
+
+        cur.executemany(
+            "UPDATE listings SET active = 0 WHERE listId = ?;",
+            [(list_id,) for list_id in missing_ids],
+        )
+        conn.commit()
+        return len(missing_ids)
+    finally:
+        conn.close()
 
 
 def main() -> None:
@@ -140,16 +178,20 @@ def main() -> None:
         total_errors,
     ) = run_insert_batch(ads)
 
+    scraped_ids = {int(ad["listId"]) for ad in ads if ad.get("listId") is not None}
+    total_deactivated = deactivate_missing(scraped_ids)
+
     logger.info(
-        "Resumo: fetched=%s inserted=%s skipped=%s errors=%s",
+        "Resumo: fetched=%s inserted=%s skipped=%s errors=%s deactivated=%s",
         total_fetched,
         total_inserted,
         total_skipped,
         total_errors,
+        total_deactivated,
     )
     print(
         f"Resumo: fetched={total_fetched} inserted={total_inserted} "
-        f"skipped={total_skipped} errors={total_errors}"
+        f"skipped={total_skipped} errors={total_errors} deactivated={total_deactivated}"
     )
 
 

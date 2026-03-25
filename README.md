@@ -73,6 +73,7 @@ Deixe essa janela aberta. Pare com **Ctrl+C**.
 O SQLite fica em **`data/bot.db`** (criado automaticamente).
 
 ---
+
 ## Lint com Ruff
 
 Rodar o lint:
@@ -120,7 +121,7 @@ imovel-radar/
 ├── assets/              # mídias (ex.: demo no README)
 ├── bot/                 # Telegram: comandos + wizard + teclados + carrossel
 ├── scraper/             # HTTP OLX + parser
-├── database/            # modelos SQLAlchemy + CRUD
+├── database/            # modelos + CRUD
 ├── scheduler/           # tarefas periódicas
 └── data/                # bot.db (gitignored)
 ```
