@@ -22,6 +22,32 @@ def create_tables():
                                      -- garage_spaces, re_types
                 first_seen_at  TEXT  -- ISO 8601, ex: "2026-03-25T12:16:22"
             );
+
+            CREATE TABLE IF NOT EXISTS users (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id     INTEGER NOT NULL UNIQUE,
+                created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS alerts (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id        INTEGER NOT NULL,
+                neighbourhood  TEXT,
+                max_price      INTEGER,
+                category       TEXT,
+                active         INTEGER NOT NULL DEFAULT 1,
+                created_at     TEXT    NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS alert_matches (
+                alert_id    INTEGER NOT NULL,
+                listing_id  INTEGER NOT NULL,
+                notified_at TEXT    NOT NULL,
+                PRIMARY KEY (alert_id, listing_id),
+                FOREIGN KEY (alert_id) REFERENCES alerts(id),
+                FOREIGN KEY (listing_id) REFERENCES listings(listId)
+            );
             """
         )
         conn.commit()
