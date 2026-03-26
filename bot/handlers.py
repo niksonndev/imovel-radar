@@ -7,6 +7,7 @@ Quando alguém manda /start, a lib chama cmd_start(update, context).
 
 async def = a função pode usar await (responder no Telegram, banco, OLX).
 """
+
 from __future__ import annotations
 
 import logging
@@ -15,13 +16,8 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from bot import keyboards
-from database import crud
+
 logger = logging.getLogger(__name__)
-
-
-def _session(context: ContextTypes.DEFAULT_TYPE):
-    """Abre uma sessão de banco (use com 'async with _session(context) as session:')."""
-    return context.application.bot_data["session_factory"]()
 
 
 def _fmt_money(v: float | None) -> str:
@@ -35,11 +31,11 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # /start também funciona como "reset geral" de estado da conversa.
     context.user_data.clear()
 
-    # Garante linha no banco para esse usuário do Telegram
-    async with _session(context) as session:
-        await crud.get_or_create_user(
-            session, update.effective_user.id, update.effective_user.username
-        )
+    # Escrita no banco removida:
+    # async with _session(context) as session:
+    #     await crud.get_or_create_user(
+    #         session, update.effective_user.id, update.effective_user.username
+    #     )
     await update.message.reply_text(
         "👋 *Olá!* Sou o bot de alertas OLX — *Maceió/AL*.\n\n",
         parse_mode="Markdown",
@@ -58,41 +54,53 @@ async def menu_home_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 
-async def menu_meus_alertas_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def menu_meus_alertas_cb(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
     """Callback do botão '📋 Meus Alertas' com ações inline."""
     q = update.callback_query
     await q.answer()
 
-    async with _session(context) as session:
-        user = await crud.get_or_create_user(
-            session, q.from_user.id, q.from_user.username
-        )
-        alerts = await crud.list_alerts(session, user.id)
+    # Escrita no banco removida (get_or_create_user criava usuário):
+    # async with _session(context) as session:
+    #     user = await crud.get_or_create_user(
+    #         session, q.from_user.id, q.from_user.username
+    #     )
+    #     alerts = await crud.list_alerts(session, user.id)
+    await q.message.reply_text(
+        "Função temporariamente indisponível (escrita no banco removida).",
+        reply_markup=keyboards.home_keyboard(),
+    )
+    return
 
-    if not alerts:
-        await q.message.reply_text(
-            "Nenhum alerta criado ainda.",
-            reply_markup=keyboards.home_keyboard(),
-        )
-        return
-
-    for a in alerts:
-        st = "▶️ ativo" if a.is_active else "⏸ pausado"
-        action_label = "⏸ Pausar" if a.is_active else "▶️ Reativar"
-        kb = InlineKeyboardMarkup(
-            [
-                [
-                    InlineKeyboardButton(action_label, callback_data=f"alert_toggle_{a.id}"),
-                    InlineKeyboardButton("🗑 Deletar", callback_data=f"alert_delete_{a.id}"),
-                ],
-                [InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")],
-            ]
-        )
-        await q.message.reply_text(
-            f"• `id {a.id}` — *{a.name}* ({st})",
-            parse_mode="Markdown",
-            reply_markup=kb,
-        )
+    # if not alerts:
+    #     await q.message.reply_text(
+    #         "Nenhum alerta criado ainda.",
+    #         reply_markup=keyboards.home_keyboard(),
+    #     )
+    #     return
+    #
+    # for a in alerts:
+    #     st = "▶️ ativo" if a.is_active else "⏸ pausado"
+    #     action_label = "⏸ Pausar" if a.is_active else "▶️ Reativar"
+    #     kb = InlineKeyboardMarkup(
+    #         [
+    #             [
+    #                 InlineKeyboardButton(
+    #                     action_label, callback_data=f"alert_toggle_{a.id}"
+    #                 ),
+    #                 InlineKeyboardButton(
+    #                     "🗑 Deletar", callback_data=f"alert_delete_{a.id}"
+    #                 ),
+    #             ],
+    #             [InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")],
+    #         ]
+    #     )
+    #     await q.message.reply_text(
+    #         f"• `id {a.id}` — *{a.name}* ({st})",
+    #         parse_mode="Markdown",
+    #         reply_markup=kb,
+    #     )
 
 
 async def alert_toggle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -102,18 +110,19 @@ async def alert_toggle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     try:
         aid = int(data.rsplit("_", 1)[-1])
     except ValueError:
-        await q.message.reply_text("ID de alerta inválido.", reply_markup=keyboards.home_keyboard())
+        await q.message.reply_text(
+            "ID de alerta inválido.", reply_markup=keyboards.home_keyboard()
+        )
         return
 
-    async with _session(context) as session:
-        user = await crud.get_or_create_user(session, q.from_user.id, q.from_user.username)
-        active = await crud.toggle_alert_active(session, aid, user.id)
-    if active is None:
-        await q.message.reply_text("Alerta não encontrado.", reply_markup=keyboards.home_keyboard())
-        return
+    # Escrita no banco removida:
+    # async with _session(context) as session:
+    #     user = await crud.get_or_create_user(
+    #         session, q.from_user.id, q.from_user.username
+    #     )
+    #     active = await crud.toggle_alert_active(session, aid, user.id)
     await q.message.reply_text(
-        "✅ Alerta agora está *" + ("ativo" if active else "pausado") + "*.",
-        parse_mode="Markdown",
+        "Ação de pausar/reativar está indisponível (escrita removida).",
         reply_markup=keyboards.main_menu_keyboard(),
     )
 
@@ -125,15 +134,19 @@ async def alert_delete_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     try:
         aid = int(data.rsplit("_", 1)[-1])
     except ValueError:
-        await q.message.reply_text("ID de alerta inválido.", reply_markup=keyboards.home_keyboard())
+        await q.message.reply_text(
+            "ID de alerta inválido.", reply_markup=keyboards.home_keyboard()
+        )
         return
 
-    async with _session(context) as session:
-        user = await crud.get_or_create_user(session, q.from_user.id, q.from_user.username)
-        ok = await crud.delete_alert(session, aid, user.id)
-
+    # Escrita no banco removida:
+    # async with _session(context) as session:
+    #     user = await crud.get_or_create_user(
+    #         session, q.from_user.id, q.from_user.username
+    #     )
+    #     ok = await crud.delete_alert(session, aid, user.id)
     await q.message.reply_text(
-        "🗑 Alerta removido." if ok else "Alerta não encontrado.",
+        "Ação de deletar alerta está indisponível (escrita removida).",
         reply_markup=keyboards.main_menu_keyboard(),
     )
 
@@ -155,28 +168,42 @@ async def menu_ajuda_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def menu_watchlist_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     await q.answer()
-    async with _session(context) as session:
-        user = await crud.get_or_create_user(session, q.from_user.id, q.from_user.username)
-        items = await crud.list_watched(session, user.id)
+    # Escrita no banco removida (get_or_create_user):
+    # async with _session(context) as session:
+    #     user = await crud.get_or_create_user(
+    #         session, q.from_user.id, q.from_user.username
+    #     )
+    #     items = await crud.list_watched(session, user.id)
+    await q.message.reply_text(
+        "Watchlist temporariamente indisponível (escrita no banco removida).",
+        reply_markup=keyboards.home_keyboard(),
+    )
+    return
 
-    if not items:
-        await q.message.reply_text("Watchlist vazia.", reply_markup=keyboards.home_keyboard())
-        return
-
-    for w in items:
-        kb = InlineKeyboardMarkup(
-            [
-                [InlineKeyboardButton("🗑 Remover", callback_data=f"watch_remove_{w.id}")],
-                [InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")],
-            ]
-        )
-        await q.message.reply_text(
-            f"• `id {w.id}` — {w.title or 'Anúncio'}\n"
-            f"  {_fmt_money(w.current_price)} — [link]({w.url})",
-            parse_mode="Markdown",
-            disable_web_page_preview=True,
-            reply_markup=kb,
-        )
+    # if not items:
+    #     await q.message.reply_text(
+    #         "Watchlist vazia.", reply_markup=keyboards.home_keyboard()
+    #     )
+    #     return
+    #
+    # for w in items:
+    #     kb = InlineKeyboardMarkup(
+    #         [
+    #             [
+    #                 InlineKeyboardButton(
+    #                     "🗑 Remover", callback_data=f"watch_remove_{w.id}"
+    #                 )
+    #             ],
+    #             [InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")],
+    #         ]
+    #     )
+    #     await q.message.reply_text(
+    #         f"• `id {w.id}` — {w.title or 'Anúncio'}\n"
+    #         f"  {_fmt_money(w.current_price)} — [link]({w.url})",
+    #         parse_mode="Markdown",
+    #         disable_web_page_preview=True,
+    #         reply_markup=kb,
+    #     )
 
 
 async def watch_remove_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -186,13 +213,18 @@ async def watch_remove_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     try:
         wid = int(data.rsplit("_", 1)[-1])
     except ValueError:
-        await q.message.reply_text("ID da watchlist inválido.", reply_markup=keyboards.home_keyboard())
+        await q.message.reply_text(
+            "ID da watchlist inválido.", reply_markup=keyboards.home_keyboard()
+        )
         return
-    async with _session(context) as session:
-        user = await crud.get_or_create_user(session, q.from_user.id, q.from_user.username)
-        ok = await crud.remove_watched(session, wid, user.id)
+    # Escrita no banco removida:
+    # async with _session(context) as session:
+    #     user = await crud.get_or_create_user(
+    #         session, q.from_user.id, q.from_user.username
+    #     )
+    #     ok = await crud.remove_watched(session, wid, user.id)
     await q.message.reply_text(
-        "✅ Removido da watchlist." if ok else "Item não encontrado.",
+        "Ação de remover da watchlist está indisponível (escrita removida).",
         reply_markup=keyboards.main_menu_keyboard(),
     )
 
@@ -217,20 +249,14 @@ async def menu_status_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def cmd_meus_alertas(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    async with _session(context) as session:
-        user = await crud.get_or_create_user(
-            session, update.effective_user.id, update.effective_user.username
-        )
-        alerts = await crud.list_alerts(session, user.id)
-    if not alerts:
-        await update.message.reply_text("Nenhum alerta. Use /novo_alerta")
-        return
-    lines = []
-    for a in alerts:
-        st = "▶️ ativo" if a.is_active else "⏸ pausado"
-        lines.append(f"• `id {a.id}` — *{a.name}* ({st})")
+    # Escrita no banco removida (get_or_create_user):
+    # async with _session(context) as session:
+    #     user = await crud.get_or_create_user(
+    #         session, update.effective_user.id, update.effective_user.username
+    #     )
+    #     alerts = await crud.list_alerts(session, user.id)
     await update.message.reply_text(
-        "*Seus alertas*\n" + "\n".join(lines), parse_mode="Markdown"
+        "Comando indisponível no momento (escrita no banco removida)."
     )
 
 
@@ -238,28 +264,29 @@ async def cmd_pausar_alerta(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     # context.args = palavras depois do comando: /pausar_alerta 3 → ["3"]
     args = context.args or []
     if not args:
-        await update.message.reply_text("Uso: `/pausar_alerta [id]`", parse_mode="Markdown")
+        await update.message.reply_text(
+            "Uso: `/pausar_alerta [id]`", parse_mode="Markdown"
+        )
         return
     try:
         aid = int(args[0])
     except ValueError:
         await update.message.reply_text("ID inválido.")
         return
-    async with _session(context) as session:
-        user = await crud.get_or_create_user(
-            session, update.effective_user.id, update.effective_user.username
-        )
-        active = await crud.toggle_alert_active(session, aid, user.id)
-    if active is None:
-        await update.message.reply_text("Alerta não encontrado.")
-        return
+    # Escrita no banco removida:
+    # async with _session(context) as session:
+    #     user = await crud.get_or_create_user(
+    #         session, update.effective_user.id, update.effective_user.username
+    #     )
+    #     active = await crud.toggle_alert_active(session, aid, user.id)
     await update.message.reply_text(
-        "Alerta agora está *" + ("ativo" if active else "pausado") + "*.",
-        parse_mode="Markdown",
+        "Comando indisponível (pausar/reativar exige escrita no banco)."
     )
 
 
-async def cmd_deletar_alerta(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cmd_deletar_alerta(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
     args = context.args or []
     if not args:
         await update.message.reply_text("Uso: `/deletar_alerta [id]`")
@@ -269,12 +296,15 @@ async def cmd_deletar_alerta(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except ValueError:
         await update.message.reply_text("ID inválido.")
         return
-    async with _session(context) as session:
-        user = await crud.get_or_create_user(
-            session, update.effective_user.id, update.effective_user.username
-        )
-        ok = await crud.delete_alert(session, aid, user.id)
-    await update.message.reply_text("Removido." if ok else "Não encontrado.")
+    # Escrita no banco removida:
+    # async with _session(context) as session:
+    #     user = await crud.get_or_create_user(
+    #         session, update.effective_user.id, update.effective_user.username
+    #     )
+    #     ok = await crud.delete_alert(session, aid, user.id)
+    await update.message.reply_text(
+        "Comando indisponível (deletar alerta exige escrita no banco)."
+    )
 
 
 async def cmd_observar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -285,22 +315,14 @@ async def cmd_observar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def cmd_watchlist(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    async with _session(context) as session:
-        user = await crud.get_or_create_user(
-            session, update.effective_user.id, update.effective_user.username
-        )
-        items = await crud.list_watched(session, user.id)
-    if not items:
-        await update.message.reply_text("Watchlist vazia. `/observar [url]`", parse_mode="Markdown")
-        return
-    lines = []
-    for w in items:
-        lines.append(
-            f"• `id {w.id}` — {w.title or 'Anúncio'}\n"
-            f"  {_fmt_money(w.current_price)} — [link]({w.url})"
-        )
+    # Escrita no banco removida (get_or_create_user):
+    # async with _session(context) as session:
+    #     user = await crud.get_or_create_user(
+    #         session, update.effective_user.id, update.effective_user.username
+    #     )
+    #     items = await crud.list_watched(session, user.id)
     await update.message.reply_text(
-        "*Watchlist*\n" + "\n".join(lines), parse_mode="Markdown", disable_web_page_preview=True
+        "Comando indisponível no momento (escrita no banco removida)."
     )
 
 
@@ -314,12 +336,15 @@ async def cmd_remover(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     except ValueError:
         await update.message.reply_text("ID inválido.")
         return
-    async with _session(context) as session:
-        user = await crud.get_or_create_user(
-            session, update.effective_user.id, update.effective_user.username
-        )
-        ok = await crud.remove_watched(session, wid, user.id)
-    await update.message.reply_text("Removido da watchlist." if ok else "Item não encontrado.")
+    # Escrita no banco removida:
+    # async with _session(context) as session:
+    #     user = await crud.get_or_create_user(
+    #         session, update.effective_user.id, update.effective_user.username
+    #     )
+    #     ok = await crud.remove_watched(session, wid, user.id)
+    await update.message.reply_text(
+        "Comando indisponível (remover da watchlist exige escrita no banco)."
+    )
 
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

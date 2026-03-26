@@ -23,9 +23,6 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 if not TELEGRAM_BOT_TOKEN:
     raise RuntimeError("Defina TELEGRAM_BOT_TOKEN no .env")
 
-# Intervalos fixos do scheduler
-SCRAPE_CHECK_INTERVAL_DAYS = 1
-WATCHLIST_CHECK_INTERVAL_DAYS = 1
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
 # Entre uma requisição ao OLX e outra esperamos 2–5 s (menos agressivo que um robô "martelando" o site)

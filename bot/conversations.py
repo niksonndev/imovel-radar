@@ -7,7 +7,7 @@ ConversationHandler = máquina de estados:
 
 range(10) gera 0,1,...,9 — só precisamos de IDs únicos para os estados.
 """
-import asyncio
+
 import logging
 import re
 
@@ -22,8 +22,6 @@ from telegram.ext import (
 )
 
 from bot import keyboards
-from bot.carousel import immediate_seed
-from database import crud
 logger = logging.getLogger(__name__)
 
 (
@@ -48,15 +46,16 @@ async def novo_alerta_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     # user_data = dicionário por usuário — guardamos o progresso do wizard aqui
     context.user_data["wizard_alert"] = {"neighborhoods_selected": set()}
     await update.message.reply_text(
-        "🆕 *Novo alerta*\n\n"
-        "Tipo:\nAluguel ou Venda",
+        "🆕 *Novo alerta*\n\nTipo:\nAluguel ou Venda",
         parse_mode="Markdown",
         reply_markup=keyboards.transaction_keyboard(),
     )
     return WIZ_TRANSACTION
 
 
-async def novo_alerta_entry_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def novo_alerta_entry_cb(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
     """
     Entrada do wizard iniciada via clique no menu.
     A diferença é que aqui o update vem como callback_query (não update.message).
@@ -65,8 +64,7 @@ async def novo_alerta_entry_cb(update: Update, context: ContextTypes.DEFAULT_TYP
     await q.answer()
     context.user_data["wizard_alert"] = {"neighborhoods_selected": set()}
     await q.message.reply_text(
-        "🆕 *Novo alerta*\n\n"
-        "Tipo:\nAluguel ou Venda",
+        "🆕 *Novo alerta*\n\nTipo:\nAluguel ou Venda",
         parse_mode="Markdown",
         reply_markup=keyboards.transaction_keyboard(),
     )
@@ -81,12 +79,16 @@ async def wiz_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return WIZ_NAME  # fica no mesmo estado até acertar
 
     if not w:
-        await update.message.reply_text("Sessão do wizard expirada. Use /novo_alerta novamente.")
+        await update.message.reply_text(
+            "Sessão do wizard expirada. Use /novo_alerta novamente."
+        )
         return ConversationHandler.END
 
     w["name"] = name
 
-    tr_label = {"sale": "Venda", "rent": "Aluguel"}.get(w.get("transaction"), w.get("transaction"))
+    tr_label = {"sale": "Venda", "rent": "Aluguel"}.get(
+        w.get("transaction"), w.get("transaction")
+    )
 
     sel = w.get("neighborhoods_selected") or set()
     nb_s = ", ".join(sorted(sel)) if sel else "Qualquer bairro"
@@ -143,7 +145,9 @@ async def wiz_transaction_cb(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return WIZ_PRICE_MIN
 
 
-async def wiz_price_preset_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def wiz_price_preset_cb(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
     """
     Callback dos botões de faixa comum e de "Personalizado".
 
@@ -156,8 +160,6 @@ async def wiz_price_preset_cb(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     data = q.data or ""
     w = context.user_data.setdefault("wizard_alert", {})
-    tr = w.get("transaction") or "sale"
-
     if data == "wiz_price_custom":
         await q.message.reply_text(
             "Personalizado: envie o *preço mínimo* (R$, só número).",
@@ -260,13 +262,15 @@ async def wiz_bedrooms(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         except Exception:
             bedrooms_min = 0
         if bedrooms_min <= 0:
-            await update.message.reply_text("Digite um número de quartos válido ou toque em `Pular`.", parse_mode="Markdown")
+            await update.message.reply_text(
+                "Digite um número de quartos válido ou toque em `Pular`.",
+                parse_mode="Markdown",
+            )
             return WIZ_BEDROOMS
         w["bedrooms_min"] = bedrooms_min
 
     await update.message.reply_text(
-        "Metragem (opcional)\n\n"
-        "Área útil *mínima* (m²) ou toque em `Pular`:",
+        "Metragem (opcional)\n\nÁrea útil *mínima* (m²) ou toque em `Pular`:",
         parse_mode="Markdown",
         reply_markup=keyboards.skip_keyboard(),
     )
@@ -327,7 +331,9 @@ async def wiz_area_max(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
     # Confirmação: envia um resumo antes de salvar.
     prop_map = dict(keyboards.PROPERTY_TYPES)
-    tr_label = {"sale": "Venda", "rent": "Aluguel"}.get(w.get("transaction"), w.get("transaction"))
+    tr_label = {"sale": "Venda", "rent": "Aluguel"}.get(
+        w.get("transaction"), w.get("transaction")
+    )
     prop_label = prop_map.get(w.get("property_type"), w.get("property_type"))
 
     sel = w.get("neighborhoods_selected") or set()
@@ -398,39 +404,47 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return ConversationHandler.END
 
-    sel = w.get("neighborhoods_selected") or set()
-    filters_dict = {
-        "transaction": w.get("transaction", "sale"),
-        "price_min": w.get("price_min"),
-        "price_max": w.get("price_max"),
-        "neighborhoods": sorted(sel),
-    }
+    # Mantido aqui apenas como referência do payload que seria persistido no banco.
+    # filters_dict = {
+    #     "transaction": w.get("transaction", "sale"),
+    #     "price_min": w.get("price_min"),
+    #     "price_max": w.get("price_max"),
+    #     "neighborhoods": sorted(w.get("neighborhoods_selected") or set()),
+    # }
 
     await q.message.reply_text("⏳ Peraê, tô procurando imóveis pra você...")
 
-    async with _session(context) as session:
-        user = await crud.get_or_create_user(
-            session, update.effective_user.id, update.effective_user.username
-        )
-        alert = await crud.create_alert(session, user.id, name, filters_dict)
+    # Escrita no banco removida temporariamente.
+    # async with _session(context) as session:
+    #     user = await crud.get_or_create_user(
+    #         session, update.effective_user.id, update.effective_user.username
+    #     )
+    #     alert = await crud.create_alert(session, user.id, name, filters_dict)
 
     context.user_data.pop("wizard_alert", None)
 
-    task = asyncio.create_task(
-        immediate_seed(
-            context.application,
-            alert.id,
-            update.effective_user.id,
-            filters_dict,
-            context.user_data,
-        )
+    # Dependia de alert.id (persistência no banco), então foi comentado.
+    # task = asyncio.create_task(
+    #     immediate_seed(
+    #         context.application,
+    #         alert.id,
+    #         update.effective_user.id,
+    #         filters_dict,
+    #         context.user_data,
+    #     )
+    # )
+    # context.user_data[f"_seed_task_{alert.id}"] = task
+    await q.message.reply_text(
+        "A criação do alerta foi desabilitada temporariamente (sem escrita no banco).",
+        reply_markup=keyboards.main_menu_keyboard(),
     )
-    context.user_data[f"_seed_task_{alert.id}"] = task
 
     return ConversationHandler.END
 
 
-async def wiz_neighborhoods_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def wiz_neighborhoods_cb(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
     q = update.callback_query
     await q.answer()
     data = q.data or ""
@@ -448,7 +462,9 @@ async def wiz_neighborhoods_cb(update: Update, context: ContextTypes.DEFAULT_TYP
             sel.discard(name)
         else:
             sel.add(name)
-        await q.edit_message_reply_markup(reply_markup=keyboards.neighborhoods_keyboard(sel))
+        await q.edit_message_reply_markup(
+            reply_markup=keyboards.neighborhoods_keyboard(sel)
+        )
     return WIZ_NEIGHBORHOODS
 
 
@@ -461,60 +477,10 @@ async def cancel_wiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
-# ---------------- ACOMPANHAR ANUNCIO (watchlist) ----------------
-
-
-(ACOMP_URL,) = range(1)
-
-
 def _fmt_money(v: float | None) -> str:
     if v is None:
         return "—"
     return f"R$ {v:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-
-async def acompanhar_entry_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Entrada da conversa quando o usuário clica em 'Acompanhar Anúncio' no menu."""
-    q = update.callback_query
-    await q.answer()
-    await q.message.reply_text(
-        "👁 Envie a *URL do anúncio OLX* que você quer acompanhar.\n\n"
-        "Ex.: `https://www.olx.com.br/d/...`",
-        parse_mode="Markdown",
-    )
-    return ACOMP_URL
-
-
-async def acompanhar_url(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Fluxo por URL em revisão."""
-    await update.message.reply_text(
-        "Acompanhar por URL está temporariamente indisponível.",
-        reply_markup=keyboards.main_menu_keyboard(),
-    )
-    return ConversationHandler.END
-
-
-async def cancel_acompanhar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text(
-        "Acompanhar Anúncio cancelado.",
-        reply_markup=keyboards.main_menu_keyboard(),
-    )
-    return ConversationHandler.END
-
-
-def conversation_acompanhar_anuncio() -> ConversationHandler:
-    """Conversa curta: pede URL e adiciona na watchlist."""
-    return ConversationHandler(
-        entry_points=[CallbackQueryHandler(acompanhar_entry_cb, pattern=r"^menu_acompanhar$")],
-        states={
-            ACOMP_URL: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, acompanhar_url)
-            ]
-        },
-        fallbacks=[CommandHandler("cancelar", cancel_acompanhar)],
-        name="acompanhar_anuncio",
-        persistent=False,
-    )
 
 
 def conversation_novo_alerta() -> ConversationHandler:
@@ -535,10 +501,16 @@ def conversation_novo_alerta() -> ConversationHandler:
                 CallbackQueryHandler(wiz_price_preset_cb, pattern=r"^wiz_price_"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, wiz_price_min),
             ],
-            WIZ_PRICE_MAX: [MessageHandler(filters.TEXT & ~filters.COMMAND, wiz_price_max)],
-            WIZ_NEIGHBORHOODS: [CallbackQueryHandler(wiz_neighborhoods_cb, pattern=r"^nbd_")],
+            WIZ_PRICE_MAX: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, wiz_price_max)
+            ],
+            WIZ_NEIGHBORHOODS: [
+                CallbackQueryHandler(wiz_neighborhoods_cb, pattern=r"^nbd_")
+            ],
             WIZ_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, wiz_name)],
-            WIZ_CONFIRM: [CallbackQueryHandler(wiz_confirm_cb, pattern=r"^wiz_confirm_")],
+            WIZ_CONFIRM: [
+                CallbackQueryHandler(wiz_confirm_cb, pattern=r"^wiz_confirm_")
+            ],
         },
         fallbacks=[CommandHandler("cancelar", cancel_wiz)],
         name="novo_alerta_wiz",

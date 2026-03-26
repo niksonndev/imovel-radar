@@ -1,16 +1,16 @@
-# Imóvel Radar — Bot Telegram (OLX Maceió)
+# Imóvel Radar — Bot Telegram
 
 ![Demonstração: `/start`, menu principal e início do fluxo Novo Alerta](assets/demo-aluguel.gif)
 
-Monitora anúncios de imóveis no [OLX](https://www.olx.com.br) em **Maceió/AL** e avisa no Telegram quando há **anúncios novos** que batem com seus filtros. Também permite **acompanhar um anúncio específico** (watchlist: mudança de preço ou remoção).
+Monitora anúncios de imóveis em **Maceió/AL** e avisa no Telegram quando há **anúncios novos** que batem com seus filtros. Também permite **acompanhar um anúncio específico**.
 
 ---
 
 ## Funcionalidades
 
 - **Alertas por filtros** — Wizard guiado por botões (`/novo_alerta` ou **Novo Alerta** no menu): aluguel ou venda, faixa de preço (presets ou valores personalizados), bairros de Maceió (opcional), nome do alerta e confirmação. Após criar, o bot pode enviar um **carrossel** com amostra dos imóveis encontrados.
-- **Notificações periódicas** — Jobs agendados consultam o OLX e enviam alertas só para anúncios **novos** em relação ao ciclo anterior (primeiro ciclo apenas “semeia” os IDs, sem spammar).
-- **Menu inline no `/start`** — **Novo Alerta**, **Meus Alertas**, **Ajuda**, **Acompanhar Anúncio** (equivalente a enviar a URL, como em `/observar`).
+- **Notificações periódicas** — Jobs agendados consultam o OLX e enviam alertas só para anúncios **novos** em relação ao ciclo anterior.
+- **Menu inline no `/start`** — **Novo Alerta**, **Meus Alertas**, **Acompanhar Anúncio**, **Ajuda**.
 - **Watchlist** — `/observar [url]` ou fluxo pelo menu; `/watchlist` e `/remover [id]` para gerir.
 - **Gestão de alertas** — listar, pausar/reativar e apagar por id (`/meus_alertas`, `/pausar_alerta`, `/deletar_alerta`).
 - **`/status`** — intervalos configurados e próximas execuções aproximadas do agendador.
@@ -125,15 +125,6 @@ imovel-radar/
 ├── scheduler/           # tarefas periódicas
 └── data/                # bot.db (gitignored)
 ```
-
----
-
-## Variáveis `.env` (opcionais)
-
-| Variável                    | Padrão                    |
-| --------------------------- | ------------------------- |
-| `DATABASE_URL`              | SQLite em `./data/bot.db` |
-| `SCRAPER_DELAY_MIN` / `MAX` | 2–5 s entre requests      |
 
 ---
 

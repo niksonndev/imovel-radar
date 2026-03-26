@@ -1,9 +1,9 @@
 """
 TECLADOS do Telegram: botões que o usuário toca (inline) em vez de digitar.
 
-InlineKeyboardButton = um botão; callback_data = string que volta pro código quando clica
-(é como data-custom no HTML, não aparece pro usuário).
+InlineKeyboardButton = um botão; callback_data = string que volta pro código quando clica.
 """
+
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 
 # Lista de tuplas (valor_interno, texto_no_botão)
@@ -59,8 +59,12 @@ def price_range_keyboard(transaction: str) -> InlineKeyboardMarkup:
             ("wiz_price_preset_sale_3", "R$ 600k+"),
         ]
 
-    rows: list[list[InlineKeyboardButton]] = [[InlineKeyboardButton(label, callback_data=cb)] for cb, label in presets]
-    rows.append([InlineKeyboardButton("Personalizado", callback_data="wiz_price_custom")])
+    rows: list[list[InlineKeyboardButton]] = [
+        [InlineKeyboardButton(label, callback_data=cb)] for cb, label in presets
+    ]
+    rows.append(
+        [InlineKeyboardButton("Personalizado", callback_data="wiz_price_custom")]
+    )
     return InlineKeyboardMarkup(rows)
 
 
@@ -87,7 +91,9 @@ def neighborhoods_keyboard(selected: set[str]) -> InlineKeyboardMarkup:
 
 def skip_keyboard() -> ReplyKeyboardMarkup:
     """Teclado normal (não inline) com uma linha "Pular" — opcional no wizard."""
-    return ReplyKeyboardMarkup([["Pular"]], resize_keyboard=True, one_time_keyboard=True)
+    return ReplyKeyboardMarkup(
+        [["Pular"]], resize_keyboard=True, one_time_keyboard=True
+    )
 
 
 def main_menu_keyboard() -> InlineKeyboardMarkup:
@@ -100,13 +106,15 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
       - menu_watchlist
       - menu_status
       - menu_ajuda
-      - menu_acompanhar
     """
     return InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("🔔 Novo Alerta", callback_data="menu_novo_alerta")],
-            [InlineKeyboardButton("📋 Meus Alertas", callback_data="menu_meus_alertas")],
-            [InlineKeyboardButton("👁 Acompanhar Anúncio", callback_data="menu_acompanhar")],
+            [
+                InlineKeyboardButton(
+                    "📋 Meus Alertas", callback_data="menu_meus_alertas"
+                )
+            ],
             [
                 InlineKeyboardButton("👀 Watchlist", callback_data="menu_watchlist"),
                 InlineKeyboardButton("📊 Status", callback_data="menu_status"),

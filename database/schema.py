@@ -8,7 +8,7 @@ def create_tables():
             """
             CREATE TABLE IF NOT EXISTS listings (
                 listId         INTEGER PRIMARY KEY,
-                active         INTEGER  NOT NULL  DEFAULT 1,
+                active         INTEGER  NOT NULL  DEFAULT 1, -- 0 = sumiu do OLX
                 url            TEXT,
                 title          TEXT,
                 priceValue     INTEGER,
@@ -20,7 +20,7 @@ def create_tables():
                 properties     TEXT  -- JSON bruto com category, real_estate_type,
                                      -- condominio, iptu, size, rooms, bathrooms,
                                      -- garage_spaces, re_types
-                first_seen_at  TEXT  -- ISO 8601, ex: "2026-03-25T12:16:22"
+                first_seen_at  TEXT  -- ISO 8601, preenchido só na inserção, nunca sobrescrito
             );
 
             CREATE TABLE IF NOT EXISTS users (

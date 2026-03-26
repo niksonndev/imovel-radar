@@ -8,12 +8,11 @@ import logging
 import sys
 from pathlib import Path
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 
 import config
 from bot.carousel import carousel_cb
-from bot.conversations import conversation_novo_alerta, conversation_acompanhar_anuncio
+from bot.conversations import conversation_novo_alerta
 from bot.handlers import (
     alert_delete_cb,
     alert_toggle_cb,
@@ -55,23 +54,13 @@ logger = logging.getLogger(__name__)
 # "async def" = função assíncrona (pode esperar rede/DB sem travar tudo).
 # O python-telegram-bot chama isso depois que o app está pronto.
 async def post_init(app: Application) -> None:
-    # bot_data = "armário global" compartilhado por todo o bot (tipo um singleton)
-    app.bot_data["scrape_days"] = config.SCRAPE_CHECK_INTERVAL_DAYS
-    app.bot_data["watch_days"] = config.WATCHLIST_CHECK_INTERVAL_DAYS
-
     # Agendador: dispara tarefas de tempo em tempo (tipo setInterval no Node)
-    sched = AsyncIOScheduler()
-    sched.start()
-    app.bot_data["scheduler"] = sched
     logger.info("Bot iniciado.")
 
 
 async def post_shutdown(app: Application) -> None:
     # Ao fechar o programa: libera conexões HTTP e para o agendador
     await olx_scraper.close()
-    sched = app.bot_data.get("scheduler")
-    if sched:
-        sched.shutdown(wait=False)
 
 
 def main() -> None:
@@ -125,8 +114,6 @@ def main() -> None:
             carousel_cb, pattern=r"^crs_\d+(?:_notif)?_(prev|next|pgp|pgn)$"
         )
     )
-    # "👁 Acompanhar Anúncio" (conversa curta)
-    app.add_handler(conversation_acompanhar_anuncio())
     logger.info("Polling…")
     # Fica perguntando ao Telegram "tem mensagem nova?" o tempo todo
     app.run_polling(allowed_updates=["message", "callback_query"])

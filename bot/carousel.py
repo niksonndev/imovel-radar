@@ -8,6 +8,7 @@ send_carousel   — envia a primeira página e guarda estado em user_data
 immediate_seed  — scrape imediato + seed seen_listings + carrossel
 carousel_cb     — navega ◀/▶ (anúncio), ◀ Página/⏭ Página
 """
+
 from __future__ import annotations
 
 import logging
@@ -22,14 +23,11 @@ from telegram import (
 from telegram.ext import ContextTypes
 
 from bot import keyboards
-from db.cache import get_active_listings
-from db.parsers import area_m2_from_properties, rooms_from_properties
-from database import crud
 from scraper.parser import price_value_to_float
 
 logger = logging.getLogger(__name__)
 
-PAGE_SIZE = 5
+PAGE_SIZE = 10
 MAX_NOTIF_CAROUSEL = 10
 
 
@@ -75,8 +73,7 @@ def _carousel_caption(ad: dict, index: int, total: int, transaction: str) -> str
 
     page, total_pages, idx_in_page, items_on_page = _page_info(index, total)
     counter = (
-        f"{idx_in_page + 1} de {items_on_page} — "
-        f"Página {page + 1} de {total_pages}"
+        f"{idx_in_page + 1} de {items_on_page} — Página {page + 1} de {total_pages}"
     )
 
     return (
@@ -95,15 +92,11 @@ def _carousel_keyboard(
     nav_row: list[InlineKeyboardButton] = []
     if idx_in_page > 0:
         nav_row.append(
-            InlineKeyboardButton(
-                "◀ Anterior", callback_data=f"crs_{carousel_id}_prev"
-            )
+            InlineKeyboardButton("◀ Anterior", callback_data=f"crs_{carousel_id}_prev")
         )
     if idx_in_page < items_on_page - 1:
         nav_row.append(
-            InlineKeyboardButton(
-                "Próximo ▶", callback_data=f"crs_{carousel_id}_next"
-            )
+            InlineKeyboardButton("Próximo ▶", callback_data=f"crs_{carousel_id}_next")
         )
 
     page_row: list[InlineKeyboardButton] = []
@@ -260,13 +253,9 @@ async def send_carousel(
             )
             is_photo = True
         except Exception:
-            await bot.send_message(
-                chat_id=chat_id, text=caption, reply_markup=keyboard
-            )
+            await bot.send_message(chat_id=chat_id, text=caption, reply_markup=keyboard)
     else:
-        await bot.send_message(
-            chat_id=chat_id, text=caption, reply_markup=keyboard
-        )
+        await bot.send_message(chat_id=chat_id, text=caption, reply_markup=keyboard)
 
     user_data[f"carousel_{carousel_id}"] = {
         "listings": ads,
@@ -284,7 +273,6 @@ async def immediate_seed(
     app, alert_id: int, tg_id: int, filters: dict, user_data: dict
 ) -> None:
     """Seed via cache local (SQLite) → seen_listings → carrossel."""
-    session_factory = app.bot_data["session_factory"]
     bot = app.bot
 
     try:
@@ -303,14 +291,17 @@ async def immediate_seed(
             pass
         return
 
-    async with session_factory() as session:
-        for ad in listings:
-            oid = ad.get("listId")
-            if oid is None:
-                oid = ad.get("olx_id")
-            if oid:
-                await crud.mark_seen(session, alert_id, str(oid))
-        await crud.update_alert_last_checked(session, alert_id)
+    # Escrita em banco removida neste módulo.
+    # Bloco original mantido comentado para não quebrar fluxo:
+    # session_factory = app.bot_data["session_factory"]
+    # async with session_factory() as session:
+    #     for ad in listings:
+    #         oid = ad.get("listId")
+    #         if oid is None:
+    #             oid = ad.get("olx_id")
+    #         if oid:
+    #             await crud.mark_seen(session, alert_id, str(oid))
+    #     await crud.update_alert_last_checked(session, alert_id)
 
     transaction = filters.get("transaction", "sale")
 
@@ -325,9 +316,7 @@ async def immediate_seed(
         )
         return
 
-    await send_carousel(
-        bot, tg_id, listings, transaction, str(alert_id), user_data
-    )
+    await send_carousel(bot, tg_id, listings, transaction, str(alert_id), user_data)
     await bot.send_message(
         chat_id=tg_id,
         text="✅ Alerta criado! Vou te avisar quando aparecer algo novo. 🔔",
@@ -431,7 +420,5 @@ async def carousel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         except Exception:
             pass
 
-    await context.bot.send_message(
-        chat_id=chat_id, text=caption, reply_markup=keyboard
-    )
+    await context.bot.send_message(chat_id=chat_id, text=caption, reply_markup=keyboard)
     carousel["is_photo"] = False
