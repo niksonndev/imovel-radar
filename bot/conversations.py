@@ -22,6 +22,7 @@ from telegram.ext import (
 )
 
 from bot import keyboards
+
 logger = logging.getLogger(__name__)
 
 (
@@ -46,7 +47,7 @@ async def novo_alerta_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     # user_data = dicionário por usuário — guardamos o progresso do wizard aqui
     context.user_data["wizard_alert"] = {"neighborhoods_selected": set()}
     await update.message.reply_text(
-        "🆕 *Novo alerta*\n\nTipo:\nAluguel ou Venda",
+        "🆕 *Configurando novo alerta*\n\nVocê quer:\nAlugar ou Comprar?",
         parse_mode="Markdown",
         reply_markup=keyboards.transaction_keyboard(),
     )

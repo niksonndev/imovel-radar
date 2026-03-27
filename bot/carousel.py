@@ -11,6 +11,7 @@ carousel_cb     — navega ◀/▶ (anúncio), ◀ Página/⏭ Página
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 
@@ -23,6 +24,7 @@ from telegram import (
 from telegram.ext import ContextTypes
 
 from bot import keyboards
+from scraper import olx_scraper
 from scraper.parser import price_value_to_float
 
 logger = logging.getLogger(__name__)
@@ -146,40 +148,51 @@ def _has_photo(ad: dict) -> bool:
     return _carousel_photo_url(ad) is not None
 
 
-def _cached_to_carousel_ad(row: dict) -> dict:
-    """Converte linha do cache local para o formato usado no carrossel."""
-    # Compatibilidade: formato do scraper (listId) ou cache legado (list_id / olx_id).
-    if row.get("listId") is not None or row.get("olx_id"):
-        oid = row.get("listId") if row.get("listId") is not None else row.get("olx_id")
-        return {
-            "olx_id": str(oid),
-            "listId": row.get("listId"),
-            "title": row.get("title"),
-            "price": row.get("price"),
-            "priceValue": row.get("priceValue"),
-            "url": row.get("url"),
-            "thumbnail": row.get("thumbnail"),
-            "neighbourhood": row.get("neighbourhood") or row.get("neighborhood"),
-            "neighborhood": row.get("neighborhood") or row.get("neighbourhood"),
-            "bedrooms": row.get("bedrooms"),
-            "area_m2": row.get("area_m2"),
-            "properties": row.get("properties"),
-            "images": row.get("images"),
-        }
+def _properties_to_dict(props: object) -> dict[str, object]:
+    """Normaliza properties do anúncio para um dict simples {campo: valor}."""
+    if props is None:
+        return {}
 
-    return {
-        "olx_id": str(row.get("list_id") or ""),
-        "title": row.get("title"),
-        "price": row.get("current_price"),
-        "url": row.get("url"),
-        "thumbnail": None,  # cache local de listagens não guarda thumb principal
-        "neighbourhood": row.get("neighbourhood"),
-        "neighborhood": row.get("neighbourhood"),
-        "bedrooms": row.get("rooms"),
-        "area_m2": row.get("size_m2"),
-        "properties": None,
-        "images": None,
-    }
+    data = props
+    if isinstance(props, str):
+        try:
+            data = json.loads(props)
+        except Exception:
+            return {}
+
+    out: dict[str, object] = {}
+    if isinstance(data, list):
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            for k, v in item.items():
+                if isinstance(k, str):
+                    out[k.strip().lower()] = v
+    elif isinstance(data, dict):
+        for k, v in data.items():
+            if isinstance(k, str):
+                out[k.strip().lower()] = v
+    return out
+
+
+def rooms_from_properties(props: object) -> int | None:
+    p = _properties_to_dict(props)
+    value = p.get("rooms")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return None
+
+
+def area_m2_from_properties(props: object) -> float | None:
+    p = _properties_to_dict(props)
+    value = p.get("size")
+    if isinstance(value, int):
+        return float(value)
+    if isinstance(value, float):
+        return value
+    return None
 
 
 def _filter_cached_ads(ads: list[dict], filters: dict) -> list[dict]:
@@ -272,36 +285,23 @@ async def send_carousel(
 async def immediate_seed(
     app, alert_id: int, tg_id: int, filters: dict, user_data: dict
 ) -> None:
-    """Seed via cache local (SQLite) → seen_listings → carrossel."""
+    """Seed imediato sem banco: scraping OLX + filtro local + carrossel."""
     bot = app.bot
 
     try:
-        cached_rows = get_active_listings()
-        listings = [_cached_to_carousel_ad(row) for row in cached_rows]
+        listings = await olx_scraper.search_all_rent_maceio()
         listings = _filter_cached_ads(listings, filters)
     except Exception:
-        logger.exception("Seed imediato via cache falhou para alerta %s", alert_id)
+        logger.exception("Seed imediato via scraper falhou para alerta %s", alert_id)
         try:
             await bot.send_message(
                 chat_id=tg_id,
-                text="⚠️ Não consegui consultar os imóveis no banco local agora. "
+                text="⚠️ Não consegui consultar os imóveis agora. "
                 "Vou tentar na próxima verificação automática. 🔔",
             )
         except Exception:
             pass
         return
-
-    # Escrita em banco removida neste módulo.
-    # Bloco original mantido comentado para não quebrar fluxo:
-    # session_factory = app.bot_data["session_factory"]
-    # async with session_factory() as session:
-    #     for ad in listings:
-    #         oid = ad.get("listId")
-    #         if oid is None:
-    #             oid = ad.get("olx_id")
-    #         if oid:
-    #             await crud.mark_seen(session, alert_id, str(oid))
-    #     await crud.update_alert_last_checked(session, alert_id)
 
     transaction = filters.get("transaction", "sale")
 

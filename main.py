@@ -64,11 +64,6 @@ async def post_shutdown(app: Application) -> None:
 
 
 def main() -> None:
-    # Garante que o schema do SQLite existe antes de qualquer seed/insert.
-    from database import create_tables
-
-    create_tables()
-
     # Application = coração da lib: token, handlers, polling
     app = (
         Application.builder()
