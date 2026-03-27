@@ -1,15 +1,11 @@
-"""
-WIZARD do comando /novo_alerta.
+"""Wizard de criação de alerta (/novo_alerta)."""
 
-ConversationHandler = máquina de estados:
-  cada "estado" (WIZ_PROPERTY, WIZ_TRANSACTION, ...) espera um tipo de input.
-  A função retorna o PRÓXIMO estado (número) ou ConversationHandler.END para sair.
-
-range(10) gera 0,1,...,9 — só precisamos de IDs únicos para os estados.
-"""
+from __future__ import annotations
 
 import logging
+import json
 import re
+from datetime import datetime
 
 from telegram import Update
 from telegram.ext import (
@@ -22,29 +18,83 @@ from telegram.ext import (
 )
 
 from bot import keyboards
+from bot.carousel import immediate_seed
+from database import get_connection
 
 logger = logging.getLogger(__name__)
 
 (
-    WIZ_PROPERTY,
     WIZ_TRANSACTION,
     WIZ_PRICE_MIN,
     WIZ_PRICE_MAX,
     WIZ_NEIGHBORHOODS,
-    WIZ_BEDROOMS,
-    WIZ_AREA_MIN,
-    WIZ_AREA_MAX,
     WIZ_CONFIRM,
     WIZ_NAME,
-) = range(10)
+) = range(6)
 
 
-def _session(context: ContextTypes.DEFAULT_TYPE):
-    return context.application.bot_data["session_factory"]()
+def _fmt_money(v: float | None) -> str:
+    if v is None:
+        return "—"
+    return f"R$ {v:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _wizard_or_none(context: ContextTypes.DEFAULT_TYPE) -> dict | None:
+    wizard = context.user_data.get("wizard_alert")
+    if not isinstance(wizard, dict):
+        return None
+    return wizard
+
+
+def _persist_alert(chat_id: int, wizard: dict) -> int:
+    """Cria usuário (se necessário) e persiste o alerta no SQLite."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT OR IGNORE INTO users (chat_id) VALUES (?);", (chat_id,))
+        cur.execute("SELECT id FROM users WHERE chat_id = ?;", (chat_id,))
+        row = cur.fetchone()
+        if row is None:
+            raise RuntimeError("Não foi possível identificar o usuário no banco.")
+
+        user_id = int(row["id"])
+        neighborhoods = sorted(wizard.get("neighborhoods_selected") or set())
+        neighbourhood = ", ".join(neighborhoods) if neighborhoods else None
+        max_price = wizard.get("price_max")
+        category = json.dumps(
+            {
+                "name": wizard.get("name"),
+                "transaction": wizard.get("transaction", "sale"),
+                "price_min": wizard.get("price_min"),
+                "price_max": wizard.get("price_max"),
+                "neighborhoods": neighborhoods,
+            },
+            ensure_ascii=False,
+        )
+
+        cur.execute(
+            """
+            INSERT INTO alerts (user_id, neighbourhood, max_price, category, active, created_at)
+            VALUES (?, ?, ?, ?, 1, ?);
+            """,
+            (
+                user_id,
+                neighbourhood,
+                max_price,
+                category,
+                datetime.utcnow().replace(microsecond=0).isoformat(),
+            ),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 async def novo_alerta_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    # user_data = dicionário por usuário — guardamos o progresso do wizard aqui
     context.user_data["wizard_alert"] = {"neighborhoods_selected": set()}
     await update.message.reply_text(
         "🆕 *Configurando novo alerta*\n\nVocê quer:\nAlugar ou Comprar?",
@@ -57,10 +107,6 @@ async def novo_alerta_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def novo_alerta_entry_cb(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> int:
-    """
-    Entrada do wizard iniciada via clique no menu.
-    A diferença é que aqui o update vem como callback_query (não update.message).
-    """
     q = update.callback_query
     await q.answer()
     context.user_data["wizard_alert"] = {"neighborhoods_selected": set()}
@@ -73,17 +119,17 @@ async def novo_alerta_entry_cb(
 
 
 async def wiz_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    w = context.user_data.get("wizard_alert") or {}
-    name = (update.message.text or "").strip()[:200]
-    if not name:
-        await update.message.reply_text("Nome inválido. Tente de novo.")
-        return WIZ_NAME  # fica no mesmo estado até acertar
-
-    if not w:
+    w = _wizard_or_none(context)
+    if w is None:
         await update.message.reply_text(
             "Sessão do wizard expirada. Use /novo_alerta novamente."
         )
         return ConversationHandler.END
+
+    name = (update.message.text or "").strip()[:200]
+    if not name:
+        await update.message.reply_text("Nome inválido. Tente de novo.")
+        return WIZ_NAME
 
     w["name"] = name
 
@@ -120,24 +166,16 @@ async def wiz_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return WIZ_CONFIRM
 
 
-async def wiz_property_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    # callback_query = clique em botão inline
-    q = update.callback_query
-    await q.answer()  # tira o "relógio" do botão no cliente Telegram
-    key = q.data.replace("wiz_pt_", "")
-    context.user_data["wizard_alert"]["property_type"] = key
-    await q.edit_message_text(
-        "Aluguel ou Venda:",
-        reply_markup=keyboards.transaction_keyboard(),
-    )
-    return WIZ_TRANSACTION
-
-
 async def wiz_transaction_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     q = update.callback_query
     await q.answer()
+    w = _wizard_or_none(context)
+    if w is None:
+        await q.message.reply_text("Sessão expirada. Use /novo_alerta novamente.")
+        return ConversationHandler.END
+
     key = q.data.replace("wiz_tr_", "")
-    context.user_data["wizard_alert"]["transaction"] = key
+    w["transaction"] = key
     await q.edit_message_text(
         "Faixa de preço:\n\nSelecione uma opção (ou use *Personalizado*).",
         parse_mode="Markdown",
@@ -160,7 +198,11 @@ async def wiz_price_preset_cb(
     await q.answer()
 
     data = q.data or ""
-    w = context.user_data.setdefault("wizard_alert", {})
+    w = _wizard_or_none(context)
+    if w is None:
+        await q.message.reply_text("Sessão expirada. Use /novo_alerta novamente.")
+        return ConversationHandler.END
+
     if data == "wiz_price_custom":
         await q.message.reply_text(
             "Personalizado: envie o *preço mínimo* (R$, só número).",
@@ -171,7 +213,6 @@ async def wiz_price_preset_cb(
     if not data.startswith("wiz_price_preset_"):
         return WIZ_PRICE_MIN
 
-    # Ex.: wiz_price_preset_rent_1
     parts = data.split("_")
     if len(parts) < 5:
         return WIZ_PRICE_MIN
@@ -214,9 +255,15 @@ async def wiz_price_preset_cb(
 
 
 async def wiz_price_min(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    w = _wizard_or_none(context)
+    if w is None:
+        await update.message.reply_text(
+            "Sessão do wizard expirada. Use /novo_alerta novamente."
+        )
+        return ConversationHandler.END
+
     text = (update.message.text or "").strip().lower()
     try:
-        # re.sub(r"\D", "", text) = só dígitos (tira R$, pontos, etc.)
         price_min = int(re.sub(r"\D", "", text) or 0)
     except Exception:
         price_min = 0
@@ -224,12 +271,19 @@ async def wiz_price_min(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         await update.message.reply_text("Número inválido. Ex.: 150000")
         return WIZ_PRICE_MIN
 
-    context.user_data["wizard_alert"]["price_min"] = price_min
+    w["price_min"] = price_min
     await update.message.reply_text("Preço *máximo* (R$):", parse_mode="Markdown")
     return WIZ_PRICE_MAX
 
 
 async def wiz_price_max(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    w = _wizard_or_none(context)
+    if w is None:
+        await update.message.reply_text(
+            "Sessão do wizard expirada. Use /novo_alerta novamente."
+        )
+        return ConversationHandler.END
+
     text = (update.message.text or "").strip().lower()
     try:
         price_max = int(re.sub(r"\D", "", text) or 0)
@@ -239,10 +293,16 @@ async def wiz_price_max(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         await update.message.reply_text("Número inválido.")
         return WIZ_PRICE_MAX
 
-    context.user_data["wizard_alert"]["price_max"] = price_max
+    price_min = w.get("price_min")
+    if price_min is not None and price_max < price_min:
+        await update.message.reply_text(
+            "O preço máximo deve ser maior ou igual ao mínimo."
+        )
+        return WIZ_PRICE_MAX
 
-    # Próximo passo: bairros (inline)
-    sel = context.user_data["wizard_alert"].get("neighborhoods_selected") or set()
+    w["price_max"] = price_max
+
+    sel = w.get("neighborhoods_selected") or set()
     await update.message.reply_text(
         "Selecione os *bairros* (toque para marcar). Depois: Concluir.\n"
         "Se não quiser filtrar por bairro, conclua sem marcar.",
@@ -252,138 +312,15 @@ async def wiz_price_max(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     return WIZ_NEIGHBORHOODS
 
 
-async def wiz_bedrooms(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = (update.message.text or "").strip().lower()
-    w = context.user_data["wizard_alert"]
-    if text == "pular":
-        w["bedrooms_min"] = None
-    else:
-        try:
-            bedrooms_min = int(re.sub(r"[^\d]", "", text) or 0)
-        except Exception:
-            bedrooms_min = 0
-        if bedrooms_min <= 0:
-            await update.message.reply_text(
-                "Digite um número de quartos válido ou toque em `Pular`.",
-                parse_mode="Markdown",
-            )
-            return WIZ_BEDROOMS
-        w["bedrooms_min"] = bedrooms_min
-
-    await update.message.reply_text(
-        "Metragem (opcional)\n\nÁrea útil *mínima* (m²) ou toque em `Pular`:",
-        parse_mode="Markdown",
-        reply_markup=keyboards.skip_keyboard(),
-    )
-    return WIZ_AREA_MIN
-
-
-async def wiz_area_min(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = (update.message.text or "").strip().lower()
-    w = context.user_data["wizard_alert"]
-    if text == "pular":
-        w["area_min"] = None
-    else:
-        try:
-            area_min = float(text.replace(",", "."))
-        except ValueError:
-            await update.message.reply_text(
-                "Número inválido. Envie um valor ou toque em `Pular`.",
-                parse_mode="Markdown",
-            )
-            return WIZ_AREA_MIN
-        if area_min <= 0:
-            await update.message.reply_text(
-                "A metragem mínima deve ser > 0.",
-                parse_mode="Markdown",
-            )
-            return WIZ_AREA_MIN
-        w["area_min"] = area_min
-
-    await update.message.reply_text(
-        "Área *máxima* (m²) ou toque em `Pular`:",
-        parse_mode="Markdown",
-        reply_markup=keyboards.skip_keyboard(),
-    )
-    return WIZ_AREA_MAX
-
-
-async def wiz_area_max(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = (update.message.text or "").strip().lower()
-    w = context.user_data["wizard_alert"]
-    if text == "pular":
-        w["area_max"] = None
-    else:
-        try:
-            area_max = float(text.replace(",", "."))
-        except ValueError:
-            await update.message.reply_text(
-                "Número inválido. Envie um valor ou toque em `Pular`.",
-                parse_mode="Markdown",
-            )
-            return WIZ_AREA_MAX
-        if area_max <= 0:
-            await update.message.reply_text(
-                "A metragem máxima deve ser > 0.",
-                parse_mode="Markdown",
-            )
-            return WIZ_AREA_MAX
-        w["area_max"] = area_max
-
-    # Confirmação: envia um resumo antes de salvar.
-    prop_map = dict(keyboards.PROPERTY_TYPES)
-    tr_label = {"sale": "Venda", "rent": "Aluguel"}.get(
-        w.get("transaction"), w.get("transaction")
-    )
-    prop_label = prop_map.get(w.get("property_type"), w.get("property_type"))
-
-    sel = w.get("neighborhoods_selected") or set()
-    nb_s = ", ".join(sorted(sel)) if sel else "Qualquer bairro"
-
-    bedrooms = w.get("bedrooms_min")
-    bed_s = "Qualquer" if bedrooms is None else f">= {bedrooms} quartos"
-
-    area_min = w.get("area_min")
-    area_max = w.get("area_max")
-    if area_min is None and area_max is None:
-        area_s = "Qualquer"
-    else:
-        parts: list[str] = []
-        if area_min is not None:
-            parts.append(f">= {area_min:g}m²")
-        if area_max is not None:
-            parts.append(f"<= {area_max:g}m²")
-        area_s = " | ".join(parts)
-
-    pmin = w.get("price_min")
-    pmax = w.get("price_max")
-    price_s = f"{_fmt_money(pmin)} - {_fmt_money(pmax)}"
-
-    summary = (
-        "🧾 *Confirmação do alerta*\n\n"
-        f"🏠 *Tipo:* {prop_label}\n"
-        f"💳 *Transação:* {tr_label}\n"
-        f"💰 *Preço:* {price_s}\n"
-        f"📍 *Bairros:* {nb_s}\n"
-        f"🛏 *Quartos:* {bed_s}\n"
-        f"📐 *Metragem:* {area_s}\n\n"
-        "Se estiver tudo certo, confirme abaixo. O *nome do alerta* vem na próxima etapa."
-    )
-
-    await update.message.reply_text(
-        summary,
-        parse_mode="Markdown",
-        reply_markup=keyboards.alert_confirmation_keyboard(),
-    )
-    return WIZ_CONFIRM
-
-
 async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     q = update.callback_query
     await q.answer()
 
     data = q.data or ""
-    w = context.user_data.get("wizard_alert") or {}
+    w = _wizard_or_none(context)
+    if w is None:
+        await q.message.reply_text("Sessão expirada. Use /novo_alerta novamente.")
+        return ConversationHandler.END
 
     if data == "wiz_confirm_no":
         context.user_data.pop("wizard_alert", None)
@@ -405,39 +342,33 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return ConversationHandler.END
 
-    # Mantido aqui apenas como referência do payload que seria persistido no banco.
-    # filters_dict = {
-    #     "transaction": w.get("transaction", "sale"),
-    #     "price_min": w.get("price_min"),
-    #     "price_max": w.get("price_max"),
-    #     "neighborhoods": sorted(w.get("neighborhoods_selected") or set()),
-    # }
+    filters_dict = {
+        "transaction": w.get("transaction", "sale"),
+        "price_min": w.get("price_min"),
+        "price_max": w.get("price_max"),
+        "neighborhoods": sorted(w.get("neighborhoods_selected") or set()),
+    }
 
-    await q.message.reply_text("⏳ Peraê, tô procurando imóveis pra você...")
-
-    # Escrita no banco removida temporariamente.
-    # async with _session(context) as session:
-    #     user = await crud.get_or_create_user(
-    #         session, update.effective_user.id, update.effective_user.username
-    #     )
-    #     alert = await crud.create_alert(session, user.id, name, filters_dict)
+    try:
+        alert_id = _persist_alert(update.effective_user.id, w)
+    except Exception:
+        logger.exception("Falha ao salvar novo alerta no banco.")
+        await q.message.reply_text(
+            "Não consegui salvar seu alerta agora. Tente novamente em instantes.",
+            reply_markup=keyboards.main_menu_keyboard(),
+        )
+        context.user_data.pop("wizard_alert", None)
+        return ConversationHandler.END
 
     context.user_data.pop("wizard_alert", None)
 
-    # Dependia de alert.id (persistência no banco), então foi comentado.
-    # task = asyncio.create_task(
-    #     immediate_seed(
-    #         context.application,
-    #         alert.id,
-    #         update.effective_user.id,
-    #         filters_dict,
-    #         context.user_data,
-    #     )
-    # )
-    # context.user_data[f"_seed_task_{alert.id}"] = task
-    await q.message.reply_text(
-        "A criação do alerta foi desabilitada temporariamente (sem escrita no banco).",
-        reply_markup=keyboards.main_menu_keyboard(),
+    await q.message.reply_text("⏳ Peraê, tô procurando imóveis pra você...")
+    await immediate_seed(
+        context.application,
+        alert_id,
+        update.effective_user.id,
+        filters_dict,
+        context.user_data,
     )
 
     return ConversationHandler.END
@@ -449,7 +380,11 @@ async def wiz_neighborhoods_cb(
     q = update.callback_query
     await q.answer()
     data = q.data or ""
-    w = context.user_data.setdefault("wizard_alert", {})
+    w = _wizard_or_none(context)
+    if w is None:
+        await q.message.reply_text("Sessão expirada. Use /novo_alerta novamente.")
+        return ConversationHandler.END
+
     sel = w.setdefault("neighborhoods_selected", set())
     if data == "nbd_done":
         await q.message.reply_text(
@@ -477,18 +412,7 @@ async def cancel_wiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     )
     return ConversationHandler.END
 
-
-def _fmt_money(v: float | None) -> str:
-    if v is None:
-        return "—"
-    return f"R$ {v:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-
 def conversation_novo_alerta() -> ConversationHandler:
-    """
-    Registra o fluxo completo. filters.COMMAND = mensagens que começam com /
-    (~filters.COMMAND) = aceita só texto que NÃO é comando.
-    """
     return ConversationHandler(
         entry_points=[
             CommandHandler("novo_alerta", novo_alerta_entry),

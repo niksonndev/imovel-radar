@@ -32,6 +32,7 @@ from bot.handlers import (
     menu_watchlist_cb,
     watch_remove_cb,
 )
+from database import create_tables
 from scraper import olx_scraper
 
 # __file__ = caminho deste arquivo. .parent = pasta onde está o main.py.
@@ -54,7 +55,7 @@ logger = logging.getLogger(__name__)
 # "async def" = função assíncrona (pode esperar rede/DB sem travar tudo).
 # O python-telegram-bot chama isso depois que o app está pronto.
 async def post_init(app: Application) -> None:
-    # Agendador: dispara tarefas de tempo em tempo (tipo setInterval no Node)
+    create_tables()
     logger.info("Bot iniciado.")
 
 
