@@ -36,10 +36,9 @@ COLUMNS = [
 INSERT_SQL = """
 INSERT INTO listings (
     listId, url, title, priceValue, oldPrice,
-    municipality, neighbourhood, category, images, properties,
-    first_seen_at
+    municipality, neighbourhood, category, images, properties
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(listId) DO UPDATE SET
     url = excluded.url,
     title = excluded.title,

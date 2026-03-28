@@ -24,7 +24,7 @@ from telegram import (
 from telegram.ext import ContextTypes
 
 from bot import keyboards
-from scraper import olx_scraper
+from database import get_connection
 from scraper.parser import price_value_to_float
 
 logger = logging.getLogger(__name__)
@@ -234,6 +234,42 @@ def _filter_cached_ads(ads: list[dict], filters: dict) -> list[dict]:
     return out
 
 
+def _load_active_listings_from_db(limit: int = 300) -> list[dict]:
+    """Carrega anúncios ativos do cache local (SQLite)."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT listId, url, title, priceValue, oldPrice, municipality,
+                   neighbourhood, category, images, properties
+            FROM listings
+            WHERE active = 1
+            ORDER BY listId DESC
+            LIMIT ?;
+            """,
+            (limit,),
+        )
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    listings: list[dict] = []
+    for row in rows:
+        ad = dict(row)
+        images = ad.get("images")
+        if isinstance(images, str) and images.strip():
+            try:
+                parsed = json.loads(images)
+                ad["images"] = parsed if isinstance(parsed, list) else []
+            except Exception:
+                ad["images"] = []
+        else:
+            ad["images"] = []
+        listings.append(ad)
+    return listings
+
+
 # ────────────────────── enviar carrossel (reutilizável) ──────────────────────
 
 
@@ -285,18 +321,20 @@ async def send_carousel(
 async def immediate_seed(
     app, alert_id: int, tg_id: int, filters: dict, user_data: dict
 ) -> None:
-    """Seed imediato sem banco: scraping OLX + filtro local + carrossel."""
+    """Seed imediato usando cache diário no banco + filtro local + carrossel."""
     bot = app.bot
 
     try:
-        listings = await olx_scraper.search_all_rent_maceio()
+        listings = _load_active_listings_from_db()
         listings = _filter_cached_ads(listings, filters)
     except Exception:
-        logger.exception("Seed imediato via scraper falhou para alerta %s", alert_id)
+        logger.exception(
+            "Seed imediato via cache local falhou para alerta %s", alert_id
+        )
         try:
             await bot.send_message(
                 chat_id=tg_id,
-                text="⚠️ Não consegui consultar os imóveis agora. "
+                text="⚠️ Não consegui consultar o cache de imóveis agora. "
                 "Vou tentar na próxima verificação automática. 🔔",
             )
         except Exception:
