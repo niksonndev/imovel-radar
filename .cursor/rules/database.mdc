@@ -1,0 +1,82 @@
+---
+description: Regras para o módulo database/ — SQLite, conexão e queries.
+globs: ["database/**/*.py"]
+alwaysApply: false
+---
+
+## Banco de dados SQLite
+
+- Usar context manager `with conn:` para todas as operações de escrita (auto commit/rollback)
+- Conexão via `sqlite3.connect(DB_PATH)` com `DB_PATH` vindo de `config.py`
+- Ativar `conn.row_factory = sqlite3.Row` para acessar colunas por nome
+- Sempre usar `?` como placeholder — nunca f-string em queries SQL
+- Migrations manuais em `database/migrations/` numeradas sequencialmente (`001_create_tables.sql`)
+
+## Padrão de conexão
+
+```python
+def get_connection() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+```
+
+## Schema atual
+
+### `listings` — anúncios coletados do OLX
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `listId` | INTEGER PK | ID original do OLX |
+| `active` | INTEGER | 1 = ativo, 0 = sumiu do OLX |
+| `url` | TEXT | Link do anúncio |
+| `title` | TEXT | Título do anúncio |
+| `priceValue` | INTEGER | Preço atual |
+| `oldPrice` | INTEGER | Preço anterior (quando há desconto) |
+| `municipality` | TEXT | Cidade |
+| `neighbourhood` | TEXT | Bairro |
+| `category` | TEXT | Categoria do imóvel |
+| `images` | TEXT | JSON array de URLs |
+| `properties` | TEXT | JSON bruto com dados extras (rooms, size, bathrooms etc.) — tech debt conhecido, não extrair colunas ainda |
+| `first_seen_at` | TEXT | ISO 8601 — preenchido só na inserção, nunca sobrescrito |
+| `updated_at` | TEXT | ISO 8601 — atualizado a cada upsert diário |
+
+### `users` — usuários cadastrados no bot
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `id` | INTEGER PK | |
+| `chat_id` | INTEGER UNIQUE | Chat ID do Telegram |
+| `created_at` | TEXT | ISO 8601 |
+
+### `alerts` — filtros de monitoramento por usuário
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `id` | INTEGER PK | |
+| `user_id` | INTEGER FK | Referência a `users.id` |
+| `neighbourhood` | TEXT | Bairro desejado |
+| `min_price` | INTEGER | Preço mínimo (opcional) |
+| `max_price` | INTEGER | Preço máximo (opcional) |
+| `category` | TEXT | Tipo de imóvel (opcional) |
+| `active` | INTEGER | 1 = ativo |
+| `created_at` | TEXT | ISO 8601 |
+
+### `alert_matches` — controle de notificações enviadas
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `alert_id` | INTEGER PK+FK | Referência a `alerts.id` |
+| `listing_id` | INTEGER PK+FK | Referência a `listings.listId` |
+| `notified_at` | TEXT | ISO 8601 — quando a notificação foi enviada |
+
+PK composta `(alert_id, listing_id)` garante que o mesmo anúncio nunca seja notificado duas vezes para o mesmo alerta.
+
+## Fluxo de dados
+
+1. **Full scrape diário** → upsert em `listings` (insert ou update de `priceValue`, `active`, `updated_at`)
+2. **Match job** → para cada `alert` ativo, busca `listings` novos (`first_seen_at` do dia) que atendam os filtros e ainda não estão em `alert_matches`
+3. **Notificação** → envia via Telegram e insere em `alert_matches`
+
+## O que NÃO fazer
+
+- Não usar ORM — SQLite nativo é suficiente
+- Não abrir conexão global — abrir e fechar por operação
+- Não fazer SELECT * — sempre especificar colunas
+- Não extrair colunas de `properties` ainda — tech debt aceito conscientemente

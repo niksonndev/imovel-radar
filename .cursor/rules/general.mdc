@@ -1,5 +1,5 @@
 ---
-description: Regras gerais do projeto imovel-radar. Aplicar sempre em qualquer arquivo.
+description: Regras gerais.
 alwaysApply: true
 ---
 
@@ -11,7 +11,7 @@ Notifica usuários quando novos anúncios correspondem aos seus filtros cadastra
 ## Stack
 
 - **Python 3.11+**
-- **Scraper**: `cloudscraper` + `BeautifulSoup4` (OLX Maceió)
+- **Scraper**: `cloudscraper` + `BeautifulSoup4`
 - **Bot**: `python-telegram-bot` (polling)
 - **Banco**: SQLite via `sqlite3` nativo
 - **Agendamento futuro**: APScheduler
