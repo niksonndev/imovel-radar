@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -36,9 +37,10 @@ COLUMNS = [
 INSERT_SQL = """
 INSERT INTO listings (
     listId, url, title, priceValue, oldPrice,
-    municipality, neighbourhood, category, images, properties
+    municipality, neighbourhood, category, images, properties,
+    first_seen_at
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(listId) DO UPDATE SET
     url = excluded.url,
     title = excluded.title,
@@ -105,7 +107,8 @@ def run_insert_batch(ads: list[dict[str, Any]]) -> tuple[int, int, int, int]:
                     continue
 
                 try:
-                    cur.execute(INSERT_SQL, row)
+                    first_seen = datetime.now(timezone.utc).isoformat()
+                    cur.execute(INSERT_SQL, (*row, first_seen))
                     total_inserted += 1
                     logger.debug(
                         "[%s/%s] Inserted/Updated listId=%s",

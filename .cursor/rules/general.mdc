@@ -1,0 +1,45 @@
+---
+description: Regras gerais do projeto imovel-radar. Aplicar sempre em qualquer arquivo.
+alwaysApply: true
+---
+
+# imovel-radar
+
+Bot Telegram em Python para monitorar anúncios de imóveis no OLX Maceió.
+Notifica usuários quando novos anúncios correspondem aos seus filtros cadastrados.
+
+## Stack
+
+- **Python 3.11+**
+- **Scraper**: `cloudscraper` + `BeautifulSoup4` (OLX Maceió)
+- **Bot**: `python-telegram-bot` (polling)
+- **Banco**: SQLite via `sqlite3` nativo
+- **Agendamento futuro**: APScheduler
+- **Execução**: script local + cron
+
+## Estrutura de módulos
+
+```
+imovel-radar/
+├── bot/          # Handlers, comandos e lógica do Telegram
+├── scraper/      # Acesso ao OLX, parsing de anúncios
+├── database/     # Conexão, migrations e queries SQLite
+├── scripts/      # Scripts de debug e utilitários manuais
+├── main.py       # Entrypoint — inicializa bot + scheduler
+└── config.py     # Variáveis de ambiente e constantes
+```
+
+## Convenções obrigatórias
+
+- **Erros**: sempre capturar com `try/except` explícito, nunca deixar propagar silenciosamente
+- **Logs**: usar `logging` padrão, nunca `print()` em produção
+- **Configs**: todas as variáveis sensíveis via `.env` + `python-dotenv`, nunca hardcoded
+- **Banco**: usar context manager (`with conn:`) para garantir commit/rollback automático
+- **Scraper**: respeitar delay entre requisições (mínimo 2s), nunca fazer flood no OLX
+
+## O que NÃO fazer
+
+- Não usar frameworks web (Flask, FastAPI) — projeto é só CLI/bot
+- Não adicionar ORM (SQLAlchemy) — SQLite nativo é suficiente
+- Não criar endpoints HTTP — comunicação só via Telegram
+- Não commitar `.env` ou `imoveis.db`
