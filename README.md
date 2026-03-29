@@ -2,6 +2,8 @@
 
 Bot Telegram para monitorar anúncios de imóveis no OLX Maceió. Realiza scraping diário e notifica usuários quando novos anúncios correspondem aos seus filtros cadastrados.
 
+![Demonstração: `/start`, menu principal e início do fluxo Novo Alerta](assets/demo-aluguel.gif)
+
 ## Stack
 
 - **Python 3.11+**
