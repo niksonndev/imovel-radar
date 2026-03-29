@@ -1,0 +1,99 @@
+---
+description: Regras para o módulo bot/ — handlers, callbacks e conversações do Telegram.
+globs: ["bot/**/*.py"]
+alwaysApply: false
+---
+
+## python-telegram-bot
+
+- Versão: `python-telegram-bot>=20` (API assíncrona com `async/await`)
+- Modo: **polling** (`application.run_polling()`)
+- Cada comando em função separada com assinatura padrão e docstring curta
+
+## Estrutura de arquivos
+
+- `bot/handlers.py` — CommandHandlers simples (`/start`, `/ajuda`, `/status`, etc.)
+- `bot/callbacks.py` — todos os CallbackQueryHandlers (menu, carrossel, ações de alerta/watchlist)
+- `bot/conversations.py` — ConversationHandlers multi-step (`/novo_alerta`)
+- `bot/setup.py` — função `setup(app)` que registra todos os handlers no `Application`
+
+`main.py` **não registra handlers diretamente** — apenas chama `bot.setup(app)`:
+
+```python
+# main.py
+from bot.setup import setup
+
+app = ApplicationBuilder().token(TOKEN).build()
+setup(app)
+app.run_polling()
+```
+
+```python
+# bot/setup.py
+def setup(app: Application) -> None:
+    app.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(conversation_novo_alerta())
+    app.add_handler(CallbackQueryHandler(menu_home, pattern="^menu_home$"))
+    # ...
+```
+
+## Padrão de CommandHandler
+
+```python
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Boas-vindas, limpa user_data, mostra menu."""
+    await update.message.reply_text("...")
+```
+
+## Padrão de CallbackQueryHandler
+
+```python
+async def menu_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text("...")
+```
+
+## ConversationHandler — atenção à volatilidade
+
+O estado do ConversationHandler é **in-memory** — não sobrevive a restarts do bot. Consequência: se o bot reiniciar no meio de um `/novo_alerta`, o usuário fica preso num estado fantasma.
+
+Mitigações obrigatórias enquanto não há persistência:
+- `/cancelar` deve sempre funcionar como fallback, inclusive fora de conversações ativas
+- Nunca assumir que `context.user_data` tem dados de uma etapa anterior sem verificar
+- Em caso de estado inválido, resetar silenciosamente e guiar o usuário ao início
+
+Persistência real (`PicklePersistence` ou `SQLitePersistence`) é melhoria futura conhecida.
+
+## Comandos existentes
+
+| Comando | Arquivo | Status |
+|---|---|---|
+| `/start` | `handlers.py` | ✅ boas-vindas, limpa `user_data`, mostra menu |
+| `/ajuda` | `handlers.py` | ✅ lista de comandos |
+| `/status` | `handlers.py` | ✅ próximas execuções do scheduler |
+| `/novo_alerta` | `conversations.py` | ✅ wizard multi-step |
+| `/cancelar` | `conversations.py` | ✅ fallback do ConversationHandler |
+| `/meus_alertas` | `handlers.py` | 🚧 indisponível |
+| `/pausar_alerta` | `handlers.py` | 🚧 indisponível |
+| `/deletar_alerta` | `handlers.py` | 🚧 indisponível |
+| `/observar` | `handlers.py` | 🚧 indisponível |
+| `/watchlist` | `handlers.py` | 🚧 indisponível |
+| `/remover` | `handlers.py` | 🚧 indisponível |
+
+Callbacks inline em `callbacks.py`: `menu_home`, `menu_meus_alertas`, ações de alerta/watchlist, `carousel_cb`.
+
+## Mensagens para o usuário
+
+- `parse_mode=ParseMode.MARKDOWN` como padrão
+- Emojis permitidos e encorajados para UX
+- Erros sempre com mensagem amigável — nunca expor stack trace ao usuário
+- Comandos 🚧 indisponíveis respondem educadamente que a feature está em desenvolvimento
+
+## O que NÃO fazer
+
+- Não registrar handlers em `main.py` — usar `bot/setup.py`
+- Não misturar CallbackQueryHandlers em `handlers.py` — pertencem a `callbacks.py`
+- Não bloquear o event loop — queries pesadas rodam em `run_in_executor`
+- Não importar nada de `scraper/` — o bot não chama o scraper diretamente
+- Não assumir `context.user_data` persistente entre restarts

@@ -1,0 +1,37 @@
+---
+description: Regras para agendamento com APScheduler (implementação futura).
+globs: ["scheduler/**/*.py", "main.py"]
+alwaysApply: false
+---
+
+## APScheduler (planejado)
+
+- Usar `BackgroundScheduler` para não bloquear o event loop do bot
+- Jobs definidos em `scheduler/jobs.py`
+- Intervalo padrão de coleta: 30 minutos (ajustável via `.env`)
+- Sempre fazer graceful shutdown: `scheduler.shutdown()` no signal handler
+
+## Padrão de job
+
+```python
+def job_coletar_imoveis() -> None:
+    """Job periódico: scraping + comparação + notificação."""
+    logger = logging.getLogger(__name__)
+    try:
+        imoveis = scraper.coletar()
+        novos = db.filtrar_novos(imoveis)
+        bot.notificar(novos)
+        logger.info(f"{len(novos)} novos anúncios notificados")
+    except Exception as e:
+        logger.error(f"Erro no job de coleta: {e}")
+```
+
+## Variáveis de ambiente esperadas
+
+```env
+INTERVALO_COLETA_MIN=30
+```
+
+## Migração do cron
+
+Quando APScheduler for adicionado, remover entrada do crontab correspondente.

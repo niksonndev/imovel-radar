@@ -1,0 +1,44 @@
+---
+description: Regras para o módulo scraper/ — acesso ao OLX e parsing de anúncios.
+globs: ['scraper/**/*.py']
+alwaysApply: false
+---
+
+## Responsabilidade
+
+O scraper **só coleta e devolve dados brutos**. Ele não conhece o banco, não importa nada de `database/` e não decide o que é "novo" — essa lógica pertence a quem o chama (`main.py` ou job do scheduler).
+
+## Acesso ao OLX
+
+- Usar `cloudscraper.create_scraper()` para contornar proteção anti-bot
+- Sempre adicionar `time.sleep()` entre requisições (mínimo 2s, ideal 3-5s randômico)
+- User-Agent e URLs base sempre importado de `config.py` — nunca hardcodar no scraper
+- Tratar `cloudscraper.exceptions.CloudflareChallengeError` explicitamente
+- Parsing com `BeautifulSoup(html, "lxml")`
+
+## Dict de retorno
+
+O dict retornado pelo scraper mapeia diretamente para as colunas de `listings` no banco. Os campos `first_seen_at`, `updated_at` e `active` **não são responsabilidade do scraper** — são preenchidos pelo `database/` no upsert.
+
+```python
+{
+    "listId":        int,          # ID original do OLX
+    "url":           str,
+    "title":         str,
+    "priceValue":    int | None,
+    "oldPrice":      int | None,
+    "municipality":  str | None,
+    "neighbourhood": str | None,
+    "category":      str | None,
+    "images":        str,          # JSON array de URLs
+    "properties":    str,          # JSON bruto com dados extras do OLX
+}
+```
+
+## O que NÃO fazer
+
+- Nunca importar nada de `database/`
+- Nunca fazer requisições em loop sem delay
+- Nunca hardcodar URLs ou User-Agents — sempre usar `config.py`
+- Não logar o HTML completo — logar só status e contagem de anúncios coletados
+- Não preencher `first_seen_at`, `updated_at` ou `active` — responsabilidade do banco

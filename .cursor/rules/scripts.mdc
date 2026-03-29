@@ -1,0 +1,23 @@
+---
+description: Regras para a pasta scripts/ — utilitários de debug e uso manual.
+globs: ["scripts/**/*.py"]
+alwaysApply: false
+---
+
+## Scripts de debug
+
+- `print()` é permitido aqui (são scripts interativos, não produção)
+- Cada script deve ter um `if __name__ == "__main__":` explícito
+- Adicionar comentário no topo explicando o propósito do script
+- Scripts não devem ser importados por outros módulos
+
+## Exemplos de scripts úteis
+
+- `scripts/test_scraper.py` — testa o scraper e imprime anúncios coletados
+- `scripts/check_db.py` — inspeciona o banco e lista registros
+- `scripts/send_test_message.py` — envia mensagem de teste para um chat_id
+
+## O que NÃO fazer
+
+- Não commitar scripts com tokens ou chat_ids reais hardcoded
+- Não usar scripts como substituto para testes automatizados no futuro

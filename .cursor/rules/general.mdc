@@ -1,45 +1,33 @@
 ---
-description: Regras gerais.
+description: Regras gerais do projeto imovel-radar. Aplicar sempre em qualquer arquivo.
 alwaysApply: true
 ---
 
-# imovel-radar
+## Projeto
 
-Bot Telegram em Python para monitorar anúncios de imóveis no OLX Maceió.
-Notifica usuários quando novos anúncios correspondem aos seus filtros cadastrados.
+Bot Telegram Python que monitora anúncios de imóveis no OLX Maceió e notifica usuários com base em filtros cadastrados.
 
-## Stack
-
-- **Python 3.11+**
-- **Scraper**: `cloudscraper` + `BeautifulSoup4`
-- **Bot**: `python-telegram-bot` (polling)
-- **Banco**: SQLite via `sqlite3` nativo
-- **Agendamento futuro**: APScheduler
-- **Execução**: script local + cron
+Stack: `cloudscraper` + `BeautifulSoup4`, `python-telegram-bot>=20` (polling), SQLite nativo, cron (APScheduler futuramente).
 
 ## Estrutura de módulos
 
-```
-imovel-radar/
-├── bot/          # Handlers, comandos e lógica do Telegram
-├── scraper/      # Acesso ao OLX, parsing de anúncios
-├── database/     # Conexão, migrations e queries SQLite
-├── scripts/      # Scripts de debug e utilitários manuais
-├── main.py       # Entrypoint — inicializa bot + scheduler
-└── config.py     # Variáveis de ambiente e constantes
-```
+- `bot/` → handlers, callbacks, conversações e setup do Telegram
+- `scraper/` → acesso ao OLX e parsing de anúncios
+- `database/` → conexão, queries e migrations SQLite
+- `scripts/` → utilitários de debug, não importar em produção
+- `main.py` → entrypoint — inicializa app e chama `bot.setup(app)`
+- `config.py` → todas as constantes e variáveis de ambiente
 
-## Convenções obrigatórias
+## Separação de responsabilidades
 
-- **Erros**: sempre capturar com `try/except` explícito, nunca deixar propagar silenciosamente
-- **Logs**: usar `logging` padrão, nunca `print()` em produção
-- **Configs**: todas as variáveis sensíveis via `.env` + `python-dotenv`, nunca hardcoded
-- **Banco**: usar context manager (`with conn:`) para garantir commit/rollback automático
-- **Scraper**: respeitar delay entre requisições (mínimo 2s), nunca fazer flood no OLX
+- `scraper/` não importa nada de `database/` ou `bot/`
+- `bot/` não importa nada de `scraper/`
+- `main.py` orquestra: chama scraper, passa resultado para database, inicializa bot
 
-## O que NÃO fazer
+## Padrões obrigatórios
 
-- Não usar frameworks web (Flask, FastAPI) — projeto é só CLI/bot
-- Não adicionar ORM (SQLAlchemy) — SQLite nativo é suficiente
-- Não criar endpoints HTTP — comunicação só via Telegram
-- Não commitar `.env` ou `imoveis.db`
+- Logs via `logging`, nunca `print()` em código de produção
+- Configs sensíveis sempre via `.env` com `python-dotenv` — nunca hardcoded
+- Exceções sempre tratadas explicitamente com mensagem de log
+- Type hints em todas as funções
+- Docstrings curtas em funções públicas
