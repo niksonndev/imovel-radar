@@ -233,3 +233,8 @@ async def search_all_rent_maceio() -> list[dict]:
     out = list(all_ads.values())
     logger.info("Total anúncios únicos (scraping): %s", len(out))
     return out
+
+
+def coletar() -> list[dict]:
+    """Executa a coleta síncrona (útil em threads sem event loop asyncio ativo)."""
+    return asyncio.run(search_all_rent_maceio())

@@ -1,6 +1,7 @@
 from scraper.olx_scraper import (
     FetchError,
     close,
+    coletar,
     fetch,
     search_all_rent_maceio,
 )
@@ -8,6 +9,7 @@ from scraper.olx_scraper import (
 __all__ = [
     "FetchError",
     "close",
+    "coletar",
     "fetch",
     "search_all_rent_maceio",
 ]

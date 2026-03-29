@@ -4,16 +4,22 @@ O bot fica num loop infinito ouvindo o Telegram até você dar Ctrl+C.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from telegram.ext import Application
 
 import config
 from bot.setup import setup
 from database import create_tables
+from scheduler.setup import start_scheduler
 from scraper import olx_scraper
+
+if TYPE_CHECKING:
+    from apscheduler.schedulers.background import BackgroundScheduler
 
 # __file__ = caminho deste arquivo. .parent = pasta onde está o main.py.
 # sys.path = lista de pastas onde o Python procura módulos ao dar "import".
@@ -31,6 +37,8 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
+_scheduler: BackgroundScheduler | None = None
+
 
 # "async def" = função assíncrona (pode esperar rede/DB sem travar tudo).
 # O python-telegram-bot chama isso depois que o app está pronto.
@@ -41,10 +49,16 @@ async def post_init(app: Application) -> None:
 
 async def post_shutdown(app: Application) -> None:
     # Ao fechar o programa: libera conexões HTTP e para o agendador
+    global _scheduler
     await olx_scraper.close()
+    if _scheduler is not None:
+        await asyncio.to_thread(_scheduler.shutdown, True)
+        _scheduler = None
 
 
 def main() -> None:
+    global _scheduler
+    _scheduler = start_scheduler()
     # Application = coração da lib: token, handlers, polling
     app = (
         Application.builder()
