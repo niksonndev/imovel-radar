@@ -29,6 +29,14 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 SCRAPER_DELAY_MIN = float(os.getenv("SCRAPER_DELAY_MIN", "2"))
 SCRAPER_DELAY_MAX = float(os.getenv("SCRAPER_DELAY_MAX", "5"))
 
+# URLs do OLX usadas pelo scraper (opcionalmente sobrescreva via .env)
+OLX_BASE_URL = os.getenv("OLX_BASE_URL", "https://www.olx.com.br").rstrip("/")
+MACEIO_RENT_LISTINGS_URL = os.getenv(
+    "MACEIO_RENT_LISTINGS_URL",
+    f"{OLX_BASE_URL}/imoveis/aluguel/estado-al/alagoas/maceio",
+).strip()
+OLX_REFERER = (os.getenv("OLX_REFERER") or f"{OLX_BASE_URL}/").strip()
+
 # Lista de strings (cada User-Agent finge um navegador diferente, às vezes ajuda a não ser bloqueado)
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -36,6 +44,12 @@ USER_AGENTS = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
 ]
+USER_AGENTS = [ua.strip() for ua in USER_AGENTS if ua and str(ua).strip()]
+if not USER_AGENTS:
+    raise RuntimeError(
+        "USER_AGENTS está vazio. Defina pelo menos um User-Agent em config.py "
+        "(lista não vazia de strings)."
+    )
 
 # Bairros que aparecem como botões no wizard do Telegram
 MACEIO_NEIGHBORHOODS = [

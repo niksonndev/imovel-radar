@@ -14,16 +14,13 @@ import random
 from typing import Any
 
 import cloudscraper
+from cloudscraper.exceptions import CloudflareChallengeError
 from bs4 import BeautifulSoup
 
 import config
 from scraper.parser import normalize_olx_listing
 
 logger = logging.getLogger(__name__)
-
-MACEIO_RENT_LISTINGS_URL = (
-    "https://www.olx.com.br/imoveis/aluguel/estado-al/alagoas/maceio"
-)
 
 _http = cloudscraper.create_scraper()
 _cycle_headers: dict[str, str] | None = None
@@ -113,9 +110,10 @@ def parse_search_page(html: str) -> list[dict]:
 
 def _rent_maceio_listings_url(page: int) -> str:
     """Página 1 = URL limpa; páginas seguintes ?o= (paginação OLX)."""
+    base = config.MACEIO_RENT_LISTINGS_URL
     if page <= 1:
-        return MACEIO_RENT_LISTINGS_URL
-    return f"{MACEIO_RENT_LISTINGS_URL}?o={page}"
+        return base
+    return f"{base}?o={page}"
 
 
 class FetchError(Exception):
@@ -128,6 +126,7 @@ class FetchError(Exception):
 
 
 async def close() -> None:
+    """Fecha o cliente HTTP global do cloudscraper."""
     _http.close()
 
 
@@ -138,13 +137,7 @@ async def _delay() -> None:
 
 
 def _build_headers() -> dict[str, str]:
-    user_agents = config.USER_AGENTS or [
-        (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
-    ]
-    user_agent = random.choice(user_agents)
+    user_agent = random.choice(config.USER_AGENTS)
     return {
         "User-Agent": user_agent,
         "Accept": (
@@ -155,7 +148,7 @@ def _build_headers() -> dict[str, str]:
         "Accept-Encoding": "gzip, deflate, br",
         "Cache-Control": "max-age=0",
         "Pragma": "no-cache",
-        "Referer": "https://www.olx.com.br/",
+        "Referer": config.OLX_REFERER,
         "Sec-Fetch-Dest": "document",
         "Sec-Fetch-Mode": "navigate",
         "Sec-Fetch-Site": "same-origin",
@@ -166,18 +159,35 @@ def _build_headers() -> dict[str, str]:
 
 
 def _sync_get(url: str, headers: dict[str, str]) -> tuple[int, str]:
-    r = _http.get(
-        url,
-        timeout=90,
-        headers=headers,
-    )
+    try:
+        r = _http.get(
+            url,
+            timeout=90,
+            headers=headers,
+        )
+    except CloudflareChallengeError as e:
+        logger.error(
+            "CloudflareChallengeError em _sync_get / cloudscraper.get(%s): %s",
+            url,
+            e,
+        )
+        raise
     return r.status_code, r.text
 
 
 async def fetch(url: str, headers: dict[str, str] | None = None) -> str:
+    """GET assíncrono com delay; retorna HTML ou levanta ``FetchError`` se HTTP >= 400."""
     await _delay()
     req_headers = headers or _cycle_headers or _build_headers()
-    status_code, text = await asyncio.to_thread(_sync_get, url, req_headers)
+    try:
+        status_code, text = await asyncio.to_thread(_sync_get, url, req_headers)
+    except CloudflareChallengeError as e:
+        logger.error(
+            "CloudflareChallengeError em fetch após asyncio.to_thread (%s): %s",
+            url,
+            e,
+        )
+        raise
     if status_code >= 400:
         raise FetchError(status_code, url)
     return text
@@ -197,6 +207,8 @@ async def search_all_rent_maceio() -> list[dict]:
             url = _rent_maceio_listings_url(page)
             try:
                 html = await fetch(url)
+            except CloudflareChallengeError:
+                break
             except Exception as e:
                 logger.exception("Erro ao buscar %s: %s", url, e)
                 break

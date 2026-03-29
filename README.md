@@ -23,6 +23,7 @@ imovel-radar/
 │   └── setup.py         # Registra todos os handlers no Application
 ├── scraper/             # Acesso ao OLX e parsing — não conhece o banco
 ├── database/            # Conexão, queries e migrations SQLite
+├── utils/               # Utilitários neutros (ex.: pricing) — sem bot/scraper/database
 ├── scripts/             # Utilitários de debug
 ├── main.py              # Entrypoint
 └── config.py            # Constantes e variáveis de ambiente
@@ -63,6 +64,7 @@ python main.py
 
 - `scraper/` não importa nada de `database/` ou `bot/`
 - `bot/` não importa nada de `scraper/`
+- `utils/` é camada neutra: não importa `bot/`, `scraper/` nem `database/`; use para código compartilhado (ex.: `utils.pricing`)
 - Handlers registrados em `bot/setup.py`, nunca em `main.py`
 - Logs via `logging`, nunca `print()` em produção
 - Variáveis sensíveis sempre via `.env`, nunca hardcoded

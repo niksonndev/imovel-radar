@@ -14,6 +14,7 @@ Stack: `cloudscraper` + `BeautifulSoup4`, `python-telegram-bot>=20` (polling), S
 - `bot/` → handlers, callbacks, conversações e setup do Telegram
 - `scraper/` → acesso ao OLX e parsing de anúncios
 - `database/` → conexão, queries e migrations SQLite
+- `utils/` → utilitários compartilhados (ex.: conversão de preço OLX) sem depender de `bot/`, `scraper/` ou `database/`
 - `scripts/` → utilitários de debug, não importar em produção
 - `main.py` → entrypoint — inicializa app e chama `bot.setup(app)`
 - `config.py` → todas as constantes e variáveis de ambiente
@@ -22,6 +23,7 @@ Stack: `cloudscraper` + `BeautifulSoup4`, `python-telegram-bot>=20` (polling), S
 
 - `scraper/` não importa nada de `database/` ou `bot/`
 - `bot/` não importa nada de `scraper/`
+- `utils/` não importa `bot/`, `scraper/` nem `database/`; `bot/` e `scraper/` podem importar `utils/` quando precisarem da mesma lógica (ex.: `utils.pricing`)
 - `main.py` orquestra: chama scraper, passa resultado para database, inicializa bot
 
 ## Padrões obrigatórios

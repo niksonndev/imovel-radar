@@ -25,7 +25,7 @@ from telegram.ext import ContextTypes
 
 from bot import keyboards
 from database import get_connection
-from scraper.parser import price_value_to_float
+from utils.pricing import price_value_to_float
 
 logger = logging.getLogger(__name__)
 
