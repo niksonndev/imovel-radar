@@ -5,7 +5,7 @@ Paginação em grupos de PAGE_SIZE (5). Navegação anúncio-a-anúncio dentro
 da página e salto entre páginas.
 
 send_carousel   — envia a primeira página e guarda estado em user_data
-immediate_seed  — scrape imediato + seed seen_listings + carrossel
+immediate_seed  — seed imediato a partir do cache + carrossel
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ def _page_info(index: int, total: int) -> tuple[int, int, int, int]:
     return page, total_pages, idx_in_page, items_on_page
 
 
-def _carousel_caption(ad: dict, index: int, total: int, transaction: str) -> str:
+def _carousel_caption(ad: dict, index: int, total: int) -> str:
     title = ad.get("title") or "Imóvel"
     price = _ad_price_caption(ad)
     bedrooms = ad.get("bedrooms")
@@ -69,7 +69,7 @@ def _carousel_caption(ad: dict, index: int, total: int, transaction: str) -> str
         area = area_m2_from_properties(ad.get("properties"))
     area_s = f"{area:g}m²" if area else "—"
     neighborhood = ad.get("neighbourhood") or ad.get("neighborhood") or "—"
-    tr_label = {"sale": "Venda", "rent": "Aluguel"}.get(transaction, transaction or "")
+    tr_label = "Aluguel"
 
     page, total_pages, idx_in_page, items_on_page = _page_info(index, total)
     counter = (
@@ -195,8 +195,12 @@ def area_m2_from_properties(props: object) -> float | None:
 
 def _filter_cached_ads(ads: list[dict], filters: dict) -> list[dict]:
     """Aplica filtros locais do alerta sobre anúncios vindos do cache."""
-    pmin = filters.get("price_min")
-    pmax = filters.get("price_max")
+    pmin = filters.get("min_price")
+    if pmin is None:
+        pmin = filters.get("price_min")
+    pmax = filters.get("max_price")
+    if pmax is None:
+        pmax = filters.get("price_max")
     bmin = filters.get("bedrooms_min")
     amin = filters.get("area_min")
     amax = filters.get("area_max")
@@ -275,7 +279,6 @@ async def send_carousel(
     bot: Bot,
     chat_id: int,
     ads: list[dict],
-    transaction: str,
     carousel_id: str,
     user_data: dict[str, object],
 ) -> None:
@@ -285,7 +288,7 @@ async def send_carousel(
 
     total = len(ads)
     ad = ads[0]
-    caption = _carousel_caption(ad, 0, total, transaction)
+    caption = _carousel_caption(ad, 0, total)
     keyboard = _carousel_keyboard(carousel_id, 0, total, ad.get("url"))
 
     is_photo = False
@@ -307,7 +310,6 @@ async def send_carousel(
     user_data[f"carousel_{carousel_id}"] = {
         "listings": ads,
         "index": 0,
-        "transaction": transaction,
         "page_size": PAGE_SIZE,
         "is_photo": is_photo,
     }
@@ -343,8 +345,6 @@ async def immediate_seed(
             pass
         return
 
-    transaction = filters.get("transaction", "sale")
-
     if not listings:
         await bot.send_message(
             chat_id=tg_id,
@@ -356,7 +356,7 @@ async def immediate_seed(
         )
         return
 
-    await send_carousel(bot, tg_id, listings, transaction, str(alert_id), user_data)
+    await send_carousel(bot, tg_id, listings, str(alert_id), user_data)
     await bot.send_message(
         chat_id=tg_id,
         text="✅ Alerta criado! Vou te avisar quando aparecer algo novo. 🔔",

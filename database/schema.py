@@ -33,10 +33,10 @@ def create_tables():
             CREATE TABLE IF NOT EXISTS alerts (
                 id             INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id        INTEGER NOT NULL,
-                neighbourhood  TEXT,
+                alert_name     TEXT,
                 min_price      INTEGER,
                 max_price      INTEGER,
-                category       TEXT,
+                neighbourhoods TEXT, -- JSON array de nomes de bairros
                 active         INTEGER NOT NULL DEFAULT 1,
                 created_at     TEXT    NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id)

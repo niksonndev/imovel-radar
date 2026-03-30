@@ -177,7 +177,6 @@ async def carousel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     ads = carousel["listings"]
     current_idx = carousel["index"]
-    transaction = carousel["transaction"]
     total = len(ads)
 
     page = current_idx // PAGE_SIZE
@@ -201,7 +200,7 @@ async def carousel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     carousel["index"] = new_idx
     ad = ads[new_idx]
 
-    caption = _carousel_caption(ad, new_idx, total, transaction)
+    caption = _carousel_caption(ad, new_idx, total)
     keyboard = _carousel_keyboard(carousel_id, new_idx, total, ad.get("url"))
     photo_url = _carousel_photo_url(ad)
     photo = photo_url is not None

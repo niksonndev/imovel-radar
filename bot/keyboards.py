@@ -16,12 +16,6 @@ PROPERTY_TYPES = [
     ("commercial", "Comercial"),
 ]
 
-TRANSACTIONS = [
-    ("sale", "Venda"),
-    ("rent", "Aluguel"),
-]
-
-
 def property_type_keyboard() -> InlineKeyboardMarkup:
     """Retorna teclado inline com os tipos de imóvel."""
     # List comprehension: uma linha de botões por tipo
@@ -32,34 +26,14 @@ def property_type_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
-def transaction_keyboard() -> InlineKeyboardMarkup:
-    """Retorna teclado inline para escolher aluguel ou venda."""
-    rows = [
-        [InlineKeyboardButton(label, callback_data=f"wiz_tr_{key}")]
-        for key, label in TRANSACTIONS
+def price_range_keyboard() -> InlineKeyboardMarkup:
+    """Faixas de preço (aluguel) no wizard /novo_alerta."""
+    presets = [
+        ("wiz_price_preset_rent_0", "Até R$ 800"),
+        ("wiz_price_preset_rent_1", "R$ 800 – R$ 1.500"),
+        ("wiz_price_preset_rent_2", "R$ 1.500 – R$ 3.000"),
+        ("wiz_price_preset_rent_3", "R$ 3.000+"),
     ]
-    return InlineKeyboardMarkup(rows)
-
-
-def price_range_keyboard(transaction: str) -> InlineKeyboardMarkup:
-    """
-    Faixas de preço inline para wizard do /novo_alerta.
-    transaction: "rent" ou "sale"
-    """
-    if transaction == "rent":
-        presets = [
-            ("wiz_price_preset_rent_0", "Até R$ 800"),
-            ("wiz_price_preset_rent_1", "R$ 800 – R$ 1.500"),
-            ("wiz_price_preset_rent_2", "R$ 1.500 – R$ 3.000"),
-            ("wiz_price_preset_rent_3", "R$ 3.000+"),
-        ]
-    else:
-        presets = [
-            ("wiz_price_preset_sale_0", "Até R$ 150k"),
-            ("wiz_price_preset_sale_1", "R$ 150k – R$ 300k"),
-            ("wiz_price_preset_sale_2", "R$ 300k – R$ 600k"),
-            ("wiz_price_preset_sale_3", "R$ 600k+"),
-        ]
 
     rows: list[list[InlineKeyboardButton]] = [
         [InlineKeyboardButton(label, callback_data=cb)] for cb, label in presets

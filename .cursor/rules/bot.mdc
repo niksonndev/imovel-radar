@@ -57,24 +57,24 @@ async def menu_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 ## ConversationHandler — atenção à volatilidade
 
 - Persistência **somente em memória** durante o processo do bot: `context.user_data` e o estado do `ConversationHandler` não sobrevivem a restart do processo; **não** usar `PicklePersistence` (nem outra persistência de conversa) neste desenho.
-- Ao disparar o wizard (`**/novo_alerta**` ou callback equivalente do menu, ex. `menu_novo_alerta`), **sempre** reinicializar o estado do alerta em construção (ex.: `wizard_alert` do zero), para não reaproveitar dados de uma sessão anterior na mesma conversa ativa.
+- Ao disparar o wizard (`**/novo_alerta**` ou callback equivalente do menu, ex. `menu_novo_alerta`), **sempre** reinicializar o estado do alerta em construção (ex.: `new_alert_draft` do zero), para não reaproveitar dados de uma sessão anterior na mesma conversa ativa.
 - `/cancelar` deve sempre funcionar como fallback, inclusive fora de conversações ativas
 - Nunca assumir que `context.user_data` tem dados de uma etapa anterior sem verificar
 - Em caso de estado inválido, resetar silenciosamente e guiar o usuário ao início
 
 ## Comandos existentes
 
-| Comando           | Arquivo            | Status                                                                                |
-| ----------------- | ------------------ | ------------------------------------------------------------------------------------- |
-| `/start`          | `handlers.py`      | ✅ boas-vindas, limpa `user_data`, mostra menu                                        |
-| `/ajuda`          | `handlers.py`      | ✅ lista de comandos                                                                  |
-| `/status`         | `handlers.py`      | ✅ próximas execuções do scheduler                                                    |
-| `/novo_alerta`    | `conversations.py` | ✅ wizard multi-step; ao entrar (comando ou menu), reinicia o estado (`wizard_alert`) |
-| `/cancelar`       | `conversations.py` | ✅ fallback do ConversationHandler                                                    |
-| `/meus_alertas`   | `handlers.py`      | 🚧 indisponível                                                                       |
-| `/pausar_alerta`  | `handlers.py`      | 🚧 indisponível                                                                       |
-| `/deletar_alerta` | `handlers.py`      | 🚧 indisponível                                                                       |
-| `/remover`        | `handlers.py`      | 🚧 indisponível                                                                       |
+| Comando           | Arquivo            | Status                                                                                   |
+| ----------------- | ------------------ | ---------------------------------------------------------------------------------------- |
+| `/start`          | `handlers.py`      | ✅ boas-vindas, limpa `user_data`, mostra menu                                           |
+| `/ajuda`          | `handlers.py`      | ✅ lista de comandos                                                                     |
+| `/status`         | `handlers.py`      | ✅ próximas execuções do scheduler                                                       |
+| `/novo_alerta`    | `conversations.py` | ✅ wizard multi-step; ao entrar (comando ou menu), reinicia o estado (`new_alert_draft`) |
+| `/cancelar`       | `conversations.py` | ✅ fallback do ConversationHandler                                                       |
+| `/meus_alertas`   | `handlers.py`      | 🚧 indisponível                                                                          |
+| `/pausar_alerta`  | `handlers.py`      | 🚧 indisponível                                                                          |
+| `/deletar_alerta` | `handlers.py`      | 🚧 indisponível                                                                          |
+| `/remover`        | `handlers.py`      | 🚧 indisponível                                                                          |
 
 Callbacks inline em `callbacks.py`: `menu_home`, `menu_meus_alertas`, ações de alerta/watchlist, `carousel_cb`.
 
@@ -91,4 +91,5 @@ Callbacks inline em `callbacks.py`: `menu_home`, `menu_meus_alertas`, ações de
 - Não misturar CallbackQueryHandlers em `handlers.py` — pertencem a `callbacks.py`
 - Não bloquear o event loop — queries pesadas rodam em `run_in_executor`
 - Não importar nada de `scraper/` — o bot não chama o scraper diretamente
+- Não escrever SQL inline em `bot/` (ex.: `SELECT`, `INSERT`, `UPDATE`, `DELETE`); acessar dados via funções do módulo `database/`
 - Não assumir `context.user_data` persistente entre restarts

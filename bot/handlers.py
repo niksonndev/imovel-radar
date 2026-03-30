@@ -167,7 +167,7 @@ async def cmd_ajuda(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "*Comandos*\n"
         "/start — boas-vindas\n"
-        "/novo_alerta — criar alerta (aluguel/venda, preço, bairros, nome)\n"
+        "/novo_alerta — criar alerta de aluguel (preço, bairros, nome)\n"
         "/meus_alertas — listar alertas (id, nome, ativo/pausado)\n"
         "/pausar_alerta [id] — pausar ou reativar\n"
         "/deletar_alerta [id] — apagar alerta\n"
