@@ -25,7 +25,9 @@ def _env_int(name: str, default: int, *, min_value: int, max_value: int) -> int:
     except ValueError as e:
         raise RuntimeError(f"{name} deve ser um inteiro válido") from e
     if not (min_value <= value <= max_value):
-        raise RuntimeError(f"{name} deve estar entre {min_value} e {max_value} (recebido: {value})")
+        raise RuntimeError(
+            f"{name} deve estar entre {min_value} e {max_value} (recebido: {value})"
+        )
     return value
 
 

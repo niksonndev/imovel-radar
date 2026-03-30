@@ -8,7 +8,7 @@ alwaysApply: false
 
 - Usar `BackgroundScheduler` para não bloquear o event loop do bot
 - Jobs definidos em `scheduler/jobs.py`
-- Intervalo padrão de coleta: 30 minutos (ajustável via `.env`)
+- Coleta em **horário fixo diário** (cron): hora e minuto no fuso IANA vêm do `.env`; os valores padrão estão em `config.py` e documentados em `.env.example` (ex.: 05:00 em `America/Maceio`)
 - Sempre fazer graceful shutdown: `scheduler.shutdown()` no signal handler
 
 ## Padrão de job
@@ -28,8 +28,12 @@ def job_coletar_imoveis() -> None:
 
 ## Variáveis de ambiente esperadas
 
+Alinhar com `.env.example` e `config.SCRAPE_CRON_*` / `SCRAPE_TIMEZONE`:
+
 ```env
-INTERVALO_COLETA_MIN=30
+SCRAPE_CRON_HOUR=5
+SCRAPE_CRON_MINUTE=0
+SCRAPE_TIMEZONE=America/Maceio
 ```
 
 ## Migração do cron

@@ -6,11 +6,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import pickle
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from telegram.ext import Application
+from telegram.ext import Application, PicklePersistence
 
 import config
 from bot.setup import setup
@@ -40,6 +41,31 @@ logger = logging.getLogger(__name__)
 _scheduler: BackgroundScheduler | None = None
 
 
+class SafePicklePersistence(PicklePersistence):
+    """PicklePersistence que descarta o arquivo se estiver corrompido ou inválido."""
+
+    def _load_singlefile(self) -> None:
+        try:
+            super()._load_singlefile()
+        except (TypeError, pickle.UnpicklingError, EOFError) as exc:
+            logger.warning(
+                "Arquivo de persistência PTB inválido (%s); removendo %s e iniciando vazio.",
+                exc,
+                self.filepath,
+            )
+            try:
+                self.filepath.unlink(missing_ok=True)
+            except OSError as unlink_err:
+                logger.warning(
+                    "Não foi possível remover persistência PTB: %s", unlink_err
+                )
+            self.conversations = {}
+            self.user_data = {}
+            self.chat_data = {}
+            self.bot_data = self.context_types.bot_data()
+            self.callback_data = None
+
+
 # "async def" = função assíncrona (pode esperar rede/DB sem travar tudo).
 # O python-telegram-bot chama isso depois que o app está pronto.
 async def post_init(app: Application) -> None:
@@ -59,10 +85,12 @@ async def post_shutdown(app: Application) -> None:
 def main() -> None:
     global _scheduler
     _scheduler = start_scheduler()
+    persistence = SafePicklePersistence(filepath=config.PTB_PERSISTENCE_PATH)
     # Application = coração da lib: token, handlers, polling
     app = (
         Application.builder()
         .token(config.TELEGRAM_BOT_TOKEN)
+        .persistence(persistence)
         .post_init(post_init)
         .post_shutdown(post_shutdown)
         .build()

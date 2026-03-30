@@ -68,9 +68,9 @@ def price_range_keyboard(transaction: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
-def neighborhoods_keyboard(selected: set[str]) -> InlineKeyboardMarkup:
+def neighborhoods_keyboard(selected: set[str] | list[str]) -> InlineKeyboardMarkup:
     """
-    selected = bairros já marcados (set = conjunto sem repetir).
+    selected = bairros já marcados (sem repetir; set ou list para persistência pickle).
     Cada clique alterna marcar/desmarcar; "nbd_done" finaliza o passo.
     """
     from config import MACEIO_NEIGHBORHOODS

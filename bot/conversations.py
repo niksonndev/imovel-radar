@@ -43,6 +43,13 @@ def _wizard_or_none(context: ContextTypes.DEFAULT_TYPE) -> dict | None:
     wizard = context.user_data.get("wizard_alert")
     if not isinstance(wizard, dict):
         return None
+    raw_nb = wizard.get("neighborhoods_selected")
+    if isinstance(raw_nb, set):
+        wizard["neighborhoods_selected"] = sorted(raw_nb)
+    elif not isinstance(raw_nb, list):
+        wizard["neighborhoods_selected"] = (
+            list(raw_nb) if raw_nb else []
+        )
     return wizard
 
 
@@ -58,7 +65,7 @@ def _persist_alert(chat_id: int, wizard: dict) -> int:
             raise RuntimeError("Não foi possível identificar o usuário no banco.")
 
         user_id = int(row["id"])
-        neighborhoods = sorted(wizard.get("neighborhoods_selected") or set())
+        neighborhoods = sorted(wizard.get("neighborhoods_selected") or [])
         neighbourhood = ", ".join(neighborhoods) if neighborhoods else None
         max_price = wizard.get("price_max")
         category = json.dumps(
@@ -95,7 +102,7 @@ def _persist_alert(chat_id: int, wizard: dict) -> int:
 
 
 async def novo_alerta_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["wizard_alert"] = {"neighborhoods_selected": set()}
+    context.user_data["wizard_alert"] = {"neighborhoods_selected": []}
     await update.message.reply_text(
         "🆕 *Configurando novo alerta*\n\nVocê quer:\nAlugar ou Comprar?",
         parse_mode="Markdown",
@@ -109,7 +116,7 @@ async def novo_alerta_entry_cb(
 ) -> int:
     q = update.callback_query
     await q.answer()
-    context.user_data["wizard_alert"] = {"neighborhoods_selected": set()}
+    context.user_data["wizard_alert"] = {"neighborhoods_selected": []}
     await q.message.reply_text(
         "🆕 *Novo alerta*\n\nTipo:\nAluguel ou Venda",
         parse_mode="Markdown",
@@ -137,7 +144,7 @@ async def wiz_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         w.get("transaction"), w.get("transaction")
     )
 
-    sel = w.get("neighborhoods_selected") or set()
+    sel = w.get("neighborhoods_selected") or []
     nb_s = ", ".join(sorted(sel)) if sel else "Qualquer bairro"
 
     pmin = w.get("price_min")
@@ -245,7 +252,7 @@ async def wiz_price_preset_cb(
     w["price_min"] = pmin
     w["price_max"] = pmax
 
-    sel = w.get("neighborhoods_selected") or set()
+    sel = w.get("neighborhoods_selected") or []
     await q.message.reply_text(
         "Selecione os *bairros* (toque para marcar). Depois: Concluir.",
         parse_mode="Markdown",
@@ -302,7 +309,7 @@ async def wiz_price_max(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
     w["price_max"] = price_max
 
-    sel = w.get("neighborhoods_selected") or set()
+    sel = w.get("neighborhoods_selected") or []
     await update.message.reply_text(
         "Selecione os *bairros* (toque para marcar). Depois: Concluir.\n"
         "Se não quiser filtrar por bairro, conclua sem marcar.",
@@ -346,7 +353,7 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         "transaction": w.get("transaction", "sale"),
         "price_min": w.get("price_min"),
         "price_max": w.get("price_max"),
-        "neighborhoods": sorted(w.get("neighborhoods_selected") or set()),
+        "neighborhoods": sorted(w.get("neighborhoods_selected") or []),
     }
 
     try:
@@ -385,7 +392,7 @@ async def wiz_neighborhoods_cb(
         await q.message.reply_text("Sessão expirada. Use /novo_alerta novamente.")
         return ConversationHandler.END
 
-    sel = w.setdefault("neighborhoods_selected", set())
+    sel: list[str] = w.setdefault("neighborhoods_selected", [])
     if data == "nbd_done":
         await q.message.reply_text(
             "Agora, envie o *nome do alerta* (ex.: `Aluguel Centro`).",
@@ -395,9 +402,9 @@ async def wiz_neighborhoods_cb(
     if data.startswith("nbd_"):
         name = data[4:]
         if name in sel:
-            sel.discard(name)
+            sel.remove(name)
         else:
-            sel.add(name)
+            sel.append(name)
         await q.edit_message_reply_markup(
             reply_markup=keyboards.neighborhoods_keyboard(sel)
         )
@@ -439,5 +446,5 @@ def conversation_novo_alerta() -> ConversationHandler:
         },
         fallbacks=[CommandHandler("cancelar", cancel_wiz)],
         name="novo_alerta_wiz",
-        persistent=False,
+        persistent=True,
     )

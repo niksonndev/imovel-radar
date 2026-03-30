@@ -34,7 +34,7 @@ def create_tables():
                 id             INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id        INTEGER NOT NULL,
                 neighbourhood  TEXT,
-                min_price,      INTEGER,
+                min_price      INTEGER,
                 max_price      INTEGER,
                 category       TEXT,
                 active         INTEGER NOT NULL DEFAULT 1,
