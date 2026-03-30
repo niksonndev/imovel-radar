@@ -34,7 +34,7 @@ def _env_int(name: str, default: int, *, min_value: int, max_value: int) -> int:
 DATA_DIR = Path(__file__).resolve().parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-DB_PATH = DATA_DIR / "new_bot.db"
+DB_PATH = DATA_DIR / "imoveis.db"
 
 # Token do BotFather — obrigatório; sem ele o bot não autentica no Telegram
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
