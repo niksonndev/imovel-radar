@@ -10,24 +10,15 @@ async def = a função pode usar await (responder no Telegram, banco, OLX).
 
 from __future__ import annotations
 
-import logging
-
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
+from telegram import Update
 from telegram.ext import ContextTypes
 
 from bot import keyboards
 
-logger = logging.getLogger(__name__)
-
-
-def _fmt_money(v: float | None) -> str:
-    """Formata número como moeda BR (troca ponto/vírgula)."""
-    if v is None:
-        return "—"
-    return f"R$ {v:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Exibe boas-vindas e mostra o menu principal."""
     # /start também funciona como "reset geral" de estado da conversa.
     context.user_data.clear()
 
@@ -38,217 +29,13 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     #     )
     await update.message.reply_text(
         "👋 *Olá!* Sou o bot de alertas OLX — *Maceió/AL*.\n\n",
-        parse_mode="Markdown",
+        parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.main_menu_keyboard(),
-    )
-
-
-async def menu_home_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Mostra o menu principal sem depender de /start."""
-    q = update.callback_query
-    await q.answer()
-    await q.message.reply_text(
-        "🏠 *Menu principal*\nEscolha uma opção:",
-        parse_mode="Markdown",
-        reply_markup=keyboards.main_menu_keyboard(),
-    )
-
-
-async def menu_meus_alertas_cb(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
-    """Callback do botão '📋 Meus Alertas' com ações inline."""
-    q = update.callback_query
-    await q.answer()
-
-    # Escrita no banco removida (get_or_create_user criava usuário):
-    # async with _session(context) as session:
-    #     user = await crud.get_or_create_user(
-    #         session, q.from_user.id, q.from_user.username
-    #     )
-    #     alerts = await crud.list_alerts(session, user.id)
-    await q.message.reply_text(
-        "Função temporariamente indisponível (escrita no banco removida).",
-        reply_markup=keyboards.home_keyboard(),
-    )
-    return
-
-    # if not alerts:
-    #     await q.message.reply_text(
-    #         "Nenhum alerta criado ainda.",
-    #         reply_markup=keyboards.home_keyboard(),
-    #     )
-    #     return
-    #
-    # for a in alerts:
-    #     st = "▶️ ativo" if a.is_active else "⏸ pausado"
-    #     action_label = "⏸ Pausar" if a.is_active else "▶️ Reativar"
-    #     kb = InlineKeyboardMarkup(
-    #         [
-    #             [
-    #                 InlineKeyboardButton(
-    #                     action_label, callback_data=f"alert_toggle_{a.id}"
-    #                 ),
-    #                 InlineKeyboardButton(
-    #                     "🗑 Deletar", callback_data=f"alert_delete_{a.id}"
-    #                 ),
-    #             ],
-    #             [InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")],
-    #         ]
-    #     )
-    #     await q.message.reply_text(
-    #         f"• `id {a.id}` — *{a.name}* ({st})",
-    #         parse_mode="Markdown",
-    #         reply_markup=kb,
-    #     )
-
-
-async def alert_toggle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    q = update.callback_query
-    await q.answer()
-    data = q.data or ""
-    try:
-        aid = int(data.rsplit("_", 1)[-1])
-    except ValueError:
-        await q.message.reply_text(
-            "ID de alerta inválido.", reply_markup=keyboards.home_keyboard()
-        )
-        return
-
-    # Escrita no banco removida:
-    # async with _session(context) as session:
-    #     user = await crud.get_or_create_user(
-    #         session, q.from_user.id, q.from_user.username
-    #     )
-    #     active = await crud.toggle_alert_active(session, aid, user.id)
-    await q.message.reply_text(
-        "Ação de pausar/reativar está indisponível (escrita removida).",
-        reply_markup=keyboards.main_menu_keyboard(),
-    )
-
-
-async def alert_delete_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    q = update.callback_query
-    await q.answer()
-    data = q.data or ""
-    try:
-        aid = int(data.rsplit("_", 1)[-1])
-    except ValueError:
-        await q.message.reply_text(
-            "ID de alerta inválido.", reply_markup=keyboards.home_keyboard()
-        )
-        return
-
-    # Escrita no banco removida:
-    # async with _session(context) as session:
-    #     user = await crud.get_or_create_user(
-    #         session, q.from_user.id, q.from_user.username
-    #     )
-    #     ok = await crud.delete_alert(session, aid, user.id)
-    await q.message.reply_text(
-        "Ação de deletar alerta está indisponível (escrita removida).",
-        reply_markup=keyboards.main_menu_keyboard(),
-    )
-
-
-async def menu_ajuda_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Callback do botão '❓ Ajuda' (manda texto de comandos)."""
-    q = update.callback_query
-    await q.answer()
-    await q.message.reply_text(
-        "*Como usar sem digitar comandos*\n\n"
-        "Use os botões do menu principal para criar e gerenciar alertas, "
-        "acompanhar anúncios, abrir watchlist e ver status.\n\n"
-        "Você pode voltar ao menu principal pelos botões em cada tela.",
-        parse_mode="Markdown",
-        reply_markup=keyboards.home_keyboard(),
-    )
-
-
-async def menu_watchlist_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    q = update.callback_query
-    await q.answer()
-    # Escrita no banco removida (get_or_create_user):
-    # async with _session(context) as session:
-    #     user = await crud.get_or_create_user(
-    #         session, q.from_user.id, q.from_user.username
-    #     )
-    #     items = await crud.list_watched(session, user.id)
-    await q.message.reply_text(
-        "Watchlist temporariamente indisponível (escrita no banco removida).",
-        reply_markup=keyboards.home_keyboard(),
-    )
-    return
-
-    # if not items:
-    #     await q.message.reply_text(
-    #         "Watchlist vazia.", reply_markup=keyboards.home_keyboard()
-    #     )
-    #     return
-    #
-    # for w in items:
-    #     kb = InlineKeyboardMarkup(
-    #         [
-    #             [
-    #                 InlineKeyboardButton(
-    #                     "🗑 Remover", callback_data=f"watch_remove_{w.id}"
-    #                 )
-    #             ],
-    #             [InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")],
-    #         ]
-    #     )
-    #     await q.message.reply_text(
-    #         f"• `id {w.id}` — {w.title or 'Anúncio'}\n"
-    #         f"  {_fmt_money(w.current_price)} — [link]({w.url})",
-    #         parse_mode="Markdown",
-    #         disable_web_page_preview=True,
-    #         reply_markup=kb,
-    #     )
-
-
-async def watch_remove_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    q = update.callback_query
-    await q.answer()
-    data = q.data or ""
-    try:
-        wid = int(data.rsplit("_", 1)[-1])
-    except ValueError:
-        await q.message.reply_text(
-            "ID da watchlist inválido.", reply_markup=keyboards.home_keyboard()
-        )
-        return
-    # Escrita no banco removida:
-    # async with _session(context) as session:
-    #     user = await crud.get_or_create_user(
-    #         session, q.from_user.id, q.from_user.username
-    #     )
-    #     ok = await crud.remove_watched(session, wid, user.id)
-    await q.message.reply_text(
-        "Ação de remover da watchlist está indisponível (escrita removida).",
-        reply_markup=keyboards.main_menu_keyboard(),
-    )
-
-
-async def menu_status_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    q = update.callback_query
-    await q.answer()
-    scrape_days = context.application.bot_data.get("scrape_days", 1)
-    watch_days = context.application.bot_data.get("watch_days", 1)
-    next_a = context.application.bot_data.get("next_alert_run")
-    next_w = context.application.bot_data.get("next_watch_run")
-    na = next_a.strftime("%d/%m %H:%M") if next_a else "—"
-    nw = next_w.strftime("%d/%m %H:%M") if next_w else "—"
-    await q.message.reply_text(
-        f"*Status*\n"
-        f"• Scrape/alertas: diariamente às *03:00* (Maceió) (próx.: _{na}_)\n"
-        f"• Watchlist: a cada *{watch_days}* dia(s) (próx.: _{nw}_)\n"
-        f"• Região: Maceió/AL",
-        parse_mode="Markdown",
-        reply_markup=keyboards.home_keyboard(),
     )
 
 
 async def cmd_meus_alertas(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Informa indisponibilidade temporária da listagem de alertas."""
     # Escrita no banco removida (get_or_create_user):
     # async with _session(context) as session:
     #     user = await crud.get_or_create_user(
@@ -256,22 +43,23 @@ async def cmd_meus_alertas(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     #     )
     #     alerts = await crud.list_alerts(session, user.id)
     await update.message.reply_text(
-        "Comando indisponível no momento (escrita no banco removida)."
+        "📋 Meus alertas está temporariamente indisponível. Tente novamente em instantes."
     )
 
 
 async def cmd_pausar_alerta(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Valida argumentos e responde sobre pausar/reativar alerta."""
     # context.args = palavras depois do comando: /pausar_alerta 3 → ["3"]
     args = context.args or []
     if not args:
         await update.message.reply_text(
-            "Uso: `/pausar_alerta [id]`", parse_mode="Markdown"
+            "Uso: `/pausar_alerta [id]`", parse_mode=ParseMode.MARKDOWN
         )
         return
     try:
         aid = int(args[0])
     except ValueError:
-        await update.message.reply_text("ID inválido.")
+        await update.message.reply_text("ID inválido. Confira e tente novamente.")
         return
     # Escrita no banco removida:
     # async with _session(context) as session:
@@ -280,21 +68,24 @@ async def cmd_pausar_alerta(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     #     )
     #     active = await crud.toggle_alert_active(session, aid, user.id)
     await update.message.reply_text(
-        "Comando indisponível (pausar/reativar exige escrita no banco)."
+        "⏸️ Pausar/reativar alerta está temporariamente indisponível."
     )
 
 
 async def cmd_deletar_alerta(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
+    """Valida argumentos e responde sobre remoção de alerta."""
     args = context.args or []
     if not args:
-        await update.message.reply_text("Uso: `/deletar_alerta [id]`")
+        await update.message.reply_text(
+            "Uso: `/deletar_alerta [id]`", parse_mode=ParseMode.MARKDOWN
+        )
         return
     try:
         aid = int(args[0])
     except ValueError:
-        await update.message.reply_text("ID inválido.")
+        await update.message.reply_text("ID inválido. Confira e tente novamente.")
         return
     # Escrita no banco removida:
     # async with _session(context) as session:
@@ -303,18 +94,20 @@ async def cmd_deletar_alerta(
     #     )
     #     ok = await crud.delete_alert(session, aid, user.id)
     await update.message.reply_text(
-        "Comando indisponível (deletar alerta exige escrita no banco)."
+        "🗑️ Deletar alerta está temporariamente indisponível."
     )
 
 
 async def cmd_observar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Fluxo por URL em revisão; watchlist via jobs continua usando fetch_listing no scheduler."""
     await update.message.reply_text(
-        "`/observar` por URL está temporariamente indisponível.", parse_mode="Markdown"
+        "`/observar` por URL está temporariamente indisponível.",
+        parse_mode=ParseMode.MARKDOWN,
     )
 
 
 async def cmd_watchlist(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Informa indisponibilidade temporária da watchlist."""
     # Escrita no banco removida (get_or_create_user):
     # async with _session(context) as session:
     #     user = await crud.get_or_create_user(
@@ -322,19 +115,23 @@ async def cmd_watchlist(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     #     )
     #     items = await crud.list_watched(session, user.id)
     await update.message.reply_text(
-        "Comando indisponível no momento (escrita no banco removida)."
+        "👀 Watchlist está temporariamente indisponível. Tente novamente em instantes."
     )
 
 
 async def cmd_remover(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Valida argumentos e responde sobre remoção da watchlist."""
     args = context.args or []
     if not args:
-        await update.message.reply_text("Uso: `/remover [id]` (id da watchlist)")
+        await update.message.reply_text(
+            "Uso: `/remover [id]` (id da watchlist)",
+            parse_mode=ParseMode.MARKDOWN,
+        )
         return
     try:
         wid = int(args[0])
     except ValueError:
-        await update.message.reply_text("ID inválido.")
+        await update.message.reply_text("ID inválido. Confira e tente novamente.")
         return
     # Escrita no banco removida:
     # async with _session(context) as session:
@@ -343,11 +140,12 @@ async def cmd_remover(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     #     )
     #     ok = await crud.remove_watched(session, wid, user.id)
     await update.message.reply_text(
-        "Comando indisponível (remover da watchlist exige escrita no banco)."
+        "🧹 Remover da watchlist está temporariamente indisponível."
     )
 
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Mostra informações resumidas de status e próximas execuções."""
     # Horários que o scheduler atualizou em bot_data (próxima janela aproximada)
     scrape_days = context.application.bot_data.get("scrape_days", 1)
     watch_days = context.application.bot_data.get("watch_days", 1)
@@ -360,11 +158,12 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         f"• Scrape/alertas: diariamente às *03:00* (Maceió) (próx.: _{na}_)\n"
         f"• Watchlist: a cada *{watch_days}* dia(s) (próx.: _{nw}_)\n"
         f"• Região: Maceió/AL",
-        parse_mode="Markdown",
+        parse_mode=ParseMode.MARKDOWN,
     )
 
 
 async def cmd_ajuda(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Mostra a lista de comandos disponíveis ao usuário."""
     await update.message.reply_text(
         "*Comandos*\n"
         "/start — boas-vindas\n"
@@ -379,5 +178,5 @@ async def cmd_ajuda(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/cancelar — cancelar wizard\n\n"
         "Alertas disparam quando aparece anúncio novo nos filtros. "
         "Watchlist avisa mudança de preço ou remoção.",
-        parse_mode="Markdown",
+        parse_mode=ParseMode.MARKDOWN,
     )

@@ -23,6 +23,7 @@ TRANSACTIONS = [
 
 
 def property_type_keyboard() -> InlineKeyboardMarkup:
+    """Retorna teclado inline com os tipos de imóvel."""
     # List comprehension: uma linha de botões por tipo
     rows = [
         [InlineKeyboardButton(label, callback_data=f"wiz_pt_{key}")]
@@ -32,6 +33,7 @@ def property_type_keyboard() -> InlineKeyboardMarkup:
 
 
 def transaction_keyboard() -> InlineKeyboardMarkup:
+    """Retorna teclado inline para escolher aluguel ou venda."""
     rows = [
         [InlineKeyboardButton(label, callback_data=f"wiz_tr_{key}")]
         for key, label in TRANSACTIONS

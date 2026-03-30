@@ -6,7 +6,6 @@ da página e salto entre páginas.
 
 send_carousel   — envia a primeira página e guarda estado em user_data
 immediate_seed  — scrape imediato + seed seen_listings + carrossel
-carousel_cb     — navega ◀/▶ (anúncio), ◀ Página/⏭ Página
 """
 
 from __future__ import annotations
@@ -16,12 +15,11 @@ import logging
 import math
 
 from telegram import (
+    Bot,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    InputMediaPhoto,
-    Update,
 )
-from telegram.ext import ContextTypes
+from telegram.ext import Application
 
 from bot import keyboards
 from database import get_connection
@@ -49,7 +47,7 @@ def _ad_price_caption(ad: dict) -> str:
     return _fmt_money(price_value_to_float(pv))
 
 
-def _page_info(index: int, total: int):
+def _page_info(index: int, total: int) -> tuple[int, int, int, int]:
     """Retorna (page 0-based, total_pages, idx_in_page, items_on_page)."""
     page = index // PAGE_SIZE
     total_pages = max(1, math.ceil(total / PAGE_SIZE))
@@ -87,7 +85,7 @@ def _carousel_caption(ad: dict, index: int, total: int, transaction: str) -> str
 
 
 def _carousel_keyboard(
-    carousel_id, index: int, total: int, url: str | None
+    carousel_id: str, index: int, total: int, url: str | None
 ) -> InlineKeyboardMarkup:
     page, total_pages, idx_in_page, items_on_page = _page_info(index, total)
 
@@ -274,12 +272,12 @@ def _load_active_listings_from_db(limit: int = 300) -> list[dict]:
 
 
 async def send_carousel(
-    bot,
+    bot: Bot,
     chat_id: int,
     ads: list[dict],
     transaction: str,
     carousel_id: str,
-    user_data: dict,
+    user_data: dict[str, object],
 ) -> None:
     """Envia a primeira página do carrossel e armazena estado em *user_data*."""
     if not ads:
@@ -319,7 +317,11 @@ async def send_carousel(
 
 
 async def immediate_seed(
-    app, alert_id: int, tg_id: int, filters: dict, user_data: dict
+    app: Application,
+    alert_id: int,
+    tg_id: int,
+    filters: dict[str, object],
+    user_data: dict[str, object],
 ) -> None:
     """Seed imediato usando cache diário no banco + filtro local + carrossel."""
     bot = app.bot
@@ -362,101 +364,3 @@ async def immediate_seed(
     )
 
 
-# ────────────────────── navegação do carrossel ──────────────────────
-
-
-async def carousel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handler para ◀/▶ (anúncio) e ◀ Página/⏭ Página."""
-    q = update.callback_query
-    await q.answer()
-
-    data = q.data or ""
-    parts = data.split("_")
-    if len(parts) < 3:
-        return
-
-    action = parts[-1]
-    carousel_id = "_".join(parts[1:-1])
-    key = f"carousel_{carousel_id}"
-    carousel = context.user_data.get(key)
-
-    if not carousel:
-        try:
-            await q.edit_message_reply_markup(reply_markup=None)
-        except Exception:
-            pass
-        return
-
-    # ── Navegação ──
-    ads = carousel["listings"]
-    current_idx = carousel["index"]
-    transaction = carousel["transaction"]
-    total = len(ads)
-
-    page = current_idx // PAGE_SIZE
-    page_start = page * PAGE_SIZE
-    page_end = min(page_start + PAGE_SIZE, total)
-
-    if action == "next":
-        new_idx = min(current_idx + 1, page_end - 1)
-    elif action == "prev":
-        new_idx = max(current_idx - 1, page_start)
-    elif action == "pgn":
-        new_idx = min((page + 1) * PAGE_SIZE, total - 1)
-    elif action == "pgp":
-        new_idx = max((page - 1) * PAGE_SIZE, 0)
-    else:
-        return
-
-    if new_idx == current_idx:
-        return
-
-    carousel["index"] = new_idx
-    ad = ads[new_idx]
-
-    caption = _carousel_caption(ad, new_idx, total, transaction)
-    keyboard = _carousel_keyboard(carousel_id, new_idx, total, ad.get("url"))
-    photo_url = _carousel_photo_url(ad)
-    photo = photo_url is not None
-    was_photo = carousel.get("is_photo", False)
-
-    # Mesmo tipo → edita in-place
-    if photo and was_photo:
-        try:
-            await q.edit_message_media(
-                media=InputMediaPhoto(media=photo_url, caption=caption),
-                reply_markup=keyboard,
-            )
-            return
-        except Exception as e:
-            logger.warning("edit_message_media falhou: %s", e)
-
-    if not photo and not was_photo:
-        try:
-            await q.edit_message_text(text=caption, reply_markup=keyboard)
-            return
-        except Exception as e:
-            logger.warning("edit_message_text falhou: %s", e)
-
-    # Tipo mudou (foto↔texto) — deleta e re-envia
-    chat_id = q.message.chat_id
-    try:
-        await q.message.delete()
-    except Exception:
-        pass
-
-    if photo and photo_url:
-        try:
-            await context.bot.send_photo(
-                chat_id=chat_id,
-                photo=photo_url,
-                caption=caption,
-                reply_markup=keyboard,
-            )
-            carousel["is_photo"] = True
-            return
-        except Exception:
-            pass
-
-    await context.bot.send_message(chat_id=chat_id, text=caption, reply_markup=keyboard)
-    carousel["is_photo"] = False
