@@ -1,4 +1,4 @@
-"""Wizard de criação de alerta (/novo_alerta)."""
+"""Wizard de criação de alerta (/novo_alerta) sem ConversationHandler."""
 
 from __future__ import annotations
 
@@ -7,22 +7,16 @@ import re
 
 from telegram import Update
 from telegram.constants import ParseMode
-from telegram.ext import (
-    CallbackQueryHandler,
-    CommandHandler,
-    ContextTypes,
-    ConversationHandler,
-    MessageHandler,
-    filters,
-)
+from telegram.ext import ContextTypes
 
-from bot import keyboards
 from bot.carousel import immediate_seed
+from bot.ui import keyboards, menus
 from database import create_new_alert, get_connection
 
 logger = logging.getLogger(__name__)
 
 NEW_ALERT_DRAFT_KEY = "new_alert_draft"
+NEW_ALERT_STEP_KEY = "new_alert_step"
 
 (
     WIZ_PRICE_MIN,
@@ -31,6 +25,11 @@ NEW_ALERT_DRAFT_KEY = "new_alert_draft"
     WIZ_CONFIRM,
     WIZ_NAME,
 ) = range(5)
+
+
+def clear_wizard_state(context: ContextTypes.DEFAULT_TYPE) -> None:
+    context.user_data.pop(NEW_ALERT_DRAFT_KEY, None)
+    context.user_data.pop(NEW_ALERT_STEP_KEY, None)
 
 
 def _fmt_money(v: float | None) -> str:
@@ -51,7 +50,7 @@ def _draft_or_none(context: ContextTypes.DEFAULT_TYPE) -> dict | None:
     return draft
 
 
-async def novo_alerta_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def novo_alerta_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Inicia o wizard de criação de alerta por comando."""
     context.user_data[NEW_ALERT_DRAFT_KEY] = {
         "alert_name": None,
@@ -59,17 +58,17 @@ async def novo_alerta_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         "max_price": None,
         "neighbourhoods": [],
     }
+    context.user_data[NEW_ALERT_STEP_KEY] = WIZ_PRICE_MIN
     await update.message.reply_text(
-        "🆕 *Novo alerta (aluguel)*\n\nFaixa de preço — toque em uma opção ou *Personalizado*.",
+        menus.wizard_novo_alerta_intro(),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.price_range_keyboard(),
     )
-    return WIZ_PRICE_MIN
 
 
 async def novo_alerta_entry_cb(
     update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
+) -> None:
     """Inicia o wizard de criação de alerta via botão do menu."""
     q = update.callback_query
     await q.answer()
@@ -79,27 +78,26 @@ async def novo_alerta_entry_cb(
         "max_price": None,
         "neighbourhoods": [],
     }
+    context.user_data[NEW_ALERT_STEP_KEY] = WIZ_PRICE_MIN
     await q.message.reply_text(
-        "🆕 *Novo alerta (aluguel)*\n\nFaixa de preço — toque em uma opção ou *Personalizado*.",
+        menus.wizard_novo_alerta_intro(),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.price_range_keyboard(),
     )
-    return WIZ_PRICE_MIN
 
 
-async def wiz_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def wiz_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Valida o nome do alerta e apresenta a tela de confirmação."""
     w = _draft_or_none(context)
     if w is None:
-        await update.message.reply_text(
-            "Sua sessão do wizard expirou. Use /novo_alerta novamente."
-        )
-        return ConversationHandler.END
+        clear_wizard_state(context)
+        await update.message.reply_text(menus.wizard_sessao_expirada())
+        return
 
     name = (update.message.text or "").strip()[:200]
     if not name:
-        await update.message.reply_text("Nome inválido. Tente de novo.")
-        return WIZ_NAME
+        await update.message.reply_text(menus.wizard_nome_invalido())
+        return
 
     w["alert_name"] = name
 
@@ -115,52 +113,44 @@ async def wiz_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     else:
         price_s = f"{_fmt_money(pmin)} - {_fmt_money(pmax)}"
 
-    summary = (
-        "🧾 *Confirmação do alerta*\n\n"
-        f"💰 *Preço:* {price_s}\n"
-        f"📍 *Bairros:* {nb_s}\n"
-        f"📝 *Nome:* `{name}`\n\n"
-        "Confirme abaixo:"
-    )
+    summary = menus.confirmacao_resumo(price_s=price_s, nb_s=nb_s, name=name)
 
+    context.user_data[NEW_ALERT_STEP_KEY] = WIZ_CONFIRM
     await update.message.reply_text(
         summary,
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.alert_confirmation_keyboard(),
     )
-    return WIZ_CONFIRM
 
 
 async def wiz_price_preset_cb(
     update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
-    """
-    Callback dos botões de faixa comum e de "Personalizado".
-
-    Presets: keyboards.price_range_keyboard() — wiz_price_preset_rent_<idx>, wiz_price_custom
-    """
+) -> None:
+    """Callback dos botões de faixa comum e de "Personalizado"."""
     q = update.callback_query
     await q.answer()
 
     data = q.data or ""
     w = _draft_or_none(context)
     if w is None:
-        await q.message.reply_text("Sessão expirada. Use /novo_alerta novamente.")
-        return ConversationHandler.END
+        clear_wizard_state(context)
+        await q.message.reply_text(menus.wizard_sessao_expirada_curta())
+        return
 
     if data == "wiz_price_custom":
         await q.message.reply_text(
-            "Personalizado: envie o *preço mínimo* (R$, só número).",
+            menus.wizard_personalizado_min(),
             parse_mode=ParseMode.MARKDOWN,
         )
-        return WIZ_PRICE_MIN
+        context.user_data[NEW_ALERT_STEP_KEY] = WIZ_PRICE_MIN
+        return
 
     if not data.startswith("wiz_price_preset_"):
-        return WIZ_PRICE_MIN
+        return
 
     parts = data.split("_")
     if len(parts) < 5:
-        return WIZ_PRICE_MIN
+        return
 
     preset_tr = parts[-2]
     try:
@@ -176,7 +166,7 @@ async def wiz_price_preset_cb(
     }
 
     if preset_tr != "rent" or idx not in preset_map:
-        return WIZ_PRICE_MIN
+        return
 
     pmin, pmax = preset_map[idx]
     w["min_price"] = pmin
@@ -184,21 +174,20 @@ async def wiz_price_preset_cb(
 
     sel = w.get("neighbourhoods") or []
     await q.message.reply_text(
-        "Selecione os *bairros* (toque para marcar). Depois: Concluir.",
+        menus.wizard_selecione_bairros(),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.neighborhoods_keyboard(sel),
     )
-    return WIZ_NEIGHBORHOODS
+    context.user_data[NEW_ALERT_STEP_KEY] = WIZ_NEIGHBORHOODS
 
 
-async def wiz_price_min(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def wiz_price_min(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Lê e valida o preço mínimo informado no wizard."""
     w = _draft_or_none(context)
     if w is None:
-        await update.message.reply_text(
-            "Sua sessão do wizard expirou. Use /novo_alerta novamente."
-        )
-        return ConversationHandler.END
+        clear_wizard_state(context)
+        await update.message.reply_text(menus.wizard_sessao_expirada())
+        return
 
     text = (update.message.text or "").strip().lower()
     try:
@@ -206,24 +195,24 @@ async def wiz_price_min(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     except Exception:
         price_min = 0
     if price_min <= 0:
-        await update.message.reply_text("Número inválido. Ex.: 150000")
-        return WIZ_PRICE_MIN
+        await update.message.reply_text(menus.wizard_preco_min_invalido())
+        return
 
     w["min_price"] = price_min
     await update.message.reply_text(
-        "Preço *máximo* (R$):", parse_mode=ParseMode.MARKDOWN
+        menus.wizard_preco_max_prompt(),
+        parse_mode=ParseMode.MARKDOWN,
     )
-    return WIZ_PRICE_MAX
+    context.user_data[NEW_ALERT_STEP_KEY] = WIZ_PRICE_MAX
 
 
-async def wiz_price_max(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def wiz_price_max(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Lê e valida o preço máximo antes de seguir para bairros."""
     w = _draft_or_none(context)
     if w is None:
-        await update.message.reply_text(
-            "Sua sessão do wizard expirou. Use /novo_alerta novamente."
-        )
-        return ConversationHandler.END
+        clear_wizard_state(context)
+        await update.message.reply_text(menus.wizard_sessao_expirada())
+        return
 
     text = (update.message.text or "").strip().lower()
     try:
@@ -231,29 +220,26 @@ async def wiz_price_max(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     except Exception:
         price_max = 0
     if price_max <= 0:
-        await update.message.reply_text("Número inválido.")
-        return WIZ_PRICE_MAX
+        await update.message.reply_text(menus.wizard_preco_max_invalido())
+        return
 
     p_min = w.get("min_price")
     if p_min is not None and price_max < p_min:
-        await update.message.reply_text(
-            "O preço máximo deve ser maior ou igual ao mínimo."
-        )
-        return WIZ_PRICE_MAX
+        await update.message.reply_text(menus.wizard_preco_max_menor_min())
+        return
 
     w["max_price"] = price_max
 
     sel = w.get("neighbourhoods") or []
     await update.message.reply_text(
-        "Selecione os *bairros* (toque para marcar). Depois: Concluir.\n"
-        "Se não quiser filtrar por bairro, conclua sem marcar.",
+        menus.wizard_selecione_bairros_com_obs(),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.neighborhoods_keyboard(sel),
     )
-    return WIZ_NEIGHBORHOODS
+    context.user_data[NEW_ALERT_STEP_KEY] = WIZ_NEIGHBORHOODS
 
 
-async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Confirma ou cancela o alerta e executa seed inicial."""
     q = update.callback_query
     await q.answer()
@@ -261,28 +247,29 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     data = q.data or ""
     w = _draft_or_none(context)
     if w is None:
-        await q.message.reply_text("Sessão expirada. Use /novo_alerta novamente.")
-        return ConversationHandler.END
+        clear_wizard_state(context)
+        await q.message.reply_text(menus.wizard_sessao_expirada_curta())
+        return
 
     if data == "wiz_confirm_no":
-        context.user_data.pop(NEW_ALERT_DRAFT_KEY, None)
+        clear_wizard_state(context)
         await q.message.reply_text(
-            "Ok! O alerta não foi salvo.",
+            menus.wizard_nao_salvo(),
             reply_markup=keyboards.main_menu_keyboard(),
         )
-        return ConversationHandler.END
+        return
 
     if data != "wiz_confirm_yes":
-        return WIZ_CONFIRM
+        return
 
     name = w.get("alert_name")
     if not name:
-        context.user_data.pop(NEW_ALERT_DRAFT_KEY, None)
+        clear_wizard_state(context)
         await q.message.reply_text(
-            "Nome do alerta ausente. Tente novamente pelo menu principal.",
+            menus.wizard_nome_ausente(),
             reply_markup=keyboards.main_menu_keyboard(),
         )
-        return ConversationHandler.END
+        return
 
     filters_dict = {
         "min_price": w.get("min_price"),
@@ -298,17 +285,17 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         conn.rollback()
         logger.exception("Falha ao salvar novo alerta no banco.")
         await q.message.reply_text(
-            "Não consegui salvar seu alerta agora. Tente novamente em instantes.",
+            menus.wizard_salvar_falha(),
             reply_markup=keyboards.main_menu_keyboard(),
         )
-        context.user_data.pop(NEW_ALERT_DRAFT_KEY, None)
-        return ConversationHandler.END
+        clear_wizard_state(context)
+        return
     finally:
         conn.close()
 
-    context.user_data.pop(NEW_ALERT_DRAFT_KEY, None)
+    clear_wizard_state(context)
 
-    await q.message.reply_text("⏳ Peraê, tô procurando imóveis pra você...")
+    await q.message.reply_text(menus.wizard_seed_loading())
     await immediate_seed(
         context.application,
         alert_id,
@@ -317,28 +304,28 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         context.user_data,
     )
 
-    return ConversationHandler.END
-
 
 async def wiz_neighborhoods_cb(
     update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
+) -> None:
     """Alterna seleção de bairros e avança quando usuário conclui."""
     q = update.callback_query
     await q.answer()
     data = q.data or ""
     w = _draft_or_none(context)
     if w is None:
-        await q.message.reply_text("Sessão expirada. Use /novo_alerta novamente.")
-        return ConversationHandler.END
+        clear_wizard_state(context)
+        await q.message.reply_text(menus.wizard_sessao_expirada_curta())
+        return
 
     sel: list[str] = w.setdefault("neighbourhoods", [])
     if data == "nbd_done":
         await q.message.reply_text(
-            "Agora, envie o *nome do alerta* (ex.: `Aluguel Centro`).",
+            menus.wizard_nome_prompt(),
             parse_mode=ParseMode.MARKDOWN,
         )
-        return WIZ_NAME
+        context.user_data[NEW_ALERT_STEP_KEY] = WIZ_NAME
+        return
     if data.startswith("nbd_"):
         nb = data[4:]
         if nb in sel:
@@ -348,41 +335,12 @@ async def wiz_neighborhoods_cb(
         await q.edit_message_reply_markup(
             reply_markup=keyboards.neighborhoods_keyboard(sel)
         )
-    return WIZ_NEIGHBORHOODS
 
 
-async def cancel_wiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def cancel_wiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Cancela o wizard atual e limpa dados temporários do usuário."""
-    context.user_data.pop(NEW_ALERT_DRAFT_KEY, None)
+    clear_wizard_state(context)
     await update.message.reply_text(
-        "Criação de alerta cancelada.",
+        menus.wizard_cancelado(),
         reply_markup=keyboards.main_menu_keyboard(),
-    )
-    return ConversationHandler.END
-
-def conversation_novo_alerta() -> ConversationHandler:
-    """Monta e retorna o ConversationHandler do fluxo /novo_alerta."""
-    return ConversationHandler(
-        entry_points=[
-            CommandHandler("novo_alerta", novo_alerta_entry),
-            CallbackQueryHandler(novo_alerta_entry_cb, pattern=r"^menu_novo_alerta$"),
-        ],
-        states={
-            WIZ_PRICE_MIN: [
-                CallbackQueryHandler(wiz_price_preset_cb, pattern=r"^wiz_price_"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, wiz_price_min),
-            ],
-            WIZ_PRICE_MAX: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, wiz_price_max)
-            ],
-            WIZ_NEIGHBORHOODS: [
-                CallbackQueryHandler(wiz_neighborhoods_cb, pattern=r"^nbd_")
-            ],
-            WIZ_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, wiz_name)],
-            WIZ_CONFIRM: [
-                CallbackQueryHandler(wiz_confirm_cb, pattern=r"^wiz_confirm_")
-            ],
-        },
-        fallbacks=[CommandHandler("cancelar", cancel_wiz)],
-        name="novo_alerta_wiz",
     )

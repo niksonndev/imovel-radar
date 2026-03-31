@@ -21,7 +21,7 @@ from telegram import (
 )
 from telegram.ext import Application
 
-from bot import keyboards
+from bot.ui import keyboards, menus
 from database import get_connection
 from utils.pricing import price_value_to_float
 
@@ -338,8 +338,7 @@ async def immediate_seed(
         try:
             await bot.send_message(
                 chat_id=tg_id,
-                text="⚠️ Não consegui consultar o cache de imóveis agora. "
-                "Vou tentar na próxima verificação automática. 🔔",
+                text=menus.seed_sem_cache(),
             )
         except Exception:
             pass
@@ -348,10 +347,7 @@ async def immediate_seed(
     if not listings:
         await bot.send_message(
             chat_id=tg_id,
-            text=(
-                "🔍 Nenhum imóvel encontrado com esses filtros no momento.\n"
-                "Vou te avisar quando aparecer algo novo. 🔔"
-            ),
+            text=menus.seed_nenhum_imovel(),
             reply_markup=keyboards.main_menu_keyboard(),
         )
         return
@@ -359,7 +355,7 @@ async def immediate_seed(
     await send_carousel(bot, tg_id, listings, str(alert_id), user_data)
     await bot.send_message(
         chat_id=tg_id,
-        text="✅ Alerta criado! Vou te avisar quando aparecer algo novo. 🔔",
+        text=menus.seed_alert_created(),
         reply_markup=keyboards.main_menu_keyboard(),
     )
 

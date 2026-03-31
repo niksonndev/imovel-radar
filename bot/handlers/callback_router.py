@@ -1,50 +1,58 @@
-"""Handlers de callback para botões inline."""
+"""Ponto único de entrada para CallbackQueryHandler."""
 
 from __future__ import annotations
 
 import logging
+import re
 
 from telegram import InputMediaPhoto, Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
-from bot import keyboards
 from bot.carousel import (
     PAGE_SIZE,
     _carousel_caption,
     _carousel_keyboard,
     _carousel_photo_url,
 )
+from bot.novo_alerta_wizard import (
+    NEW_ALERT_STEP_KEY,
+    WIZ_CONFIRM,
+    WIZ_NEIGHBORHOODS,
+    WIZ_PRICE_MIN,
+    novo_alerta_entry_cb,
+    wiz_confirm_cb,
+    wiz_neighborhoods_cb,
+    wiz_price_preset_cb,
+)
+from bot.ui import keyboards, menus
 
 logger = logging.getLogger(__name__)
 
 
-async def menu_home_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Mostra o menu principal sem depender de /start."""
+async def _menu_home_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     await q.answer()
     await q.message.reply_text(
-        "🏠 *Menu principal*\nEscolha uma opção:",
+        menus.menu_principal_inline(),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.main_menu_keyboard(),
     )
 
 
-async def menu_meus_alertas_cb(
+async def _menu_meus_alertas_cb(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
-    """Callback do botão '📋 Meus Alertas' com ações inline."""
     q = update.callback_query
     await q.answer()
     await q.message.reply_text(
-        "📋 Meus alertas está temporariamente indisponível no momento.",
+        menus.meus_alertas_unavailable_inline(),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.home_keyboard(),
     )
 
 
-async def alert_toggle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Responde ao callback de pausar/reativar alerta."""
+async def _alert_toggle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     await q.answer()
     data = q.data or ""
@@ -52,21 +60,20 @@ async def alert_toggle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         int(data.rsplit("_", 1)[-1])
     except ValueError:
         await q.message.reply_text(
-            "ID de alerta inválido. Confira e tente novamente.",
+            menus.id_alerta_invalido(),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=keyboards.home_keyboard(),
         )
         return
 
     await q.message.reply_text(
-        "⏸️ Ação de pausar/reativar está temporariamente indisponível.",
+        menus.alert_toggle_unavailable(),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.main_menu_keyboard(),
     )
 
 
-async def alert_delete_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Responde ao callback de remover alerta."""
+async def _alert_delete_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     await q.answer()
     data = q.data or ""
@@ -74,46 +81,42 @@ async def alert_delete_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         int(data.rsplit("_", 1)[-1])
     except ValueError:
         await q.message.reply_text(
-            "ID de alerta inválido. Confira e tente novamente.",
+            menus.id_alerta_invalido(),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=keyboards.home_keyboard(),
         )
         return
 
     await q.message.reply_text(
-        "🗑️ Ação de deletar alerta está temporariamente indisponível.",
+        menus.alert_delete_unavailable(),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.main_menu_keyboard(),
     )
 
 
-async def menu_ajuda_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Callback do botão '❓ Ajuda' (manda texto de comandos)."""
+async def _menu_ajuda_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     await q.answer()
     await q.message.reply_text(
-        "*Como usar sem digitar comandos*\n\n"
-        "Use os botões do menu principal para criar e gerenciar alertas, "
-        "acompanhar anúncios, abrir watchlist e ver status.\n\n"
-        "Você pode voltar ao menu principal pelos botões em cada tela.",
+        menus.ajuda_menu_inline(),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.home_keyboard(),
     )
 
 
-async def menu_watchlist_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Responde ao callback do menu de watchlist."""
+async def _menu_watchlist_cb(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
     q = update.callback_query
     await q.answer()
     await q.message.reply_text(
-        "👀 Watchlist está temporariamente indisponível no momento.",
+        menus.watchlist_unavailable_inline(),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.home_keyboard(),
     )
 
 
-async def watch_remove_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Responde ao callback de remover item da watchlist."""
+async def _watch_remove_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     await q.answer()
     data = q.data or ""
@@ -121,21 +124,20 @@ async def watch_remove_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         int(data.rsplit("_", 1)[-1])
     except ValueError:
         await q.message.reply_text(
-            "ID da watchlist inválido. Confira e tente novamente.",
+            menus.id_watchlist_invalido(),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=keyboards.home_keyboard(),
         )
         return
 
     await q.message.reply_text(
-        "🧹 Ação de remover da watchlist está temporariamente indisponível.",
+        menus.watch_remove_unavailable(),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.main_menu_keyboard(),
     )
 
 
-async def menu_status_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Mostra status resumido quando acionado por botão."""
+async def _menu_status_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     await q.answer()
     watch_days = context.application.bot_data.get("watch_days", 1)
@@ -144,17 +146,13 @@ async def menu_status_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     na = next_a.strftime("%d/%m %H:%M") if next_a else "—"
     nw = next_w.strftime("%d/%m %H:%M") if next_w else "—"
     await q.message.reply_text(
-        f"*Status*\n"
-        f"• Scrape/alertas: diariamente às *05:00* (Maceió) (próx.: _{na}_)\n"
-        f"• Watchlist: a cada *{watch_days}* dia(s) (próx.: _{nw}_)\n"
-        f"• Região: Maceió/AL",
+        menus.status_menu(watch_days=watch_days, next_alert=na, next_watch=nw),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.home_keyboard(),
     )
 
 
-async def carousel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handler para ◀/▶ (anúncio) e ◀ Página/⏭ Página."""
+async def _carousel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     await q.answer()
 
@@ -244,3 +242,67 @@ async def carousel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     await context.bot.send_message(chat_id=chat_id, text=caption, reply_markup=keyboard)
     carousel["is_photo"] = False
+
+
+async def route_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Despacha callback_data para o handler adequado."""
+    q = update.callback_query
+    if q is None:
+        return
+    data = q.data or ""
+
+    if data == "menu_home":
+        await _menu_home_cb(update, context)
+        return
+    if data == "menu_meus_alertas":
+        await _menu_meus_alertas_cb(update, context)
+        return
+    if data == "menu_ajuda":
+        await _menu_ajuda_cb(update, context)
+        return
+    if data == "menu_watchlist":
+        await _menu_watchlist_cb(update, context)
+        return
+    if data == "menu_status":
+        await _menu_status_cb(update, context)
+        return
+    if data == "menu_novo_alerta":
+        await novo_alerta_entry_cb(update, context)
+        return
+
+    if data.startswith("wiz_price_"):
+        if context.user_data.get(NEW_ALERT_STEP_KEY) != WIZ_PRICE_MIN:
+            await q.answer()
+            return
+        await wiz_price_preset_cb(update, context)
+        return
+
+    if data.startswith("nbd_"):
+        if context.user_data.get(NEW_ALERT_STEP_KEY) != WIZ_NEIGHBORHOODS:
+            await q.answer()
+            return
+        await wiz_neighborhoods_cb(update, context)
+        return
+
+    if data.startswith("wiz_confirm_"):
+        if context.user_data.get(NEW_ALERT_STEP_KEY) != WIZ_CONFIRM:
+            await q.answer()
+            return
+        await wiz_confirm_cb(update, context)
+        return
+
+    if re.match(r"^alert_toggle_\d+$", data):
+        await _alert_toggle_cb(update, context)
+        return
+    if re.match(r"^alert_delete_\d+$", data):
+        await _alert_delete_cb(update, context)
+        return
+    if re.match(r"^watch_remove_\d+$", data):
+        await _watch_remove_cb(update, context)
+        return
+    if re.match(r"^crs_\d+(?:_notif)?_(prev|next|pgp|pgn)$", data):
+        await _carousel_cb(update, context)
+        return
+
+    logger.warning("callback desconhecido: %s", data)
+    await q.answer()

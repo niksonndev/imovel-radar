@@ -17,10 +17,16 @@ Bot Telegram para monitorar anúncios de imóveis no OLX Maceió. Realiza scrapi
 ```
 imovel-radar/
 ├── bot/
-│   ├── handlers.py      # CommandHandlers simples
-│   ├── callbacks.py     # CallbackQueryHandlers (menu, carrossel, ações)
-│   ├── conversations.py # ConversationHandlers multi-step (/novo_alerta)
-│   └── setup.py         # Registra todos os handlers no Application
+│   ├── handlers/              # CommandHandlers, roteador de callbacks, texto do wizard
+│   │   ├── start_handler.py
+│   │   ├── callback_router.py
+│   │   └── text_input_handler.py
+│   ├── ui/                      # Teclados inline e textos de tela
+│   │   ├── keyboards.py
+│   │   └── menus.py
+│   ├── novo_alerta_wizard.py   # Passos do /novo_alerta (estado em user_data)
+│   ├── carousel.py
+│   └── setup.py                 # Registra handlers no Application
 ├── scraper/             # Acesso ao OLX e parsing — não conhece o banco
 ├── database/            # Conexão, queries e migrations SQLite
 ├── utils/               # Utilitários neutros (ex.: pricing) — sem bot/scraper/database

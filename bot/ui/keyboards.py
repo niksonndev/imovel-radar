@@ -16,9 +16,9 @@ PROPERTY_TYPES = [
     ("commercial", "Comercial"),
 ]
 
+
 def property_type_keyboard() -> InlineKeyboardMarkup:
     """Retorna teclado inline com os tipos de imóvel."""
-    # List comprehension: uma linha de botões por tipo
     rows = [
         [InlineKeyboardButton(label, callback_data=f"wiz_pt_{key}")]
         for key, label in PROPERTY_TYPES
@@ -108,9 +108,7 @@ def home_keyboard() -> InlineKeyboardMarkup:
 
 
 def alert_confirmation_keyboard() -> InlineKeyboardMarkup:
-    """
-    Confirmação antes de salvar o alerta (wizard do /novo_alerta).
-    """
+    """Confirmação antes de salvar o alerta (wizard do /novo_alerta)."""
     return InlineKeyboardMarkup(
         [
             [
