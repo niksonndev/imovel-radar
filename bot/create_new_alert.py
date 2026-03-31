@@ -1,4 +1,4 @@
-"""Wizard de criação de alerta (/novo_alerta) sem ConversationHandler."""
+"""Wizard de criação de alerta (/novo_alerta)."""
 
 from __future__ import annotations
 
@@ -15,22 +15,6 @@ from database import create_new_alert, get_connection
 
 logger = logging.getLogger(__name__)
 
-NEW_ALERT_DRAFT_KEY = "new_alert_draft"
-NEW_ALERT_STEP_KEY = "new_alert_step"
-
-(
-    WIZ_PRICE_MIN,
-    WIZ_PRICE_MAX,
-    WIZ_NEIGHBORHOODS,
-    WIZ_CONFIRM,
-    WIZ_NAME,
-) = range(5)
-
-
-def clear_wizard_state(context: ContextTypes.DEFAULT_TYPE) -> None:
-    context.user_data.pop(NEW_ALERT_DRAFT_KEY, None)
-    context.user_data.pop(NEW_ALERT_STEP_KEY, None)
-
 
 def _fmt_money(v: float | None) -> str:
     if v is None:
@@ -38,27 +22,14 @@ def _fmt_money(v: float | None) -> str:
     return f"R$ {v:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def _draft_or_none(context: ContextTypes.DEFAULT_TYPE) -> dict | None:
-    draft = context.user_data.get(NEW_ALERT_DRAFT_KEY)
-    if not isinstance(draft, dict):
-        return None
-    raw_nb = draft.get("neighbourhoods")
-    if isinstance(raw_nb, set):
-        draft["neighbourhoods"] = sorted(raw_nb)
-    elif not isinstance(raw_nb, list):
-        draft["neighbourhoods"] = list(raw_nb) if raw_nb else []
-    return draft
-
-
-async def novo_alerta_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cmd_novo_alerta(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Inicia o wizard de criação de alerta por comando."""
-    context.user_data[NEW_ALERT_DRAFT_KEY] = {
-        "alert_name": None,
-        "min_price": None,
-        "max_price": None,
+    context.user_data["new_alert"] = {
+        "min_price": int,
+        "max_price": int,
         "neighbourhoods": [],
+        "alert_name": str,
     }
-    context.user_data[NEW_ALERT_STEP_KEY] = WIZ_PRICE_MIN
     await update.message.reply_text(
         menus.wizard_novo_alerta_intro(),
         parse_mode=ParseMode.MARKDOWN,
@@ -72,13 +43,13 @@ async def novo_alerta_entry_cb(
     """Inicia o wizard de criação de alerta via botão do menu."""
     q = update.callback_query
     await q.answer()
-    context.user_data[NEW_ALERT_DRAFT_KEY] = {
+    context.user_data[NEW_ALERT_KEY] = {
+        "step": WIZ_PRICE_MIN,
         "alert_name": None,
         "min_price": None,
         "max_price": None,
         "neighbourhoods": [],
     }
-    context.user_data[NEW_ALERT_STEP_KEY] = WIZ_PRICE_MIN
     await q.message.reply_text(
         menus.wizard_novo_alerta_intro(),
         parse_mode=ParseMode.MARKDOWN,
@@ -115,7 +86,7 @@ async def wiz_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     summary = menus.confirmacao_resumo(price_s=price_s, nb_s=nb_s, name=name)
 
-    context.user_data[NEW_ALERT_STEP_KEY] = WIZ_CONFIRM
+    w["step"] = WIZ_CONFIRM
     await update.message.reply_text(
         summary,
         parse_mode=ParseMode.MARKDOWN,
@@ -142,7 +113,7 @@ async def wiz_price_preset_cb(
             menus.wizard_personalizado_min(),
             parse_mode=ParseMode.MARKDOWN,
         )
-        context.user_data[NEW_ALERT_STEP_KEY] = WIZ_PRICE_MIN
+        w["step"] = WIZ_PRICE_MIN
         return
 
     if not data.startswith("wiz_price_preset_"):
@@ -178,7 +149,7 @@ async def wiz_price_preset_cb(
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.neighborhoods_keyboard(sel),
     )
-    context.user_data[NEW_ALERT_STEP_KEY] = WIZ_NEIGHBORHOODS
+    w["step"] = WIZ_NEIGHBORHOODS
 
 
 async def wiz_price_min(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -203,7 +174,7 @@ async def wiz_price_min(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         menus.wizard_preco_max_prompt(),
         parse_mode=ParseMode.MARKDOWN,
     )
-    context.user_data[NEW_ALERT_STEP_KEY] = WIZ_PRICE_MAX
+    w["step"] = WIZ_PRICE_MAX
 
 
 async def wiz_price_max(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -236,7 +207,7 @@ async def wiz_price_max(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.neighborhoods_keyboard(sel),
     )
-    context.user_data[NEW_ALERT_STEP_KEY] = WIZ_NEIGHBORHOODS
+    w["step"] = WIZ_NEIGHBORHOODS
 
 
 async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -324,7 +295,7 @@ async def wiz_neighborhoods_cb(
             menus.wizard_nome_prompt(),
             parse_mode=ParseMode.MARKDOWN,
         )
-        context.user_data[NEW_ALERT_STEP_KEY] = WIZ_NAME
+        w["step"] = WIZ_NAME
         return
     if data.startswith("nbd_"):
         nb = data[4:]

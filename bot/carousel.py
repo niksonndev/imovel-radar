@@ -193,49 +193,6 @@ def area_m2_from_properties(props: object) -> float | None:
     return None
 
 
-def _filter_cached_ads(ads: list[dict], filters: dict) -> list[dict]:
-    """Aplica filtros locais do alerta sobre anúncios vindos do cache."""
-    pmin = filters.get("min_price")
-    if pmin is None:
-        pmin = filters.get("price_min")
-    pmax = filters.get("max_price")
-    if pmax is None:
-        pmax = filters.get("price_max")
-    bmin = filters.get("bedrooms_min")
-    amin = filters.get("area_min")
-    amax = filters.get("area_max")
-    neighborhoods = [n.lower() for n in (filters.get("neighborhoods") or [])]
-
-    out: list[dict] = []
-    for ad in ads:
-        ad_price = ad.get("price")
-        if ad_price is None:
-            ad_price = price_value_to_float(ad.get("priceValue"))
-        if pmin is not None and ad_price is not None and ad_price < pmin:
-            continue
-        if pmax is not None and ad_price is not None and ad_price > pmax:
-            continue
-        rooms = ad.get("bedrooms")
-        if rooms is None:
-            rooms = rooms_from_properties(ad.get("properties"))
-        if bmin is not None and rooms is not None and rooms < bmin:
-            continue
-        area = ad.get("area_m2")
-        if area is None:
-            area = area_m2_from_properties(ad.get("properties"))
-        if amin is not None and area is not None and area < amin:
-            continue
-        if amax is not None and area is not None and area > amax:
-            continue
-        if neighborhoods:
-            loc = ad.get("neighbourhood") or ad.get("neighborhood") or ""
-            blob = ((ad.get("title") or "") + " " + loc).lower()
-            if not any(n in blob for n in neighborhoods):
-                continue
-        out.append(ad)
-    return out
-
-
 def _load_active_listings_from_db(limit: int = 300) -> list[dict]:
     """Carrega anúncios ativos do cache local (SQLite)."""
     conn = get_connection()
@@ -325,12 +282,11 @@ async def immediate_seed(
     filters: dict[str, object],
     user_data: dict[str, object],
 ) -> None:
-    """Seed imediato usando cache diário no banco + filtro local + carrossel."""
+    """Seed imediato usando cache diário no banco + carrossel."""
     bot = app.bot
 
     try:
         listings = _load_active_listings_from_db()
-        listings = _filter_cached_ads(listings, filters)
     except Exception:
         logger.exception(
             "Seed imediato via cache local falhou para alerta %s", alert_id
@@ -358,5 +314,3 @@ async def immediate_seed(
         text=menus.seed_alert_created(),
         reply_markup=keyboards.main_menu_keyboard(),
     )
-
-

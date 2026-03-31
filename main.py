@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from telegram.ext import Application
 
 import config
-from bot.setup import setup, setup_commands
+from bot.setup import setup
 from database import create_tables
 from scheduler.setup import start_scheduler
 
@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# logging = imprimir mensagens de debug/erro no terminal (tipo console.log)
+# logging = imprimir mensagens de debug/erro no terminal
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     level=getattr(logging, config.LOG_LEVEL, logging.INFO),
@@ -42,8 +42,9 @@ _scheduler: BackgroundScheduler | None = None
 # "async def" = função assíncrona (pode esperar rede/DB sem travar tudo).
 # O python-telegram-bot chama isso depois que o app está pronto.
 async def post_init(app: Application) -> None:
+    global _scheduler
     create_tables()
-    await setup_commands(app)
+    _scheduler = start_scheduler()
     logger.info("Bot iniciado.")
 
 
@@ -53,11 +54,10 @@ async def post_shutdown(app: Application) -> None:
     if _scheduler is not None:
         await asyncio.to_thread(_scheduler.shutdown, True)
         _scheduler = None
+    logger.info("Bot finalizado")
 
 
 def main() -> None:
-    global _scheduler
-    _scheduler = start_scheduler()
     # Application = coração da lib: token, handlers, polling
     app = (
         Application.builder()
@@ -66,13 +66,20 @@ def main() -> None:
         .post_shutdown(post_shutdown)
         .build()
     )
+
     setup(app)
-    logger.info("Polling…")
+
+    logger.info("🚀 Iniciando polling...")
     # Fica perguntando ao Telegram "tem mensagem nova?" o tempo todo
-    app.run_polling(allowed_updates=["message", "callback_query"])
+    app.run_polling(
+        allowed_updates=["message", "callback_query"], drop_pending_updates=True
+    )
 
 
 # Só roda main() se você executou "py main.py" diretamente
 # (se outro arquivo importar main, não roda o bot sozinho)
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        logger.info("🛑 Parado pelo dev")

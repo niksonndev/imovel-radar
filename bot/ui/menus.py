@@ -28,7 +28,9 @@ def observar_unavailable() -> str:
 
 
 def watchlist_unavailable() -> str:
-    return "👀 Watchlist está temporariamente indisponível. Tente novamente em instantes."
+    return (
+        "👀 Watchlist está temporariamente indisponível. Tente novamente em instantes."
+    )
 
 
 def watchlist_unavailable_inline() -> str:
@@ -42,7 +44,7 @@ def remover_unavailable() -> str:
 def status_command(*, watch_days: int, next_alert: str, next_watch: str) -> str:
     return (
         f"*Status*\n"
-        f"• Scrape/alertas: diariamente às *03:00* (Maceió) (próx.: _{next_alert}_)\n"
+        f"• Scrape/alertas: diariamente às *05:00* (Maceió) (próx.: _{next_alert}_)\n"
         f"• Watchlist: a cada *{watch_days}* dia(s) (próx.: _{next_watch}_)\n"
         f"• Região: Maceió/AL"
     )
