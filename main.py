@@ -16,7 +16,6 @@ import config
 from bot.setup import setup, setup_commands
 from database import create_tables
 from scheduler.setup import start_scheduler
-from scraper import olx_scraper
 
 if TYPE_CHECKING:
     from apscheduler.schedulers.background import BackgroundScheduler
@@ -49,9 +48,8 @@ async def post_init(app: Application) -> None:
 
 
 async def post_shutdown(app: Application) -> None:
-    # Ao fechar o programa: libera conexões HTTP e para o agendador
+    # Ao fechar o programa: para o agendador
     global _scheduler
-    await olx_scraper.close()
     if _scheduler is not None:
         await asyncio.to_thread(_scheduler.shutdown, True)
         _scheduler = None

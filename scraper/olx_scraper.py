@@ -230,6 +230,7 @@ async def search_all_rent_maceio() -> list[dict]:
             page += 1
     finally:
         _cycle_headers = None
+        await close()
     out = list(all_ads.values())
     logger.info("Total anúncios únicos (scraping): %s", len(out))
     return out
