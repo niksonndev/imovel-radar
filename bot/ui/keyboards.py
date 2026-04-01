@@ -4,26 +4,7 @@ TECLADOS do Telegram: botões que o usuário toca (inline) em vez de digitar.
 InlineKeyboardButton = um botão; callback_data = string que volta pro código quando clica.
 """
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
-
-# Lista de tuplas (valor_interno, texto_no_botão)
-PROPERTY_TYPES = [
-    ("all", "Todos"),
-    ("house", "Casa"),
-    ("apartment", "Apartamento"),
-    ("kitnet", "Kitnet"),
-    ("land", "Terreno"),
-    ("commercial", "Comercial"),
-]
-
-
-def property_type_keyboard() -> InlineKeyboardMarkup:
-    """Retorna teclado inline com os tipos de imóvel."""
-    rows = [
-        [InlineKeyboardButton(label, callback_data=f"wiz_pt_{key}")]
-        for key, label in PROPERTY_TYPES
-    ]
-    return InlineKeyboardMarkup(rows)
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 
 def price_range_keyboard() -> InlineKeyboardMarkup:
@@ -65,13 +46,6 @@ def neighborhoods_keyboard(selected: set[str] | list[str]) -> InlineKeyboardMark
     return InlineKeyboardMarkup(buttons)
 
 
-def skip_keyboard() -> ReplyKeyboardMarkup:
-    """Teclado normal (não inline) com uma linha "Pular" — opcional no wizard."""
-    return ReplyKeyboardMarkup(
-        [["Pular"]], resize_keyboard=True, one_time_keyboard=True
-    )
-
-
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     """
     Menu principal que aparece no `/start`.
@@ -97,13 +71,6 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
             ],
             [InlineKeyboardButton("❓ Ajuda", callback_data="menu_ajuda")],
         ]
-    )
-
-
-def home_keyboard() -> InlineKeyboardMarkup:
-    """Botão simples para voltar ao menu principal."""
-    return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")]]
     )
 
 
