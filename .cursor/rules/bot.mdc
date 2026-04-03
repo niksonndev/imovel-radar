@@ -10,6 +10,5 @@ alwaysApply: false
 - Modo padrão: **polling** (`application.run_polling()`)
 - O bot deve ser construído com `ApplicationBuilder`
 - Todos os handlers devem ser `async def`
-- **Nunca usar `ConversationHandler`**
 
 ---

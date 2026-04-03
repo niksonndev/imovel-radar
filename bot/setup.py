@@ -1,8 +1,8 @@
 from telegram import BotCommand, Update
 from telegram.constants import ParseMode
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-from bot.create_new_alert import new_alert_cmd, route_callback
+from bot.create_new_alert import new_alert_conversation
 from bot.ui import keyboards, menus
 
 BOT_COMMANDS = [
@@ -36,7 +36,6 @@ def setup(app: Application) -> None:
 
     app.post_init = _post_init
 
+    app.add_handler(new_alert_conversation())
     app.add_handler(CommandHandler("start", start_cmd))
-    app.add_handler(CommandHandler("novo_alerta", new_alert_cmd))
     app.add_handler(CommandHandler("menu_ajuda", help_cmd))
-    app.add_handler(CallbackQueryHandler(route_callback))

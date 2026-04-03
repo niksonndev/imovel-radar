@@ -47,7 +47,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     Menu principal que aparece no `/start`.
 
     callback_data:
-      - menu_novo_alerta
+      - novo_alerta
       - menu_meus_alertas
       - menu_watchlist
       - menu_status
@@ -55,7 +55,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     """
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🔔 Novo Alerta", callback_data="menu_novo_alerta")],
+            [InlineKeyboardButton("🔔 Novo Alerta", callback_data="novo_alerta")],
             [
                 InlineKeyboardButton(
                     "📋 Meus Alertas", callback_data="menu_meus_alertas"
