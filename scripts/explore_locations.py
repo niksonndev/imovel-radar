@@ -60,4 +60,22 @@ save_log(
     f"MUNICÍPIOS — {sum(r[1] for r in municipality_rows)} listings | {len(municipality_rows)} municípios distintos",
 )
 
+# --- Neighbourhoods em Maceió ---
+maceio_neighbourhood_rows = run_query(
+    conn,
+    """
+    SELECT neighbourhood, COUNT(*) as total
+    FROM listings
+    WHERE municipality = 'Maceió'
+    GROUP BY neighbourhood
+    ORDER BY total DESC
+""",
+)
+
+save_log(
+    f"neighbourhoods_maceio_{timestamp}.log",
+    maceio_neighbourhood_rows,
+    f"BAIRROS EM MACEIÓ — {sum(r[1] for r in maceio_neighbourhood_rows)} listings | {len(maceio_neighbourhood_rows)} bairros distintos",
+)
+
 conn.close()

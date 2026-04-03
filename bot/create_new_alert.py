@@ -12,8 +12,17 @@ from telegram.ext import ContextTypes
 from bot.carousel import immediate_seed
 from bot.ui import keyboards, menus
 from database import create_new_alert, get_connection
+from database.queries import get_maceio_neighbourhoods
 
 logger = logging.getLogger(__name__)
+
+
+def _fetch_maceio_neighbourhood_options() -> list[str]:
+    conn = get_connection()
+    try:
+        return get_maceio_neighbourhoods(conn)
+    finally:
+        conn.close()
 
 
 async def _start_new_alert(chat: Message, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -140,10 +149,11 @@ async def _wiz_price_preset(
     w["max_price"] = pmax
 
     sel = w.get("neighbourhoods") or []
+    nb_options = _fetch_maceio_neighbourhood_options()
     await q.message.reply_text(
         "Select *neighborhoods* (tap to toggle). Then tap Done.",
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=keyboards.neighborhoods_keyboard(sel),
+        reply_markup=keyboards.neighborhoods_keyboard(sel, nb_options),
     )
     w["step"] = "pick"
 
@@ -219,11 +229,12 @@ async def _wiz_price_max(msg: Message, context: ContextTypes.DEFAULT_TYPE) -> No
     w["max_price"] = price_max
 
     sel = w.get("neighbourhoods") or []
+    nb_options = _fetch_maceio_neighbourhood_options()
     await msg.reply_text(
         "Select *neighborhoods* (tap to toggle). Then tap Done.\n"
         "To skip the filter, finish without selecting any.",
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=keyboards.neighborhoods_keyboard(sel),
+        reply_markup=keyboards.neighborhoods_keyboard(sel, nb_options),
     )
     w["step"] = "pick"
 
@@ -342,8 +353,9 @@ async def _wiz_neighborhoods(
             sel.remove(nb)
         else:
             sel.append(nb)
+        nb_options = _fetch_maceio_neighbourhood_options()
         await q.edit_message_reply_markup(
-            reply_markup=keyboards.neighborhoods_keyboard(sel)
+            reply_markup=keyboards.neighborhoods_keyboard(sel, nb_options)
         )
 
 

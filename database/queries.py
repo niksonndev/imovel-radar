@@ -24,9 +24,23 @@ ON CONFLICT(listId) DO UPDATE SET
     updated_at = strftime('%Y-%m-%dT%H:%M:%S', 'now')
 """.strip()
 
+GET_MACEIO_NEIGHBOURHOODS_SQL = """
+SELECT neighbourhood
+FROM listings
+WHERE municipality = 'Maceió'
+  AND neighbourhood != ''
+GROUP BY neighbourhood
+ORDER BY COUNT(*) DESC
+""".strip()
+
 
 def upsert_listing(conn: sqlite3.Connection, listing: dict) -> None:
     conn.execute(UPSERT_LISTING_SQL, listing)
+
+
+def get_maceio_neighbourhoods(conn: sqlite3.Connection) -> list[str]:
+    rows = conn.execute(GET_MACEIO_NEIGHBOURHOODS_SQL).fetchall()
+    return [row[0] for row in rows]
 
 
 def create_new_alert(conn: sqlite3.Connection, chat_id: int, draft: dict) -> int:
