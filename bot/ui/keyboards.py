@@ -25,23 +25,18 @@ def price_range_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
-def neighborhoods_keyboard(selected: set[str] | list[str]) -> InlineKeyboardMarkup:
-    """
-    selected = bairros já marcados (sem repetir; set ou list para persistência pickle).
-    Cada clique alterna marcar/desmarcar; "nbd_done" finaliza o passo.
-    """
+def neighborhoods_keyboard(selected: list[str]) -> InlineKeyboardMarkup:
     from config import MACEIO_NEIGHBORHOODS
 
-    buttons = []
-    row = []
-    for n in MACEIO_NEIGHBORHOODS[:24]:
-        mark = "✓ " if n in selected else ""
-        row.append(InlineKeyboardButton(mark + n[:18], callback_data=f"nbd_{n}"))
-        if len(row) >= 2:
-            buttons.append(row)
-            row = []
-    if row:
-        buttons.append(row)
+    buttons = [
+        [
+            InlineKeyboardButton(
+                ("✓ " if n in selected else "") + n[:18], callback_data=f"nbd_{n}"
+            )
+            for n in MACEIO_NEIGHBORHOODS[i : i + 2]
+        ]
+        for i in range(0, min(len(MACEIO_NEIGHBORHOODS), 24), 2)
+    ]
     buttons.append([InlineKeyboardButton("Concluir bairros", callback_data="nbd_done")])
     return InlineKeyboardMarkup(buttons)
 
