@@ -17,10 +17,10 @@ def create_tables():
                 neighbourhood  TEXT,
                 category       TEXT,
                 images         TEXT, -- JSON array de URLs
-                properties     TEXT  -- JSON bruto com category, real_estate_type,
+                properties     TEXT,  -- JSON bruto com category, real_estate_type,
                                      -- condominio, iptu, size, rooms, bathrooms,
                                      -- garage_spaces, re_types
-                first_seen_at  TEXT  -- ISO 8601, preenchido só na inserção, nunca sobrescrito
+                first_seen_at  TEXT,  -- ISO 8601, preenchido só na inserção, nunca sobrescrito
                 updated_at     TEXT  -- atualizado no upsert diário
             );
 
