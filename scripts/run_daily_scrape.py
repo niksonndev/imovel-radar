@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +12,7 @@ os.environ.setdefault("TELEGRAM_BOT_TOKEN", "debug-token")
 
 from database.db import get_connection
 from database import create_tables
+from database.queries import upsert_listing
 from scraper.olx_scraper import search_all_rent_maceio
 
 logger = logging.getLogger(__name__)
@@ -33,26 +33,6 @@ COLUMNS = [
     "images",
     "properties",
 ]
-
-INSERT_SQL = """
-INSERT INTO listings (
-    listId, url, title, priceValue, oldPrice,
-    municipality, neighbourhood, category, images, properties,
-    first_seen_at
-)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(listId) DO UPDATE SET
-    url = excluded.url,
-    title = excluded.title,
-    priceValue = excluded.priceValue,
-    oldPrice = excluded.oldPrice,
-    municipality = excluded.municipality,
-    neighbourhood = excluded.neighbourhood,
-    category = excluded.category,
-    images = excluded.images,
-    properties = excluded.properties,
-    active = 1
-""".strip()
 
 
 def setup_logging() -> None:
@@ -76,13 +56,6 @@ def setup_logging() -> None:
     root_logger.addHandler(file_handler)
 
 
-def ad_to_row(ad: dict[str, Any]) -> tuple[Any, ...] | None:
-    # `listId` é o PRIMARY KEY INTEGER da tabela.
-    if ad.get("listId") is None:
-        return None
-    return tuple(ad.get(col) for col in COLUMNS)
-
-
 def run_insert_batch(ads: list[dict[str, Any]]) -> tuple[int, int, int, int]:
     total_fetched = len(ads)
     total_inserted = 0
@@ -91,13 +64,11 @@ def run_insert_batch(ads: list[dict[str, Any]]) -> tuple[int, int, int, int]:
 
     conn = get_connection()
     try:
-        cur = conn.cursor()
         try:
             for idx, ad in enumerate(ads, start=1):
-                row = ad_to_row(ad)
                 list_id = ad.get("listId")
 
-                if row is None:
+                if list_id is None:
                     total_skipped += 1
                     logger.info(
                         "[%s/%s] Skipped (sem listId)",
@@ -107,8 +78,8 @@ def run_insert_batch(ads: list[dict[str, Any]]) -> tuple[int, int, int, int]:
                     continue
 
                 try:
-                    first_seen = datetime.now(timezone.utc).isoformat()
-                    cur.execute(INSERT_SQL, (*row, first_seen))
+                    listing = {col: ad.get(col) for col in COLUMNS}
+                    upsert_listing(conn, listing)
                     total_inserted += 1
                     logger.debug(
                         "[%s/%s] Inserted/Updated listId=%s",
