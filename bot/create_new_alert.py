@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 
-from telegram import CallbackQuery, Message, Update
+from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import (
     CallbackQueryHandler,
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
     NEIGHBOURHOODS,
     NAME,
     CONFIRM,
-) = range(6)
+) = range(4)
 
 
 async def _enter_neighbourhoods(msg, context) -> None:
@@ -204,9 +205,18 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return ConversationHandler.END
 
     user = update.effective_user
+
+    alert_data = {
+        "user_id": user.id,
+        "alert_name": wizard["alert_name"],
+        "min_price": wizard.get("min_price"),
+        "max_price": wizard.get("max_price"),
+        "neighbourhoods": json.dumps(wizard.get("neighbourhoods") or []),
+    }
+
     conn = get_connection()
     try:
-        alert_id = create_new_alert(conn, user.id, wizard)
+        alert_id = create_new_alert(conn, alert_data)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -247,7 +257,10 @@ async def cancel_wiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 def new_alert_conversation() -> ConversationHandler:
     return ConversationHandler(
-        entry_points=[CommandHandler("novo_alerta", new_alert_cmd)],
+        entry_points=[
+            CommandHandler("novo_alerta", new_alert_cmd),
+            CallbackQueryHandler(new_alert_cmd, pattern="^novo_alerta$"),
+        ],
         states={
             PRICE: [
                 CallbackQueryHandler(wiz_price_preset_cb, pattern="^wiz_price_preset_"),

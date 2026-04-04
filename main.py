@@ -71,9 +71,7 @@ def main() -> None:
 
     logger.info("🚀 Iniciando polling...")
     # Fica perguntando ao Telegram "tem mensagem nova?" o tempo todo
-    app.run_polling(
-        allowed_updates=["message", "callback_query"], drop_pending_updates=True
-    )
+    app.run_polling(allowed_updates=["message", "callback_query"])
 
 
 # Só roda main() se você executou "py main.py" diretamente
