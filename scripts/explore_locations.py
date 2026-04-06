@@ -78,4 +78,28 @@ save_log(
     f"BAIRROS EM MACEIÓ — {sum(r[1] for r in maceio_neighbourhood_rows)} listings | {len(maceio_neighbourhood_rows)} bairros distintos",
 )
 
+# --- Query tipo alerta do nikson: Antares, Mangabeiras, Benedito Bentes | R$ 140k–200k ---
+nikson_alert_rows = run_query(
+    conn,
+    """
+    SELECT neighbourhood, COUNT(*) AS total
+    FROM listings
+    WHERE municipality = 'Maceió'
+      AND neighbourhood IN ('Antares', 'Mangabeiras', 'Benedito Bentes')
+      AND priceValue BETWEEN 140000 AND 200000
+    GROUP BY neighbourhood
+    ORDER BY total DESC
+""",
+)
+
+save_log(
+    f"alerta_nikson_{timestamp}.log",
+    nikson_alert_rows,
+    (
+        "ALERTA DO NIKSON — Maceió: Antares, Mangabeiras, Benedito Bentes | "
+        f"priceValue 140000–200000 — {sum(r[1] for r in nikson_alert_rows)} listings | "
+        f"{len(nikson_alert_rows)} bairros com resultado"
+    ),
+)
+
 conn.close()
