@@ -21,6 +21,7 @@ from bot.carousel import immediate_seed
 from bot.ui import keyboards, menus
 from database import create_new_alert, get_connection
 from database.queries import get_maceio_neighbourhoods
+from utils.pricing import format_brl
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +47,6 @@ async def _enter_neighbourhoods(msg, context) -> None:
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.neighborhoods_keyboard(sel, nb_options),
     )
-
-
-def _format_brl(v: float | None) -> str:
-    if v is None:
-        return "—"
-    return f"R$ {v:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def _confirm_summary(*, price_s: str, nb_s: str, name: str) -> str:
@@ -178,11 +173,11 @@ async def wiz_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     pmin = wizard.get("min_price")
     pmax = wizard.get("max_price")
     if pmin is None:
-        price_s = f"Até {_format_brl(pmax)}"
+        price_s = f"Até {format_brl(pmax)}"
     elif pmax is None:
-        price_s = f"A partir de {_format_brl(pmin)}"
+        price_s = f"A partir de {format_brl(pmin)}"
     else:
-        price_s = f"{_format_brl(pmin)} – {_format_brl(pmax)}"
+        price_s = f"{format_brl(pmin)} – {format_brl(pmax)}"
 
     await update.effective_message.reply_text(
         _confirm_summary(price_s=price_s, nb_s=nb_s, name=name),
@@ -229,18 +224,11 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     finally:
         conn.close()
 
-    filters_dict = {
-        "min_price": wizard.get("min_price"),
-        "max_price": wizard.get("max_price"),
-        "neighborhoods": sorted(wizard.get("neighbourhoods") or []),
-    }
-
     await query.message.reply_text("⏳ Procurando imóveis que combinam com seu alerta…")
     await immediate_seed(
         context.application,
         alert_id,
         user.id,
-        filters_dict,
         context.user_data,
     )
     return ConversationHandler.END

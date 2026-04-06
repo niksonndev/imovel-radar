@@ -23,18 +23,12 @@ from telegram.ext import Application
 
 from bot.ui import keyboards, menus
 from database import get_connection
-from utils.pricing import price_value_to_float
+from utils.pricing import format_brl, price_value_to_float
 
 logger = logging.getLogger(__name__)
 
 PAGE_SIZE = 10
 MAX_NOTIF_CAROUSEL = 10
-
-
-def _fmt_money(v: float | None) -> str:
-    if v is None:
-        return "—"
-    return f"R$ {v:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def _ad_price_caption(ad: dict) -> str:
@@ -43,8 +37,8 @@ def _ad_price_caption(ad: dict) -> str:
         return pv.strip()
     p = ad.get("price")
     if p is not None:
-        return _fmt_money(float(p))
-    return _fmt_money(price_value_to_float(pv))
+        return format_brl(float(p))
+    return format_brl(price_value_to_float(pv))
 
 
 def _page_info(index: int, total: int) -> tuple[int, int, int, int]:
@@ -279,7 +273,6 @@ async def immediate_seed(
     app: Application,
     alert_id: int,
     tg_id: int,
-    filters: dict[str, object],
     user_data: dict[str, object],
 ) -> None:
     """Seed imediato usando cache diário no banco + carrossel."""

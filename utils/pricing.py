@@ -70,6 +70,13 @@ def money_to_cents(value: Any) -> int | None:
     return -cents if negative else cents
 
 
+def format_brl(v: float | None) -> str:
+    """Formata valor em reais para exibir pt-BR (inteiro, milhares com ponto)."""
+    if v is None:
+        return "—"
+    return f"R$ {v:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 def price_value_to_float(value: Any) -> float | None:
     """
     Converte `priceValue` (string ou centavos int) para float em reais.
