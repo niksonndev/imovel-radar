@@ -1,9 +1,16 @@
-import sqlite3
 import os
+import sqlite3
+import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Sequence
 
-DB_PATH = "data/imoveis.db"
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+import config  # noqa: E402
+
 LOGS_DIR = "logs"
 
 os.makedirs(LOGS_DIR, exist_ok=True)
@@ -70,7 +77,7 @@ def save_listings_log(filename, listings, header):
     print(f"Salvo em {path}")
 
 
-conn = sqlite3.connect(DB_PATH)
+conn = sqlite3.connect(config.DB_PATH)
 
 # --- Neighbourhoods ---
 neighbourhood_rows = run_query(
