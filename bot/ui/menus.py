@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from telegram.helpers import escape_markdown
+
 
 def start_welcome() -> str:
     return "👋 *Olá!* Sou o bot de alertas OLX — *Maceió/AL*.\n\n"
@@ -89,11 +91,14 @@ def wizard_cancelado() -> str:
 
 
 def confirmacao_resumo(*, price_s: str, nb_s: str, name: str) -> str:
+    esc_price = escape_markdown(price_s, version=1)
+    esc_nb = escape_markdown(nb_s, version=1)
+    esc_name = escape_markdown(name, version=1)
     return (
         "🧾 *Confirmação do alerta*\n\n"
-        f"💰 *Preço:* {price_s}\n"
-        f"📍 *Bairros:* {nb_s}\n"
-        f"📝 *Nome:* `{name}`\n\n"
+        f"💰 *Preço:* {esc_price}\n"
+        f"📍 *Bairros:* {esc_nb}\n"
+        f"📝 *Nome:* `{esc_name}`\n\n"
         "Confirme abaixo:"
     )
 
