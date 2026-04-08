@@ -8,6 +8,7 @@ import re
 
 from telegram import Update
 from telegram.constants import ParseMode
+from telegram.helpers import escape_markdown
 from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
@@ -19,7 +20,7 @@ from telegram.ext import (
 
 from bot.carousel import immediate_seed
 from bot.ui import keyboards, menus
-from database import create_new_alert, get_connection
+from database import create_new_alert, ensure_user, get_connection
 from database.queries import get_maceio_neighbourhoods
 from utils.pricing import format_brl
 
@@ -50,11 +51,15 @@ async def _enter_neighbourhoods(msg, context) -> None:
 
 
 def _confirm_summary(*, price_s: str, nb_s: str, name: str) -> str:
+    # ParseMode.MARKDOWN legado: escapa texto vindo do usuário / bairros (evita injeção de ênfase/links).
+    esc_price = escape_markdown(price_s, version=1)
+    esc_nb = escape_markdown(nb_s, version=1)
+    esc_name = escape_markdown(name, version=1)
     return (
         "🧾 *Configuração do alerta*\n\n"
-        f"💰 *Preço:* {price_s}\n"
-        f"📍 *Bairros:* {nb_s}\n"
-        f"📝 *Nome:* `{name}`\n\n"
+        f"💰 *Preço:* {esc_price}\n"
+        f"📍 *Bairros:* {esc_nb}\n"
+        f"📝 *Nome:* `{esc_name}`\n\n"
         "Confirme abaixo:"
     )
 
@@ -121,6 +126,13 @@ async def wiz_price_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return PRICE
 
     # awaiting == "price_max"
+    pmin = wizard.get("min_price")
+    if isinstance(pmin, int) and value < pmin:
+        await update.message.reply_text(
+            "O preço máximo deve ser maior ou igual ao mínimo. Envie o máximo novamente:"
+        )
+        return PRICE
+
     wizard["max_price"] = value
     wizard.pop("awaiting", None)
     await _enter_neighbourhoods(update.message, context)
@@ -144,13 +156,23 @@ async def wiz_neighbourhoods_cb(
         )
         return NAME
 
-    nb = data[4:]  # remove "nbd_"
+    nb_options = wizard.get("nb_options") or []
+    idx_s = data[4:]  # após "nbd_"
+    try:
+        idx = int(idx_s, 10)
+    except ValueError:
+        await query.answer("Seleção inválida.", show_alert=False)
+        return NEIGHBOURHOODS
+    if not (0 <= idx < len(nb_options)):
+        await query.answer("Bairro inválido ou sessão desatualizada.", show_alert=False)
+        return NEIGHBOURHOODS
+
+    nb = nb_options[idx]
     if nb in sel:
         sel.remove(nb)
     else:
         sel.append(nb)
 
-    nb_options = wizard.get("nb_options") or []
     await query.edit_message_reply_markup(
         reply_markup=keyboards.neighborhoods_keyboard(sel, nb_options)
     )
@@ -201,21 +223,21 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     user = update.effective_user
 
-    alert_data = {
-        "user_id": user.id,
-        "alert_name": wizard["alert_name"],
-        "min_price": wizard.get("min_price"),
-        "max_price": wizard.get("max_price"),
-        "neighbourhoods": json.dumps(wizard.get("neighbourhoods") or []),
-    }
-
     conn = get_connection()
     try:
+        internal_user_id = ensure_user(conn, user.id)
+        alert_data = {
+            "user_id": internal_user_id,
+            "alert_name": wizard["alert_name"],
+            "min_price": wizard.get("min_price"),
+            "max_price": wizard.get("max_price"),
+            "neighbourhoods": json.dumps(wizard.get("neighbourhoods") or []),
+        }
         alert_id = create_new_alert(conn, alert_data)
         conn.commit()
     except Exception:
         conn.rollback()
-        logger.exception("Failed to save new alert to the database.")
+        logger.exception("Falha ao salvar usuário/alerta no banco.")
         await query.message.reply_text(
             "Não foi possível salvar o alerta. Tente novamente.",
             reply_markup=keyboards.main_menu_keyboard(),

@@ -28,16 +28,25 @@ def price_range_keyboard() -> InlineKeyboardMarkup:
 def neighborhoods_keyboard(
     selected: list[str], neighbourhoods: list[str]
 ) -> InlineKeyboardMarkup:
+    """
+    Usa índice em ``callback_data`` (``nbd_0``, …), não o nome do bairro:
+    limite de 64 bytes do Telegram e só bairros da lista carregada são aceitos.
+    """
     items = neighbourhoods[:24]
-    buttons = [
-        [
-            InlineKeyboardButton(
-                ("✓ " if n in selected else "") + n[:18], callback_data=f"nbd_{n}"
+    buttons: list[list[InlineKeyboardButton]] = []
+    for i in range(0, len(items), 2):
+        row: list[InlineKeyboardButton] = []
+        for j in (i, i + 1):
+            if j >= len(items):
+                break
+            n = items[j]
+            row.append(
+                InlineKeyboardButton(
+                    ("✓ " if n in selected else "") + n[:18],
+                    callback_data=f"nbd_{j}",
+                )
             )
-            for n in items[i : i + 2]
-        ]
-        for i in range(0, len(items), 2)
-    ]
+        buttons.append(row)
     buttons.append([InlineKeyboardButton("Concluir bairros", callback_data="nbd_done")])
     return InlineKeyboardMarkup(buttons)
 
