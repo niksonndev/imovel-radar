@@ -51,7 +51,9 @@ async def _enter_neighbourhoods(msg, context) -> None:
 
 
 def _confirm_summary(*, price_s: str, nb_s: str, name: str) -> str:
-    # ParseMode.MARKDOWN legado: escapa texto vindo do usuário / bairros (evita injeção de ênfase/links).
+    # ParseMode.MARKDOWN legado: escapa texto vindo do usuário / bairros
+    # para evitar interpretação acidental de *, _, []() etc.
+    # Isso mantém a formatação da mensagem estável e evita "injeção" de Markdown.
     esc_price = escape_markdown(price_s, version=1)
     esc_nb = escape_markdown(nb_s, version=1)
     esc_name = escape_markdown(name, version=1)
@@ -127,6 +129,8 @@ async def wiz_price_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # awaiting == "price_max"
     pmin = wizard.get("min_price")
+    # Garante regra básica de consistência antes de sair da etapa de preço:
+    # máximo não pode ficar abaixo do mínimo selecionado anteriormente.
     if isinstance(pmin, int) and value < pmin:
         await update.message.reply_text(
             "O preço máximo deve ser maior ou igual ao mínimo. Envie o máximo novamente:"
@@ -159,14 +163,18 @@ async def wiz_neighbourhoods_cb(
     nb_options = wizard.get("nb_options") or []
     idx_s = data[4:]  # após "nbd_"
     try:
+        # callback_data guarda índice (ex.: nbd_7), nunca o nome do bairro.
+        # Isso reduz tamanho do payload e simplifica validação.
         idx = int(idx_s, 10)
     except ValueError:
         await query.answer("Seleção inválida.", show_alert=False)
         return NEIGHBOURHOODS
+    # Protege contra callback_data adulterado ou mensagem antiga com opções desatualizadas.
     if not (0 <= idx < len(nb_options)):
         await query.answer("Bairro inválido ou sessão desatualizada.", show_alert=False)
         return NEIGHBOURHOODS
 
+    # Conversão índice -> valor canônico vindo da lista carregada da sessão.
     nb = nb_options[idx]
     if nb in sel:
         sel.remove(nb)
@@ -225,12 +233,15 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     conn = get_connection()
     try:
+        # Usa o ID interno da tabela local (PK) e não o ID bruto do Telegram.
+        # ensure_user também cria o usuário caso ainda não exista.
         internal_user_id = ensure_user(conn, user.id)
         alert_data = {
             "user_id": internal_user_id,
             "alert_name": wizard["alert_name"],
             "min_price": wizard.get("min_price"),
             "max_price": wizard.get("max_price"),
+            # Persiste bairros como JSON para manter schema simples em SQLite.
             "neighbourhoods": json.dumps(wizard.get("neighbourhoods") or []),
         }
         alert_id = create_new_alert(conn, alert_data)
