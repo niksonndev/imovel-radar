@@ -32,9 +32,11 @@ def neighborhoods_keyboard(
     Usa índice em ``callback_data`` (``nbd_0``, …), não o nome do bairro:
     limite de 64 bytes do Telegram e só bairros da lista carregada são aceitos.
     """
+    # Limite defensivo para evitar teclados gigantes e manter UX aceitável no Telegram.
     items = neighbourhoods[:24]
     buttons: list[list[InlineKeyboardButton]] = []
     for i in range(0, len(items), 2):
+        # Monta duas colunas por linha para caber melhor em telas pequenas.
         row: list[InlineKeyboardButton] = []
         for j in (i, i + 1):
             if j >= len(items):
@@ -46,7 +48,9 @@ def neighborhoods_keyboard(
                     callback_data=f"nbd_{j}",
                 )
             )
+        # Cada linha é adicionada mesmo quando há apenas 1 botão (quantidade ímpar).
         buttons.append(row)
+    # Botão de término explícito para encerrar seleção sem depender de timeout/comando.
     buttons.append([InlineKeyboardButton("Concluir bairros", callback_data="nbd_done")])
     return InlineKeyboardMarkup(buttons)
 
