@@ -7,6 +7,7 @@ from typing import Sequence
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
+    # Permite executar este script diretamente sem instalar o pacote do projeto.
     sys.path.insert(0, str(ROOT))
 
 import config  # noqa: E402
@@ -19,6 +20,7 @@ timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 
 def run_query(conn, sql):
+    # Helper mínimo para consultas sem parâmetros usadas só neste script exploratório.
     return conn.execute(sql).fetchall()
 
 
@@ -29,12 +31,14 @@ def get_filtered_alerts(
     max_price: int,
     municipality: str = "Maceió",
 ):
+    # Se não há bairros-alvo, não há condição de matching para este relatório.
     if not neighbourhoods:
         return []
 
     if min_price > max_price:
         raise ValueError("min_price não pode ser maior que max_price")
 
+    # Placeholders dinâmicos evitam interpolar valores diretamente na SQL.
     placeholders = ", ".join(["?"] * len(neighbourhoods))
     sql = f"""
     SELECT *
@@ -55,6 +59,7 @@ def save_log(filename, rows, header):
         f.write(header + "\n")
         f.write("-" * 50 + "\n")
         for row in rows:
+            # Layout tabular simples para inspeção manual em arquivos .log.
             f.write(f"{row[0] or '(vazio)':<40} {row[1]:>6}\n")
     print(f"Salvo em {path}")
 
@@ -65,6 +70,7 @@ def save_listings_log(filename, listings, header):
         f.write(header + "\n")
         f.write("-" * 120 + "\n")
         for row in listings:
+            # Acesso por índice reflete ordem atual do schema da tabela `listings`.
             list_id = row[0]
             url = row[2] or "(sem url)"
             title = row[3] or "(sem titulo)"
@@ -143,6 +149,7 @@ nikson_alert_rows = get_filtered_alerts(
     max_price=nikson_alert_max_price,
 )
 
+# Snapshot rápido para comparar resultado da query com a expectativa do alerta.
 save_listings_log(
     f"alerta_nikson_{timestamp}.log",
     nikson_alert_rows,
