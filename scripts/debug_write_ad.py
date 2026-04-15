@@ -41,7 +41,7 @@ COLUMNS = [
 
 
 def load_ads_from_json() -> list[dict[str, Any]]:
-
+    # Aceita tanto um único objeto quanto lista de objetos para facilitar debug manual.
     raw = json.loads(JSON_PATH.read_text(encoding="utf-8"))
 
     if isinstance(raw, list):
@@ -54,15 +54,17 @@ def load_ads_from_json() -> list[dict[str, Any]]:
 
 
 def ad_to_listing(ad: dict[str, Any]) -> dict[str, Any] | None:
-
+    # `listId` é o identificador canônico da OLX no nosso schema.
+    # Sem ele não há como fazer upsert determinístico.
     if ad.get("listId") is None:
         return None
 
+    # Filtra apenas colunas persistidas na tabela `listings`.
     return {col: ad.get(col) for col in COLUMNS}
 
 
 def main() -> None:
-
+    # Logging local para script de suporte; mantém rastreabilidade de execuções.
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -87,6 +89,7 @@ def main() -> None:
     if not listings:
         raise SystemExit("Nenhuma linha válida para inserir (listId ausente)")
 
+    # Uma única transação para batch: commit ao fim ou rollback implícito em erro.
     conn = get_connection()
 
     try:
