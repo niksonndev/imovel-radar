@@ -62,12 +62,14 @@ def run_insert_batch(ads: list[dict[str, Any]]) -> tuple[int, int, int, int]:
     total_skipped = 0
     total_errors = 0
 
+    # Uma conexão para todo o lote: reduz overhead e mantém atomicidade do processo.
     conn = get_connection()
     try:
         try:
             for idx, ad in enumerate(ads, start=1):
                 list_id = ad.get("listId")
 
+                # Ignora anúncios sem ID primário para não gravar registro órfão/inconsistente.
                 if list_id is None:
                     total_skipped += 1
                     logger.info(
@@ -78,6 +80,7 @@ def run_insert_batch(ads: list[dict[str, Any]]) -> tuple[int, int, int, int]:
                     continue
 
                 try:
+                    # "Normaliza por seleção": só colunas conhecidas seguem para o upsert.
                     listing = {col: ad.get(col) for col in COLUMNS}
                     upsert_listing(conn, listing)
                     total_inserted += 1
@@ -89,6 +92,7 @@ def run_insert_batch(ads: list[dict[str, Any]]) -> tuple[int, int, int, int]:
                     )
                 except Exception:
                     total_errors += 1
+                    # Erro unitário não encerra o lote; contabilizamos e seguimos.
                     logger.exception(
                         "[%s/%s] Erro ao inserir listId=%s",
                         idx,
@@ -96,6 +100,7 @@ def run_insert_batch(ads: list[dict[str, Any]]) -> tuple[int, int, int, int]:
                         list_id,
                     )
         except Exception:
+            # Falha inesperada no loop inteiro: desfaz tudo para preservar consistência.
             conn.rollback()
             raise
         else:
@@ -112,6 +117,7 @@ def run_insert_batch(ads: list[dict[str, Any]]) -> tuple[int, int, int, int]:
 
 
 def deactivate_missing(scraped_ids: set[int]) -> int:
+    # Marca como inativos os listIds que estavam ativos no DB e sumiram no scrape atual.
     conn = get_connection()
     try:
         cur = conn.cursor()
@@ -126,6 +132,7 @@ def deactivate_missing(scraped_ids: set[int]) -> int:
             "UPDATE listings SET active = 0 WHERE listId = ?;",
             [(list_id,) for list_id in missing_ids],
         )
+        # Commit explícito para persistir atualização de status dos anúncios ausentes.
         conn.commit()
         return len(missing_ids)
     finally:
@@ -139,6 +146,7 @@ def main() -> None:
     create_tables()
 
     try:
+        # Mantemos entrypoint síncrono; asyncio.run cria/fecha loop só para esta execução.
         ads = asyncio.run(search_all_rent_maceio())
     except Exception:
         logger.exception("Falha ao buscar anúncios no OLX.")
