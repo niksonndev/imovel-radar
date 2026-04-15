@@ -25,6 +25,7 @@ OUT_PARSED = ROOT / "parsed_debug_ad.json"
 
 
 def _is_numeric_id(val: Any) -> bool:
+    # bool é subtipo de int em Python; filtramos para evitar True/False como IDs válidos.
     if val is None or isinstance(val, bool):
         return False
     if isinstance(val, int):
@@ -37,6 +38,7 @@ def _is_numeric_id(val: Any) -> bool:
 
 
 def _first_ad_object(obj: Any, depth: int = 0) -> dict | None:
+    # Limite defensivo evita recursão excessiva em payloads inesperadamente profundos.
     if depth > 30 or obj is None:
         return None
     if isinstance(obj, dict):
@@ -66,6 +68,7 @@ def main() -> None:
     html = r.text
 
     soup = BeautifulSoup(html, "lxml")
+    # OLX/Next.js serializa estado da página em __NEXT_DATA__; usamos isso como fonte primária.
     script = soup.find("script", id="__NEXT_DATA__")
     if not script or not script.string:
         raise SystemExit("Tag <script id=\"__NEXT_DATA__\"> não encontrada ou vazia")
@@ -75,11 +78,13 @@ def main() -> None:
     if ad is None:
         raise SystemExit("Nenhum objeto com listId ou adId numérico encontrado")
 
+    # Primeiro dump: payload cru encontrado no JSON de hidratação do front.
     formatted = json.dumps(ad, indent=2, ensure_ascii=False)
     print(formatted)
     OUT_JSON.write_text(formatted + "\n", encoding="utf-8")
     print(f"Salvo: {OUT_JSON}", flush=True)
 
+    # Segundo dump: payload transformado para o formato usado internamente no projeto.
     parsed = normalize_olx_listing(ad)
     parsed_text = json.dumps(parsed, indent=2, ensure_ascii=False)
     OUT_PARSED.write_text(parsed_text + "\n", encoding="utf-8")
