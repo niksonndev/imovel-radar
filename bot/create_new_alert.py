@@ -233,8 +233,6 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     conn = get_connection()
     try:
-        # Usa o ID interno da tabela local (PK) e não o ID bruto do Telegram.
-        # ensure_user também cria o usuário caso ainda não exista.
         internal_user_id = ensure_user(conn, user.id)
         alert_data = {
             "user_id": internal_user_id,
