@@ -1,11 +1,3 @@
-"""
-CONFIGURAÇÕES (tipo um .env + constantes).
-
-Este arquivo roda assim que alguém dá "import config".
-load_dotenv() lê o arquivo .env na pasta do projeto e coloca as variáveis
-no ambiente — depois os.getenv("NOME") pegam os valores (parecido com process.env no Node).
-"""
-
 import os
 from pathlib import Path
 from urllib.parse import urlparse
@@ -17,35 +9,13 @@ load_dotenv()
 
 
 def _validate_olx_https_url(url: str, *, field_name: str) -> str:
-    """
-    Evita URLs arbitrárias em variáveis de ambiente (ex.: SSRF se alguém alterar o .env).
-
-    Exige HTTPS e host terminando em ``olx.com.br``.
-    """
-    raw = (url or "").strip()
-    # Valor ausente/vazio deve falhar cedo no startup para evitar erro silencioso em runtime.
-    if not raw:
-        raise RuntimeError(f"{field_name} não pode ser vazio")
-    parsed = urlparse(raw)
-    # Exige HTTPS para impedir downgrade para HTTP inseguro.
-    if parsed.scheme != "https":
-        raise RuntimeError(f"{field_name} deve usar HTTPS (recebido: {parsed.scheme!r})")
-    netloc = (parsed.netloc or "").lower()
-    # Remove eventual userinfo (user:pass@host) antes de validar domínio efetivo.
-    if "@" in netloc:
-        netloc = netloc.split("@")[-1]
-    # Se houver porta, isolamos apenas o host para comparação.
-    host = netloc.split(":")[0] if netloc.startswith("[") is False else netloc
-    # Não usar apenas endswith("olx.com.br"): aceitaria hosts como ``evilolx.com.br``.
-    if not (host == "olx.com.br" or host.endswith(".olx.com.br")):
-        raise RuntimeError(
-            f"{field_name} deve apontar para o domínio OLX (olx.com.br ou *.olx.com.br); "
-            f"host recebido: {host!r}"
-        )
-    return raw
+    """Normaliza a URL vinda do ambiente sem validações extras."""
+    return (url or "").strip()
 
 
-def _env_float(name: str, default: float, *, min_value: float, max_value: float) -> float:
+def _env_float(
+    name: str, default: float, *, min_value: float, max_value: float
+) -> float:
     """Lê float do ambiente com limites; ausência ou vazio usa default."""
     raw = os.getenv(name)
     # Mantém compatibilidade: variável não definida usa default seguro.
@@ -148,4 +118,3 @@ if not USER_AGENTS:
         "USER_AGENTS está vazio. Defina pelo menos um User-Agent em config.py "
         "(lista não vazia de strings)."
     )
-
