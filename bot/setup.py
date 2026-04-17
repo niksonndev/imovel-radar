@@ -1,3 +1,12 @@
+"""
+Registra handlers no ``Application`` do python-telegram-bot.
+
+Define os comandos exibidos no menu do Telegram (``set_my_commands``), o fluxo
+``/novo_alerta`` (wizard em ``create_new_alert``) e o ``/start``. A ajuda por
+comando slash está em ``CommandHandler("menu_ajuda", ...)`` — o nome pode ficar
+desalinhado de ``BotCommand("ajuda", ...)`` abaixo; convém unificar depois.
+"""
+
 from telegram import BotCommand, Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
