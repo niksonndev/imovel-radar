@@ -1,7 +1,8 @@
 """
-TECLADOS do Telegram: botões que o usuário toca (inline) em vez de digitar.
+Teclados inline do Telegram para o menu principal e para o wizard de alerta.
 
-InlineKeyboardButton = um botão; callback_data = string que volta pro código quando clica.
+Cada botão usa ``callback_data`` (até 64 bytes) para o ``CallbackQueryHandler``
+associado — por isso bairros usam ``nbd_<índice>`` em vez do nome completo.
 """
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
