@@ -1,11 +1,17 @@
 """
-Carrossel de anúncios: exibe imóveis em mensagem interativa navegável.
+Carrossel de anúncios: primeira mensagem com foto (se houver) e teclado inline.
 
-Paginação em grupos de PAGE_SIZE (5). Navegação anúncio-a-anúncio dentro
-da página e salto entre páginas.
+Lê anúncios ativos do SQLite (tabela ``listings``), formata legenda (preço,
+quartos, área, bairro) e envia a primeira página. O estado da lista e do índice
+fica em ``user_data["carousel_<id>"]`` para eventual navegação por callbacks
+``crs_*`` (botões Anterior/Próximo/Página).
 
-send_carousel   — envia a primeira página e guarda estado em user_data
-immediate_seed  — seed imediato a partir do cache + carrossel
+Funções públicas:
+- ``send_carousel`` — envia a primeira página e persiste estado no ``user_data``.
+- ``immediate_seed`` — após criar alerta, mostra amostra do cache + mensagem de confirmação.
+
+Helpers como ``rooms_from_properties`` / ``area_m2_from_properties`` normalizam o
+JSON de ``properties`` vindo do scraper/DB.
 """
 
 from __future__ import annotations
