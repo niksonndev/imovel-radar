@@ -1,4 +1,10 @@
-"""Textos de tela e mensagens do bot (comandos, menus, wizard)."""
+"""
+Textos centralizados do bot: boas-vindas, wizard, seeds e mensagens de erro.
+
+Funções puras que retornam ``str`` (muitas em Markdown). Os handlers montam a
+resposta com ``parse_mode`` adequado; aqui só fica o conteúdo para facilitar
+ajuste de copy e tradução sem espalhar strings nos handlers.
+"""
 
 from __future__ import annotations
 
