@@ -1,4 +1,13 @@
-"""Wizard de criação de alerta (/novo_alerta)."""
+"""
+Wizard multi-etapas para criar um alerta de aluguel (comando ``/novo_alerta``).
+
+Estados da conversa (``ConversationHandler``): preço → bairros (multi-seleção
+inline) → nome do alerta → confirmação. Ao confirmar, grava usuário/alerta no
+SQLite via ``database`` e chama ``immediate_seed`` para enviar um carrossel com
+imóveis do cache local.
+
+Cancelamento: comando ``/cancelar`` (fallback do handler).
+"""
 
 from __future__ import annotations
 
@@ -26,6 +35,7 @@ from utils.pricing import format_brl
 
 logger = logging.getLogger(__name__)
 
+# Índices dos estados do ConversationHandler (ordem do fluxo do wizard).
 (
     PRICE,
     NEIGHBOURHOODS,
