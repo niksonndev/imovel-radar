@@ -44,7 +44,10 @@ _scheduler: BackgroundScheduler | None = None
 async def post_init(app: Application) -> None:
     global _scheduler
     create_tables()
-    _scheduler = start_scheduler()
+    # Captura o event loop do PTB para o scheduler despachar coroutines
+    # (envio via Bot API) a partir da thread do BackgroundScheduler.
+    loop = asyncio.get_running_loop()
+    _scheduler = start_scheduler(app, loop)
     logger.info("Bot iniciado.")
 
 
