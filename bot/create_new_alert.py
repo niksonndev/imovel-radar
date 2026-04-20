@@ -3,8 +3,8 @@ Wizard multi-etapas para criar um alerta de aluguel (comando ``/novo_alerta``).
 
 Estados da conversa (``ConversationHandler``): preço → bairros (multi-seleção
 inline) → nome do alerta → confirmação. Ao confirmar, grava usuário/alerta no
-SQLite via ``database`` e chama ``immediate_seed`` para enviar um carrossel com
-imóveis do cache local.
+SQLite via ``database`` e chama ``bot.alert_matching.seed_alert_carousel`` para
+enviar um carrossel com imóveis do cache local que já casam com o alerta.
 
 Cancelamento: comando ``/cancelar`` (fallback do handler).
 """
@@ -27,7 +27,7 @@ from telegram.ext import (
     filters,
 )
 
-from bot.carousel import immediate_seed
+from bot.alert_matching import seed_alert_carousel
 from bot.ui import keyboards, menus
 from database import create_new_alert, ensure_user, get_connection
 from database.queries import get_maceio_neighbourhoods
@@ -266,7 +266,7 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         conn.close()
 
     await query.message.reply_text("⏳ Procurando imóveis que combinam com seu alerta…")
-    await immediate_seed(
+    await seed_alert_carousel(
         context.application,
         alert_id,
         user.id,
