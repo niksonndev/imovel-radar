@@ -29,22 +29,12 @@ from telegram.ext import Application
 
 from bot.ui import keyboards, menus
 from database import get_connection
-from utils.pricing import format_brl, price_value_to_float
+from utils.pricing import format_brl
 
 logger = logging.getLogger(__name__)
 
 PAGE_SIZE = 10
 MAX_NOTIF_CAROUSEL = 10
-
-
-def _ad_price_caption(ad: dict) -> str:
-    pv = ad.get("priceValue")
-    if isinstance(pv, str) and pv.strip():
-        return pv.strip()
-    p = ad.get("price")
-    if p is not None:
-        return format_brl(float(p))
-    return format_brl(price_value_to_float(pv))
 
 
 def _page_info(index: int, total: int) -> tuple[int, int, int, int]:
@@ -59,7 +49,7 @@ def _page_info(index: int, total: int) -> tuple[int, int, int, int]:
 
 def _carousel_caption(ad: dict, index: int, total: int) -> str:
     title = ad.get("title") or "Imóvel"
-    price = _ad_price_caption(ad)
+    price = format_brl(ad.get("priceValue"))
     bedrooms = ad.get("bedrooms")
     if bedrooms is None:
         bedrooms = rooms_from_properties(ad.get("properties"))

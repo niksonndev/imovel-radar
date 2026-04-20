@@ -10,7 +10,7 @@ import re
 from typing import Any
 
 import config
-from utils.pricing import money_to_cents
+from utils.pricing import money_to_int
 
 __all__ = ["normalize_olx_listing"]
 
@@ -125,14 +125,14 @@ def normalize_olx_listing(raw: dict) -> dict[str, Any]:
     title_raw = raw.get("title") or raw.get("subject") or ""
     title = str(title_raw)[:500] if title_raw else ""
 
-    # 3) preços em centavos (int)
+    # 3) preços em reais inteiros (int)
     price_value = raw.get("priceValue")
     if price_value is None and raw.get("price") is not None:
         price_value = raw.get("price")
-    price_value = money_to_cents(price_value)
+    price_value = money_to_int(price_value)
 
     old_price = raw.get("oldPrice")
-    old_price = money_to_cents(old_price)
+    old_price = money_to_int(old_price)
 
     # 4) localização (strings)
     loc = raw.get("locationDetails") or {}
@@ -155,7 +155,7 @@ def normalize_olx_listing(raw: dict) -> dict[str, Any]:
             name_l = name_norm.lower()
 
             if name_l in {"condominio", "iptu"}:
-                normalized_value = money_to_cents(value)
+                normalized_value = money_to_int(value)
             elif name_l == "size":
                 normalized_value = _parse_size_m2_to_int(value)
             elif name_l in {"rooms", "bathrooms", "garage_spaces"}:
