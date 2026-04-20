@@ -1,17 +1,20 @@
 """
-Carrossel de anúncios: primeira mensagem com foto (se houver) e teclado inline.
+Carrossel de anúncios: camada de apresentação pura.
 
-Lê anúncios ativos do SQLite (tabela ``listings``), formata legenda (preço,
-quartos, área, bairro) e envia a primeira página. O estado da lista e do índice
-fica em ``user_data["carousel_<id>"]`` para eventual navegação por callbacks
-``crs_*`` (botões Anterior/Próximo/Página).
+Recebe uma ``list[dict]`` já pronta (preparada por ``bot.alert_matching`` ou
+por outro orquestrador) e renderiza no Telegram como uma sequência paginada
+de mensagens com foto (quando disponível) e teclado inline.
 
-Funções públicas:
-- ``send_carousel`` — envia a primeira página e persiste estado no ``user_data``.
-- ``immediate_seed`` — após criar alerta, mostra amostra do cache + mensagem de confirmação.
+Este módulo **não** acessa o banco de dados; a responsabilidade de buscar
+e normalizar os anúncios é de quem chama ``send_carousel``.
 
-Helpers como ``rooms_from_properties`` / ``area_m2_from_properties`` normalizam o
-JSON de ``properties`` vindo do scraper/DB.
+Funções/objetos públicos:
+- ``send_carousel`` — envia a primeira página e grava o estado em ``user_data``.
+- ``carousel_nav_cb`` — handler dos botões ``crs_<id>_<action>``.
+- ``register_handlers`` — registra ``carousel_nav_cb`` no ``Application``.
+
+Helpers como ``rooms_from_properties`` / ``area_m2_from_properties``
+normalizam o JSON de ``properties`` vindo do banco sob demanda.
 """
 
 from __future__ import annotations
@@ -24,17 +27,28 @@ from telegram import (
     Bot,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    InputMediaPhoto,
+    Update,
 )
-from telegram.ext import Application
+from telegram.error import BadRequest, TelegramError
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    ContextTypes,
+)
 
-from bot.ui import keyboards, menus
-from database import get_connection
 from utils.pricing import format_brl
 
 logger = logging.getLogger(__name__)
 
 PAGE_SIZE = 10
 MAX_NOTIF_CAROUSEL = 10
+MAX_TITLE_LEN = 80
+CAROUSEL_CALLBACK_PREFIX = "crs_"
+_NAV_ACTIONS = frozenset({"next", "prev", "pgn", "pgp"})
+
+
+# ────────────────────── helpers de paginação/legenda ──────────────────────
 
 
 def _page_info(index: int, total: int) -> tuple[int, int, int, int]:
@@ -47,8 +61,22 @@ def _page_info(index: int, total: int) -> tuple[int, int, int, int]:
     return page, total_pages, idx_in_page, items_on_page
 
 
+def _transaction_label(ad: dict) -> str:
+    """Deriva o rótulo (Aluguel/Venda) a partir de ``category`` do anúncio."""
+    category = (ad.get("category") or "").lower()
+    if "sale" in category or "venda" in category:
+        return "Venda"
+    return "Aluguel"
+
+
+def _truncate(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 1)].rstrip() + "…"
+
+
 def _carousel_caption(ad: dict, index: int, total: int) -> str:
-    title = ad.get("title") or "Imóvel"
+    title = _truncate(ad.get("title") or "Imóvel", MAX_TITLE_LEN)
     price = format_brl(ad.get("priceValue"))
     bedrooms = ad.get("bedrooms")
     if bedrooms is None:
@@ -59,7 +87,7 @@ def _carousel_caption(ad: dict, index: int, total: int) -> str:
         area = area_m2_from_properties(ad.get("properties"))
     area_s = f"{area:g}m²" if area else "—"
     neighborhood = ad.get("neighbourhood") or ad.get("neighborhood") or "—"
-    tr_label = "Aluguel"
+    tr_label = _transaction_label(ad)
 
     page, total_pages, idx_in_page, items_on_page = _page_info(index, total)
     counter = (
@@ -103,23 +131,19 @@ def _carousel_keyboard(
             )
         )
 
-    link_row = [
-        InlineKeyboardButton("🔗 Ver anúncio", url=url or "https://www.olx.com.br")
-    ]
-
     rows: list[list[InlineKeyboardButton]] = []
     if nav_row:
         rows.append(nav_row)
     if page_row:
         rows.append(page_row)
-    rows.append(link_row)
+    # Só oferece o link quando o anúncio realmente tem URL válida;
+    # evita mandar o usuário para a home da OLX por engano.
+    if isinstance(url, str) and url.startswith("http"):
+        rows.append([InlineKeyboardButton("🔗 Ver anúncio", url=url)])
     return InlineKeyboardMarkup(rows)
 
 
 def _carousel_photo_url(ad: dict) -> str | None:
-    t = ad.get("thumbnail")
-    if isinstance(t, str) and t.startswith("http"):
-        return t
     imgs = ad.get("images")
     if isinstance(imgs, list) and imgs:
         u = imgs[0]
@@ -134,6 +158,9 @@ def _carousel_photo_url(ad: dict) -> str | None:
 
 def _has_photo(ad: dict) -> bool:
     return _carousel_photo_url(ad) is not None
+
+
+# ────────────────────── normalização de ``properties`` ──────────────────────
 
 
 def _properties_to_dict(props: object) -> dict[str, object]:
@@ -183,43 +210,7 @@ def area_m2_from_properties(props: object) -> float | None:
     return None
 
 
-def _load_active_listings_from_db(limit: int = 300) -> list[dict]:
-    """Carrega anúncios ativos do cache local (SQLite)."""
-    conn = get_connection()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT listId, url, title, priceValue, oldPrice, municipality,
-                   neighbourhood, category, images, properties
-            FROM listings
-            WHERE active = 1
-            ORDER BY listId DESC
-            LIMIT ?;
-            """,
-            (limit,),
-        )
-        rows = cur.fetchall()
-    finally:
-        conn.close()
-
-    listings: list[dict] = []
-    for row in rows:
-        ad = dict(row)
-        images = ad.get("images")
-        if isinstance(images, str) and images.strip():
-            try:
-                parsed = json.loads(images)
-                ad["images"] = parsed if isinstance(parsed, list) else []
-            except Exception:
-                ad["images"] = []
-        else:
-            ad["images"] = []
-        listings.append(ad)
-    return listings
-
-
-# ────────────────────── enviar carrossel (reutilizável) ──────────────────────
+# ────────────────────── enviar carrossel ──────────────────────
 
 
 async def send_carousel(
@@ -249,7 +240,10 @@ async def send_carousel(
                 reply_markup=keyboard,
             )
             is_photo = True
-        except Exception:
+        except TelegramError as e:
+            logger.warning(
+                "send_photo falhou para %s (%s); caindo para texto.", carousel_id, e
+            )
             await bot.send_message(chat_id=chat_id, text=caption, reply_markup=keyboard)
     else:
         await bot.send_message(chat_id=chat_id, text=caption, reply_markup=keyboard)
@@ -262,44 +256,133 @@ async def send_carousel(
     }
 
 
-# ────────────────────── seed imediato ──────────────────────
+# ────────────────────── navegação por callback ──────────────────────
 
 
-async def immediate_seed(
-    app: Application,
-    alert_id: int,
-    tg_id: int,
-    user_data: dict[str, object],
+def _parse_nav_callback(data: str) -> tuple[str, str] | None:
+    """Extrai (carousel_id, action) de ``crs_<id>_<action>``.
+
+    Usa ``rpartition`` porque ``carousel_id`` pode conter ``_`` no futuro.
+    """
+    if not data.startswith(CAROUSEL_CALLBACK_PREFIX):
+        return None
+    rest = data[len(CAROUSEL_CALLBACK_PREFIX) :]
+    carousel_id, sep, action = rest.rpartition("_")
+    if not sep or not carousel_id or action not in _NAV_ACTIONS:
+        return None
+    return carousel_id, action
+
+
+def _next_index(index: int, action: str, total: int) -> int:
+    page = index // PAGE_SIZE
+    if action == "next":
+        return min(index + 1, total - 1)
+    if action == "prev":
+        return max(index - 1, 0)
+    if action == "pgn":
+        return min((page + 1) * PAGE_SIZE, total - 1)
+    if action == "pgp":
+        return max((page - 1) * PAGE_SIZE, 0)
+    return index
+
+
+async def _render_carousel_update(
+    query,
+    context: ContextTypes.DEFAULT_TYPE,
+    carousel_id: str,
+    state: dict,
 ) -> None:
-    """Seed imediato usando cache diário no banco + carrossel."""
-    bot = app.bot
+    ads: list[dict] = state["listings"]
+    total = len(ads)
+    index: int = state["index"]
+    ad = ads[index]
+    caption = _carousel_caption(ad, index, total)
+    keyboard = _carousel_keyboard(carousel_id, index, total, ad.get("url"))
+    was_photo: bool = bool(state.get("is_photo"))
+    photo_url = _carousel_photo_url(ad)
 
     try:
-        listings = _load_active_listings_from_db()
-    except Exception:
-        logger.exception(
-            "Seed imediato via cache local falhou para alerta %s", alert_id
-        )
-        try:
-            await bot.send_message(
-                chat_id=tg_id,
-                text=menus.seed_sem_cache(),
+        if was_photo and photo_url:
+            await query.edit_message_media(
+                media=InputMediaPhoto(media=photo_url, caption=caption),
+                reply_markup=keyboard,
             )
-        except Exception:
-            pass
-        return
+            state["is_photo"] = True
+        elif not was_photo and not photo_url:
+            await query.edit_message_text(text=caption, reply_markup=keyboard)
+            state["is_photo"] = False
+        else:
+            # Muda o tipo de mídia (texto↔foto): Telegram não permite editar
+            # entre tipos diferentes, então apaga e reenvia.
+            chat_id = query.message.chat_id
+            try:
+                await query.message.delete()
+            except TelegramError:
+                logger.debug(
+                    "Não foi possível apagar mensagem do carrossel %s", carousel_id
+                )
+            if photo_url:
+                await context.bot.send_photo(
+                    chat_id=chat_id,
+                    photo=photo_url,
+                    caption=caption,
+                    reply_markup=keyboard,
+                )
+                state["is_photo"] = True
+            else:
+                await context.bot.send_message(
+                    chat_id=chat_id, text=caption, reply_markup=keyboard
+                )
+                state["is_photo"] = False
+    except BadRequest as e:
+        # Principal caso: "message is not modified" quando o conteúdo não mudou.
+        logger.debug("Carrossel %s sem alteração: %s", carousel_id, e)
+    except TelegramError:
+        logger.exception("Erro ao renderizar carrossel %s", carousel_id)
 
-    if not listings:
-        await bot.send_message(
-            chat_id=tg_id,
-            text=menus.seed_nenhum_imovel(),
-            reply_markup=keyboards.main_menu_keyboard(),
+
+async def carousel_nav_cb(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Handler para os botões Anterior/Próximo/Páginas do carrossel."""
+    query = update.callback_query
+    if query is None:
+        return
+    parsed = _parse_nav_callback(query.data or "")
+    if parsed is None:
+        await query.answer()
+        return
+    carousel_id, action = parsed
+
+    state = (
+        context.user_data.get(f"carousel_{carousel_id}")
+        if context.user_data
+        else None
+    )
+    if not isinstance(state, dict) or not state.get("listings"):
+        await query.answer(
+            "Carrossel expirado. Crie um novo alerta para ver os imóveis.",
+            show_alert=False,
         )
         return
 
-    await send_carousel(bot, tg_id, listings, str(alert_id), user_data)
-    await bot.send_message(
-        chat_id=tg_id,
-        text=menus.seed_alert_created(),
-        reply_markup=keyboards.main_menu_keyboard(),
+    total = len(state["listings"])
+    current: int = int(state.get("index", 0))
+    new_index = _next_index(current, action, total)
+    if new_index == current:
+        await query.answer()
+        return
+
+    state["index"] = new_index
+    await query.answer()
+    await _render_carousel_update(query, context, carousel_id, state)
+
+
+def register_handlers(app: Application) -> None:
+    """Registra o ``CallbackQueryHandler`` de navegação do carrossel."""
+    app.add_handler(
+        CallbackQueryHandler(
+            carousel_nav_cb,
+            pattern=r"^crs_[^_]+_(?:next|prev|pgn|pgp)$",
+        )
     )
