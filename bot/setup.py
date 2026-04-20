@@ -11,6 +11,7 @@ from telegram import BotCommand, Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
 
+from bot.carousel import register_handlers as register_carousel_handlers
 from bot.create_new_alert import new_alert_conversation
 from bot.ui import keyboards, menus
 
@@ -48,3 +49,4 @@ def setup(app: Application) -> None:
     app.add_handler(new_alert_conversation())
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("menu_ajuda", help_cmd))
+    register_carousel_handlers(app)

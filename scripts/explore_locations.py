@@ -3,7 +3,6 @@ import sqlite3
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Sequence
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -11,6 +10,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import config  # noqa: E402
+from database.queries import get_filtered_listings  # noqa: E402
 
 LOGS_DIR = "logs"
 
@@ -22,35 +22,6 @@ timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 def run_query(conn, sql):
     # Helper mínimo para consultas sem parâmetros usadas só neste script exploratório.
     return conn.execute(sql).fetchall()
-
-
-def get_filtered_alerts(
-    conn: sqlite3.Connection,
-    neighbourhoods: Sequence[str],
-    min_price: int,
-    max_price: int,
-    municipality: str = "Maceió",
-):
-    # Se não há bairros-alvo, não há condição de matching para este relatório.
-    if not neighbourhoods:
-        return []
-
-    if min_price > max_price:
-        raise ValueError("min_price não pode ser maior que max_price")
-
-    # Placeholders dinâmicos evitam interpolar valores diretamente na SQL.
-    placeholders = ", ".join(["?"] * len(neighbourhoods))
-    sql = f"""
-    SELECT *
-    FROM listings
-    WHERE municipality = ?
-      AND neighbourhood IN ({placeholders})
-      AND priceValue BETWEEN ? AND ?
-      AND active = 1
-    ORDER BY updated_at DESC
-"""
-    params = [municipality, *neighbourhoods, min_price, max_price]
-    return conn.execute(sql, params).fetchall()
 
 
 def save_log(filename, rows, header):
@@ -70,12 +41,14 @@ def save_listings_log(filename, listings, header):
         f.write(header + "\n")
         f.write("-" * 120 + "\n")
         for row in listings:
-            # Acesso por índice reflete ordem atual do schema da tabela `listings`.
-            list_id = row[0]
-            url = row[2] or "(sem url)"
-            title = row[3] or "(sem titulo)"
-            price_value = row[4] if row[4] is not None else "(sem preco)"
-            neighbourhood = row[7] or "(sem bairro)"
+            # Acesso por nome é robusto a mudanças na ordem das colunas.
+            list_id = row["listId"]
+            url = row["url"] or "(sem url)"
+            title = row["title"] or "(sem titulo)"
+            price_value = (
+                row["priceValue"] if row["priceValue"] is not None else "(sem preco)"
+            )
+            neighbourhood = row["neighbourhood"] or "(sem bairro)"
             f.write(
                 f"listId={list_id} | priceValue={price_value} | "
                 f"neighbourhood={neighbourhood} | title={title} | url={url}\n"
@@ -84,6 +57,7 @@ def save_listings_log(filename, listings, header):
 
 
 conn = sqlite3.connect(config.DB_PATH)
+conn.row_factory = sqlite3.Row
 
 # --- Neighbourhoods ---
 neighbourhood_rows = run_query(
@@ -138,15 +112,25 @@ save_log(
 )
 
 # --- Query tipo alerta do nikson: Antares, Mangabeiras, Benedito Bentes | R$ 140k–200k ---
-nikson_alert_neighbourhoods = ["Antares", "Mangabeiras", "Benedito Bentes"]
-nikson_alert_min_price = 140000
-nikson_alert_max_price = 200000
+nikson_alert_neighbourhoods = [
+    "Antares",
+    "Serraria",
+    "Farol",
+    "Feitosa",
+    "Gruta de Lourdes",
+]
+nikson_alert_min_price = 1000
+nikson_alert_max_price = 1800
 
-nikson_alert_rows = get_filtered_alerts(
+# Usa a função canônica do projeto para garantir que o script avalie
+# exatamente o mesmo matching que o bot faz no runtime.
+nikson_alert_rows = get_filtered_listings(
     conn,
-    neighbourhoods=nikson_alert_neighbourhoods,
     min_price=nikson_alert_min_price,
     max_price=nikson_alert_max_price,
+    neighbourhoods=nikson_alert_neighbourhoods,
+    municipality="Maceió",
+    only_active=True,
 )
 
 # Snapshot rápido para comparar resultado da query com a expectativa do alerta.
