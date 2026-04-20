@@ -270,7 +270,6 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         context.application,
         alert_id,
         user.id,
-        context.user_data,
     )
     return ConversationHandler.END
 

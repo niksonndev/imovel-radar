@@ -8,9 +8,15 @@ de mensagens com foto (quando disponível) e teclado inline.
 Este módulo **não** acessa o banco de dados; a responsabilidade de buscar
 e normalizar os anúncios é de quem chama ``send_carousel``.
 
+Estado do carrossel fica em um dict passado pelo caller (``state_store``):
+tipicamente ``app.bot_data`` para que o handler de navegação consiga ler o
+mesmo estado mesmo quando o carrossel é disparado fora de um update de
+usuário (ex.: job de notificação do scheduler).
+
 Funções/objetos públicos:
-- ``send_carousel`` — envia a primeira página e grava o estado em ``user_data``.
-- ``carousel_nav_cb`` — handler dos botões ``crs_<id>_<action>``.
+- ``send_carousel`` — envia a primeira página e grava o estado em ``state_store``.
+- ``carousel_nav_cb`` — handler dos botões ``crs_<id>_<action>``; lê estado
+  de ``context.application.bot_data``.
 - ``register_handlers`` — registra ``carousel_nav_cb`` no ``Application``.
 
 Helpers como ``rooms_from_properties`` / ``area_m2_from_properties``
@@ -213,14 +219,24 @@ def area_m2_from_properties(props: object) -> float | None:
 # ────────────────────── enviar carrossel ──────────────────────
 
 
+def _state_key(carousel_id: str) -> str:
+    return f"carousel_{carousel_id}"
+
+
 async def send_carousel(
     bot: Bot,
     chat_id: int,
     ads: list[dict],
     carousel_id: str,
-    user_data: dict[str, object],
+    state_store: dict[str, object],
 ) -> None:
-    """Envia a primeira página do carrossel e armazena estado em *user_data*."""
+    """Envia a primeira página do carrossel e grava o estado em *state_store*.
+
+    *state_store* deve ser o mesmo dict lido pelo handler de navegação —
+    normalmente ``app.bot_data``. O ``carousel_id`` deve ser **globalmente
+    único** (ex.: ``str(alert_id)`` para o seed, ``f"{alert_id}n"`` para
+    notificação recorrente), já que a chave ``carousel_<id>`` é compartilhada.
+    """
     if not ads:
         return
 
@@ -248,7 +264,8 @@ async def send_carousel(
     else:
         await bot.send_message(chat_id=chat_id, text=caption, reply_markup=keyboard)
 
-    user_data[f"carousel_{carousel_id}"] = {
+    state_store[_state_key(carousel_id)] = {
+        "chat_id": chat_id,
         "listings": ads,
         "index": 0,
         "page_size": PAGE_SIZE,
@@ -344,7 +361,12 @@ async def _render_carousel_update(
 async def carousel_nav_cb(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
-    """Handler para os botões Anterior/Próximo/Páginas do carrossel."""
+    """Handler para os botões Anterior/Próximo/Páginas do carrossel.
+
+    Lê o estado de ``context.application.bot_data`` (onde ``send_carousel``
+    gravou). Isso permite que tanto carrosséis do wizard quanto os disparados
+    pelo scheduler compartilhem o mesmo fluxo de navegação.
+    """
     query = update.callback_query
     if query is None:
         return
@@ -354,11 +376,8 @@ async def carousel_nav_cb(
         return
     carousel_id, action = parsed
 
-    state = (
-        context.user_data.get(f"carousel_{carousel_id}")
-        if context.user_data
-        else None
-    )
+    bot_data = context.application.bot_data
+    state = bot_data.get(_state_key(carousel_id)) if bot_data is not None else None
     if not isinstance(state, dict) or not state.get("listings"):
         await query.answer(
             "Carrossel expirado. Crie um novo alerta para ver os imóveis.",

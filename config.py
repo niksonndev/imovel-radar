@@ -23,7 +23,7 @@ SCRAPER_DELAY_MIN = float(os.getenv("SCRAPER_DELAY_MIN", "2.0"))
 SCRAPER_DELAY_MAX = float(os.getenv("SCRAPER_DELAY_MAX", "5.0"))
 
 # Coleta agendada (cron diário no fuso abaixo — alinha dev local e servidor UTC)
-SCRAPE_CRON_HOUR = int(os.getenv("SCRAPE_CRON_HOUR", "5"))
+SCRAPE_CRON_HOUR = int(os.getenv("SCRAPE_CRON_HOUR", "8"))
 SCRAPE_CRON_MINUTE = int(os.getenv("SCRAPE_CRON_MINUTE", "0"))
 SCRAPE_TIMEZONE_NAME = os.getenv("SCRAPE_TIMEZONE", "America/Maceio").strip()
 if not SCRAPE_TIMEZONE_NAME:
