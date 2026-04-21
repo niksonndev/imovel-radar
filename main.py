@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from telegram.ext import Application
 
 import config
-from bot.setup import setup
+from bot.setup import apply_bot_commands, setup
 from database import create_tables
 from scheduler.jobs import run_initial_scrape
 from scheduler.setup import start_scheduler
@@ -44,6 +44,9 @@ _scheduler: BackgroundScheduler | None = None
 # O python-telegram-bot chama isso depois que o app está pronto.
 async def post_init(app: Application) -> None:
     global _scheduler
+
+    await apply_bot_commands(app)
+
     # Checagem tem que vir ANTES de create_tables(): sqlite3.connect cria o
     # arquivo automaticamente, então depois dele DB_PATH.exists() é sempre True.
     db_was_missing = not config.DB_PATH.exists()

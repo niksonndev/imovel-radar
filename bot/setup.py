@@ -41,12 +41,15 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 def setup(app: Application) -> None:
-    async def _post_init(application: Application) -> None:
-        await application.bot.set_my_commands(BOT_COMMANDS)
-
-    app.post_init = _post_init
-
+    # Importante: NÃO sobrescrever ``app.post_init`` aqui. O ``main.py`` é quem
+    # registra o hook de startup (scrape inicial + scheduler); a publicação dos
+    # comandos no Telegram é feita lá também, chamando ``apply_bot_commands``.
     app.add_handler(new_alert_conversation())
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("menu_ajuda", help_cmd))
     register_carousel_handlers(app)
+
+
+async def apply_bot_commands(app: Application) -> None:
+    """Publica os comandos do bot no menu do Telegram (``set_my_commands``)."""
+    await app.bot.set_my_commands(BOT_COMMANDS)
