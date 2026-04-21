@@ -15,6 +15,7 @@ from telegram.ext import Application
 import config
 from bot.setup import setup
 from database import create_tables
+from scheduler.jobs import run_initial_scrape
 from scheduler.setup import start_scheduler
 
 if TYPE_CHECKING:
@@ -43,7 +44,22 @@ _scheduler: BackgroundScheduler | None = None
 # O python-telegram-bot chama isso depois que o app está pronto.
 async def post_init(app: Application) -> None:
     global _scheduler
+    # Checagem tem que vir ANTES de create_tables(): sqlite3.connect cria o
+    # arquivo automaticamente, então depois dele DB_PATH.exists() é sempre True.
+    db_was_missing = not config.DB_PATH.exists()
     create_tables()
+
+    if db_was_missing:
+        logger.info("imoveis.db não encontrado — rodando scrape inicial antes de iniciar o bot")
+        # Scrape bloqueia (rede + SQLite); roda em thread para não travar o loop
+        # do PTB. O polling só começa quando post_init retorna, então na primeira
+        # subida o bot só responde depois que a base está populada.
+        ok = await asyncio.to_thread(run_initial_scrape)
+        if not ok:
+            logger.warning(
+                "Scrape inicial falhou; scheduler seguirá e tentará novamente no próximo cron"
+            )
+
     # Captura o event loop do PTB para o scheduler despachar coroutines
     # (envio via Bot API) a partir da thread do BackgroundScheduler.
     loop = asyncio.get_running_loop()

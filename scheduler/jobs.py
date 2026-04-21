@@ -53,6 +53,18 @@ def job_full_scrape() -> None:
     _do_full_scrape()
 
 
+def run_initial_scrape() -> bool:
+    """Scrape inicial executado no bootstrap quando o DB ainda não existe.
+
+    Usado em deploys novos (ex.: subida na Oracle) para popular o ``imoveis.db``
+    antes do primeiro disparo do cron diário. Não envia notificações — numa base
+    recém-criada não há alertas cadastrados, então qualquer notificação seria
+    ruído.
+    """
+    logger.info("Scrape inicial: base recém-criada, populando do zero")
+    return _do_full_scrape()
+
+
 def job_daily(app: Application, loop: asyncio.AbstractEventLoop) -> None:
     """Job diário: full scrape + notificação dos novos matches por alerta.
 
