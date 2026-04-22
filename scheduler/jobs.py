@@ -23,6 +23,8 @@ from database.queries import upsert_listing
 
 logger = logging.getLogger(__name__)
 
+# Limite para a fase assíncrona (Telegram): evita o job do scheduler ficar pendurado para sempre
+# se a rede ou a API travarem; o PTB continua na thread principal com seu próprio loop.
 _NOTIFY_TIMEOUT_SECONDS = 600
 
 
@@ -33,6 +35,7 @@ def _do_full_scrape() -> bool:
         listings = scraper.coletar()
         conn = get_connection()
         try:
+            # Um único commit no fim: ou grava o lote inteiro ou nada (evita DB “pela metade”).
             for listing in listings:
                 upsert_listing(conn, listing)
             conn.commit()
@@ -77,6 +80,7 @@ def job_daily(app: Application, loop: asyncio.AbstractEventLoop) -> None:
         return
 
     try:
+        # notify_* é async e precisa do loop do PTB; run_coroutine_threadsafe “ponteia” thread do cron → thread do bot.
         fut = asyncio.run_coroutine_threadsafe(
             notify_new_matches_all_alerts(app), loop
         )
