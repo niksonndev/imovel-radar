@@ -1,3 +1,10 @@
+"""Configuração do BackgroundScheduler e registro do job diário (cron).
+
+Usamos ``BackgroundScheduler`` para o agendamento rodar numa thread separada:
+o bot do python-telegram-bot mantém o próprio event loop na thread principal;
+jobs em cron não bloqueiam o polling nem o processamento de updates.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -22,6 +29,7 @@ def start_scheduler(
     ``asyncio.get_running_loop()``) — o job usa esse loop para despachar as
     chamadas assíncronas do Bot API.
     """
+    # Fuso IANA vem do config (.env) para o horário do cron bater com o esperado localmente.
     scheduler = BackgroundScheduler(timezone=config.SCRAPE_TIMEZONE)
     scheduler.add_job(
         job_daily,
@@ -33,7 +41,9 @@ def start_scheduler(
         # Tolera pequenos atrasos (ex.: máquina hibernou um instante) sem
         # descartar a execução; mantém reprodutibilidade do horário diário.
         misfire_grace_time=300,
+        # Várias execuções “atrasadas” viram uma só — evita rajada de scrapes/notificações.
         coalesce=True,
+        # O job roda na thread do scheduler; app + loop do PTB permitem despachar coroutines na thread do bot.
         args=(app, loop),
     )
     scheduler.start()
