@@ -19,6 +19,30 @@ def menu_principal_inline() -> str:
     return "🏠 *Menu principal*\nEscolha uma opção:"
 
 
+def ajuda_comandos_plain() -> str:
+    return (
+        "Comandos\n"
+        "/start — boas-vindas e menu principal\n"
+        "/novo_alerta — criar alerta de aluguel\n"
+        "/ajuda — esta mensagem"
+    )
+
+
+def menu_meus_alertas() -> str:
+    return (
+        "📋 *Meus Alertas*\n\n"
+        "Em breve você poderá listar e gerenciar seus alertas por aqui."
+    )
+
+
+def menu_watchlist() -> str:
+    return "👀 *Watchlist*\n\nEsta área ainda está em construção."
+
+
+def menu_status() -> str:
+    return "📊 *Status*\n\nEsta área ainda está em construção."
+
+
 # —— Wizard novo alerta ——
 
 
