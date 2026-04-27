@@ -2,9 +2,9 @@
 Registra handlers no ``Application`` do python-telegram-bot.
 
 Define os comandos exibidos no menu do Telegram (``set_my_commands``), o fluxo
-``/novo_alerta`` (wizard em ``create_new_alert``) e o ``/start``. A ajuda por
-comando slash está em ``CommandHandler("menu_ajuda", ...)`` — o nome pode ficar
-desalinhado de ``BotCommand("ajuda", ...)`` abaixo; convém unificar depois.
+``/novo_alerta`` (wizard em ``create_new_alert``), os comandos ``/start`` e
+``/ajuda`` e o roteamento dos botões inline do menu principal (``menu_*``).
+Os textos de UI ficam centralizados em ``bot.ui.menus``.
 """
 
 from telegram import BotCommand, Update
@@ -37,11 +37,7 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "*Comandos*\n"
-        "/start — boas-vindas e menu principal\n"
-        "/novo_alerta — criar alerta de aluguel\n"
-        "/ajuda — esta mensagem",
-        parse_mode=ParseMode.MARKDOWN,
+        menus.ajuda_comandos_plain(),
         reply_markup=keyboards.main_menu_keyboard(),
     )
 
@@ -54,25 +50,10 @@ async def main_menu_callback(
     await query.answer()
 
     handlers: dict[str, tuple[str, bool]] = {
-        "menu_meus_alertas": (
-            "📋 *Meus Alertas*\n\nEm breve você poderá listar e gerenciar seus alertas por aqui.",
-            True,
-        ),
-        "menu_watchlist": (
-            "👀 *Watchlist*\n\nEsta área ainda está em construção.",
-            True,
-        ),
-        "menu_status": (
-            "📊 *Status*\n\nEsta área ainda está em construção.",
-            True,
-        ),
-        "menu_ajuda": (
-            "*Comandos*\n"
-            "/start — boas-vindas e menu principal\n"
-            "/novo_alerta — criar alerta de aluguel\n"
-            "/ajuda — esta mensagem",
-            True,
-        ),
+        "menu_meus_alertas": (menus.menu_meus_alertas(), True),
+        "menu_watchlist": (menus.menu_watchlist(), True),
+        "menu_status": (menus.menu_status(), True),
+        "menu_ajuda": (menus.ajuda_comandos_plain(), False),
     }
     text, markdown = handlers.get(
         query.data or "",
@@ -86,9 +67,6 @@ async def main_menu_callback(
 
 
 def setup(app: Application) -> None:
-    # Importante: NÃO sobrescrever ``app.post_init`` aqui. O ``main.py`` é quem
-    # registra o hook de startup (scrape inicial + scheduler); a publicação dos
-    # comandos no Telegram é feita lá também, chamando ``apply_bot_commands``.
     app.add_handler(new_alert_conversation())
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("ajuda", help_cmd))
