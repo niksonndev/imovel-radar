@@ -44,18 +44,11 @@ cron → main.py → scraper.coletar() → database.upsert_listing()
 
 ## Comandos do bot
 
-| Comando           | Descrição                                     | Status |
-| ----------------- | --------------------------------------------- | ------ |
-| `/start`          | Boas-vindas e menu principal                  | ✅     |
-| `/novo_alerta`    | Wizard para cadastrar filtro de monitoramento | ✅     |
-| `/ajuda`          | Lista de comandos disponíveis                 | ✅     |
-| `/status`         | Próximas execuções do scheduler               | ✅     |
-| `/meus_alertas`   | Listar alertas cadastrados                    | 🚧     |
-| `/pausar_alerta`  | Pausar/reativar alerta por id                 | 🚧     |
-| `/deletar_alerta` | Apagar alerta por id                          | 🚧     |
-| `/observar`       | Monitorar URL específica                      | 🚧     |
-| `/watchlist`      | Listar URLs observadas                        | 🚧     |
-| `/remover`        | Remover da watchlist por id                   | 🚧     |
+| Comando        | Descrição                                     | Status |
+| -------------- | --------------------------------------------- | ------ |
+| `/start`       | Boas-vindas e menu principal                  | ✅     |
+| `/novo_alerta` | Wizard para cadastrar filtro de monitoramento | ✅     |
+| `/ajuda`       | Lista de comandos disponíveis                 | ✅     |
 
 ## Configuração
 

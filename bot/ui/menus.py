@@ -36,11 +36,7 @@ def menu_meus_alertas() -> str:
 
 
 def menu_watchlist() -> str:
-    return "👀 *Watchlist*\n\nEsta área ainda está em construção."
-
-
-def menu_status() -> str:
-    return "📊 *Status*\n\nEsta área ainda está em construção."
+    return "👀 *Acompanhar anúncio*\n\nEsta área ainda está em construção."
 
 
 # —— Wizard novo alerta ——

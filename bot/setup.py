@@ -52,7 +52,6 @@ async def main_menu_callback(
     handlers: dict[str, tuple[str, bool]] = {
         "menu_meus_alertas": (menus.menu_meus_alertas(), True),
         "menu_watchlist": (menus.menu_watchlist(), True),
-        "menu_status": (menus.menu_status(), True),
         "menu_ajuda": (menus.ajuda_comandos_plain(), False),
     }
     text, markdown = handlers.get(

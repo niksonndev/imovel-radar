@@ -64,7 +64,6 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
       - novo_alerta
       - menu_meus_alertas
       - menu_watchlist
-      - menu_status
       - menu_ajuda
     """
     return InlineKeyboardMarkup(
@@ -76,8 +75,9 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
                 )
             ],
             [
-                InlineKeyboardButton("👀 Watchlist", callback_data="menu_watchlist"),
-                InlineKeyboardButton("📊 Status", callback_data="menu_status"),
+                InlineKeyboardButton(
+                    "👀 Acompanhar anúncio", callback_data="menu_watchlist"
+                )
             ],
             [InlineKeyboardButton("❓ Ajuda", callback_data="menu_ajuda")],
         ]
