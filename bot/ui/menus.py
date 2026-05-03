@@ -9,6 +9,7 @@ ajuste de copy e tradução sem espalhar strings nos handlers.
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any
 
 from telegram.helpers import escape_markdown
@@ -40,6 +41,19 @@ def meus_alertas_erro() -> str:
     )
 
 
+def _meus_alertas_created_display(raw: object) -> str:
+    """Converte ``created_at`` ISO do SQLite para *dd/mm/aaaa*."""
+    s = str(raw or "").strip()
+    if not s:
+        return "—"
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        formatted = f"{dt.day:02d}/{dt.month:02d}/{dt.year}"
+    except ValueError:
+        formatted = s
+    return escape_markdown(formatted, version=1)
+
+
 def _meus_alertas_format_one(a: dict[str, Any]) -> str:
     raw_name = a.get("alert_name") or "Sem nome"
     name = escape_markdown(str(raw_name), version=1)
@@ -64,8 +78,7 @@ def _meus_alertas_format_one(a: dict[str, Any]) -> str:
     else:
         loc = "📍 *Bairros:* todos"
 
-    created = str(a.get("created_at") or "")
-    esc_created = escape_markdown(created, version=1)
+    esc_created = _meus_alertas_created_display(a.get("created_at"))
     return (
         f"*{name}*\n"
         f"{status}\n"
