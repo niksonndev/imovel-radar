@@ -3,7 +3,14 @@ Teclados inline do Telegram para o menu principal e para o wizard de alerta.
 
 Cada botão usa ``callback_data`` (até 64 bytes) para o ``CallbackQueryHandler``
 associado — por isso bairros usam ``nbd_<índice>`` em vez do nome completo.
+
+Callbacks *Meus alertas*: ``mal_m`` (menu), ``mal_b`` (lista), ``mal_p_<id>``,
+``mal_ed_<id>``, ``mal_rm_<id>``.
 """
+
+from __future__ import annotations
+
+from typing import Any
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -92,5 +99,63 @@ def alert_confirmation_keyboard() -> InlineKeyboardMarkup:
                 InlineKeyboardButton("✅ Confirmar", callback_data="wiz_confirm_yes"),
                 InlineKeyboardButton("❌ Cancelar", callback_data="wiz_confirm_no"),
             ]
+        ]
+    )
+
+
+def _meus_alertas_pick_button_label(alert: dict[str, Any]) -> str:
+    """Rótulo do botão de escolha (limite 64 caracteres do Telegram)."""
+    name = str(alert.get("alert_name") or "Sem nome").strip() or "Sem nome"
+    prefix = "▶ "
+    max_name = 64 - len(prefix)
+    return prefix + name[:max_name]
+
+
+def meus_alertas_pick_keyboard(alerts: list[dict[str, Any]]) -> InlineKeyboardMarkup:
+    """
+    Um botão por alerta (``mal_p_<id>``) + retorno ao menu (``mal_m``).
+
+    ``alerts`` deve coincidir com os alertas exibidos no texto da mensagem.
+    """
+    rows: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                _meus_alertas_pick_button_label(a),
+                callback_data=f"mal_p_{int(a['id'])}",
+            )
+        ]
+        for a in alerts
+    ]
+    rows.append(
+        [InlineKeyboardButton("🏠 Menu principal", callback_data="mal_m")]
+    )
+    return InlineKeyboardMarkup(rows)
+
+
+def meus_alertas_empty_keyboard() -> InlineKeyboardMarkup:
+    """Listagem vazia: só volta ao menu principal."""
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🏠 Menu principal", callback_data="mal_m")]]
+    )
+
+
+def meus_alertas_detail_keyboard(alert_id: int) -> InlineKeyboardMarkup:
+    """Detalhe de um alerta: editar, remover, voltar à lista (``mal_b``)."""
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("✏️ Editar", callback_data=f"mal_ed_{alert_id}"),
+                InlineKeyboardButton("🗑️ Remover", callback_data=f"mal_rm_{alert_id}"),
+            ],
+            [InlineKeyboardButton("⬅️ Voltar à lista", callback_data="mal_b")],
+        ]
+    )
+
+
+def meus_alertas_edit_stub_keyboard(alert_id: int) -> InlineKeyboardMarkup:
+    """Após tocar em Editar (stub): volta ao detalhe do mesmo alerta."""
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("⬅️ Voltar ao alerta", callback_data=f"mal_p_{alert_id}")],
         ]
     )

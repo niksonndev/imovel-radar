@@ -79,37 +79,100 @@ def _meus_alertas_format_one(a: dict[str, Any]) -> str:
         loc = "📍 *Bairros:* todos"
 
     esc_created = _meus_alertas_created_display(a.get("created_at"))
+    return f"*{name}*\n{status}\n{price_line}\n{loc}\n📅 *Criado:* {esc_created}"
+
+
+def meus_alertas_detail_view(alert: dict[str, Any]) -> str:
+    """Texto compacto de um alerta (tela de detalhe antes de editar/remover)."""
+    raw_name = alert.get("alert_name") or "Sem nome"
+    name = escape_markdown(str(raw_name), version=1)
+    active = int(alert.get("active") or 0)
+    status_line = "✅ Alerta ativo" if active else "❌ Alerta inativo"
+
+    pmin, pmax = alert.get("min_price"), alert.get("max_price")
+    if pmin is None and pmax is None:
+        price_line = "💰 Qualquer faixa"
+    else:
+        price_line = f"💰 {format_brl(pmin)} – {format_brl(pmax)}"
+
+    nh_raw = alert.get("neighbourhoods") or "[]"
+    try:
+        nh = json.loads(nh_raw) if isinstance(nh_raw, str) else nh_raw
+    except json.JSONDecodeError:
+        nh = []
+    if isinstance(nh, list) and nh:
+        loc_short = ", ".join(str(x) for x in nh)
+    else:
+        loc_short = "Todos"
+    loc_esc = escape_markdown(loc_short, version=1)
+    bairros_line = f"📍 {loc_esc}"
+
+    esc_created = _meus_alertas_created_display(alert.get("created_at"))
     return (
+        "📋 *Meus Alertas*\n\n"
         f"*{name}*\n"
-        f"{status}\n"
+        f"{status_line}\n"
         f"{price_line}\n"
-        f"{loc}\n"
-        f"📅 *Criado:* `{esc_created}`"
+        f"{bairros_line}\n"
+        f"📅 *Criado:* {esc_created}"
+    )
+
+
+def meus_alertas_editar_stub(alert: dict[str, Any]) -> str:
+    """Mensagem temporária até o wizard de edição existir."""
+    raw_name = alert.get("alert_name") or "Sem nome"
+    esc = escape_markdown(str(raw_name), version=1)
+    return (
+        "✏️ *Editar alerta*\n\n"
+        f"*{esc}*\n\n"
+        "A edição completa pelo bot ainda não está disponível. "
+        "Você pode *remover* este alerta e criar outro com `/novo_alerta`."
+    )
+
+
+def meus_alertas_list_message(
+    alerts: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
+    """
+    Texto da listagem e sublista de alertas realmente incluídos no texto
+    (para montar botões de escolha alinhados ao que aparece na mensagem).
+    """
+    header = "📋 *Meus Alertas*\n\n"
+    if not alerts:
+        return (
+            header
+            + "Você ainda não tem alertas. Use `/novo_alerta` para criar o primeiro.",
+            [],
+        )
+
+    hint = "_Toque no nome de um alerta abaixo para editar ou excluir._\n\n"
+    blocks = [_meus_alertas_format_one(a) for a in alerts]
+    max_len = 4080
+    visible_count = len(blocks)
+    while visible_count > 0:
+        body_blocks = blocks[:visible_count]
+        body = "\n\n".join(body_blocks)
+        full = header + hint + body
+        omitted = len(alerts) - visible_count
+        suffix = ""
+        if omitted > 0:
+            suffix = (
+                f"\n\n_… e mais {omitted} alerta(s) (limite de tamanho da mensagem)._"
+            )
+        if len(full) + len(suffix) <= max_len:
+            visible = alerts[:visible_count]
+            return full + suffix, visible
+        visible_count -= 1
+    return (
+        header + hint + "Não coube listar os alertas nesta mensagem. Tente /ajuda.",
+        [],
     )
 
 
 def meus_alertas_view(alerts: list[dict[str, Any]]) -> str:
-    """Monta a mensagem Markdown da lista de alertas (dicts com colunas de ``alerts``)."""
-    header = "📋 *Meus Alertas*\n\n"
-    if not alerts:
-        return header + "Você ainda não tem alertas. Use `/novo_alerta` para criar o primeiro."
-
-    blocks = [_meus_alertas_format_one(a) for a in alerts]
-    max_len = 4080
-    while blocks:
-        body = "\n\n".join(blocks)
-        full = header + body
-        omitted = len(alerts) - len(blocks)
-        suffix = ""
-        if omitted > 0:
-            suffix = (
-                f"\n\n_… e mais {omitted} alerta(s) "
-                "(limite de tamanho da mensagem)._"
-            )
-        if len(full) + len(suffix) <= max_len:
-            return full + suffix
-        blocks.pop()
-    return header + "Não coube listar os alertas nesta mensagem. Tente /ajuda."
+    """Compat: só o texto da listagem (sem separar alertas visíveis)."""
+    text, _ = meus_alertas_list_message(alerts)
+    return text
 
 
 def menu_watchlist() -> str:

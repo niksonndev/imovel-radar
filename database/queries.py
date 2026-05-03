@@ -57,6 +57,13 @@ WHERE user_id = ?
 ORDER BY id DESC
 """.strip()
 
+GET_ALERT_FOR_USER_SQL = """
+SELECT id, user_id, alert_name, min_price, max_price, neighbourhoods,
+       active, created_at
+FROM alerts
+WHERE id = ? AND user_id = ?
+""".strip()
+
 GET_ACTIVE_ALERTS_WITH_CHAT_SQL = """
 SELECT a.id, a.alert_name, a.min_price, a.max_price, a.neighbourhoods,
        u.chat_id
@@ -129,6 +136,27 @@ def list_alerts_for_user(
 ) -> list[sqlite3.Row]:
     """Lista todos os alertas de um usuário (interno), do mais recente ao mais antigo."""
     return conn.execute(LIST_ALERTS_FOR_USER_SQL, (user_id,)).fetchall()
+
+
+def get_alert_for_user(
+    conn: sqlite3.Connection, alert_id: int, user_id: int
+) -> sqlite3.Row | None:
+    """Retorna o alerta se existir e pertencer ao ``user_id`` interno."""
+    return conn.execute(
+        GET_ALERT_FOR_USER_SQL, (alert_id, user_id)
+    ).fetchone()
+
+
+def delete_alert_for_user(
+    conn: sqlite3.Connection, alert_id: int, user_id: int
+) -> bool:
+    """Apaga o alerta e os vínculos em ``alert_matches``; retorna ``True`` se removeu linha."""
+    conn.execute("DELETE FROM alert_matches WHERE alert_id = ?", (alert_id,))
+    cur = conn.execute(
+        "DELETE FROM alerts WHERE id = ? AND user_id = ?",
+        (alert_id, user_id),
+    )
+    return cur.rowcount > 0
 
 
 def get_filtered_listings(
