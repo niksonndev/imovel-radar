@@ -53,10 +53,13 @@ async def _enter_neighbourhoods(msg, context) -> None:
         wizard["nb_options"] = nb_options
     finally:
         conn.close()
+    wizard["nb_page"] = 0
     await msg.reply_text(
-        "Selecione os *bairros* (toque para marcar). Toque em Concluir quando terminar.",
+        menus.wizard_bairros_instrucao(sel),
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=keyboards.neighborhoods_keyboard(sel, nb_options),
+        reply_markup=keyboards.neighborhoods_keyboard(
+            sel, nb_options, page=0
+        ),
     )
 
 
@@ -164,35 +167,67 @@ async def wiz_neighbourhoods_cb(
 
     if data == "nbd_done":
         wizard.pop("nb_options", None)
+        wizard.pop("nb_page", None)
         await query.message.reply_text(
             "Agora envie o *nome do alerta* (ex: `Aluguel Jatiúca`).",
             parse_mode=ParseMode.MARKDOWN,
         )
         return NAME
 
+    if data == "nbd_pg_info":
+        await query.answer()
+        return NEIGHBOURHOODS
+
     nb_options = wizard.get("nb_options") or []
+    n_nb = len(nb_options)
+    psize = keyboards.NEIGHBORHOODS_PAGE_SIZE
+    total_pages = max(1, (n_nb + psize - 1) // psize) if n_nb else 1
+    cur_page = max(0, min(wizard.get("nb_page", 0), total_pages - 1))
+    wizard["nb_page"] = cur_page
+
+    if data == "nbd_pg_prev":
+        if cur_page > 0:
+            wizard["nb_page"] = cur_page - 1
+        await query.edit_message_reply_markup(
+            reply_markup=keyboards.neighborhoods_keyboard(
+                sel, nb_options, page=wizard["nb_page"]
+            )
+        )
+        return NEIGHBOURHOODS
+
+    if data == "nbd_pg_next":
+        if cur_page < total_pages - 1:
+            wizard["nb_page"] = cur_page + 1
+        await query.edit_message_reply_markup(
+            reply_markup=keyboards.neighborhoods_keyboard(
+                sel, nb_options, page=wizard["nb_page"]
+            )
+        )
+        return NEIGHBOURHOODS
+
     idx_s = data[4:]  # após "nbd_"
     try:
-        # callback_data guarda índice (ex.: nbd_7), nunca o nome do bairro.
-        # Isso reduz tamanho do payload e simplifica validação.
+        # callback_data guarda índice global (ex.: nbd_7), nunca o nome do bairro.
         idx = int(idx_s, 10)
     except ValueError:
         await query.answer("Seleção inválida.", show_alert=False)
         return NEIGHBOURHOODS
-    # Protege contra callback_data adulterado ou mensagem antiga com opções desatualizadas.
     if not (0 <= idx < len(nb_options)):
         await query.answer("Bairro inválido ou sessão desatualizada.", show_alert=False)
         return NEIGHBOURHOODS
 
-    # Conversão índice -> valor canônico vindo da lista carregada da sessão.
     nb = nb_options[idx]
     if nb in sel:
         sel.remove(nb)
     else:
         sel.append(nb)
 
-    await query.edit_message_reply_markup(
-        reply_markup=keyboards.neighborhoods_keyboard(sel, nb_options)
+    await query.edit_message_text(
+        menus.wizard_bairros_instrucao(sel),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=keyboards.neighborhoods_keyboard(
+            sel, nb_options, page=wizard["nb_page"]
+        ),
     )
     return NEIGHBOURHOODS
 

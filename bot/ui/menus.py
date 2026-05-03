@@ -201,15 +201,17 @@ def wizard_personalizado_min() -> str:
     return "Personalizado: envie o *preço mínimo* (R$, só número)."
 
 
-def wizard_selecione_bairros() -> str:
-    return "Selecione os *bairros* (toque para marcar). Depois: Concluir."
-
-
-def wizard_selecione_bairros_com_obs() -> str:
-    return (
-        "Selecione os *bairros* (toque para marcar). Depois: Concluir.\n"
-        "Se não quiser filtrar por bairro, conclua sem marcar."
-    )
+def wizard_bairros_instrucao(selected: list[str]) -> str:
+    """
+    Corpo Markdown (v1) da mensagem do passo *bairros* no /novo_alerta.
+    Nomes vêm do banco; escapados para evitar quebra de *Markdown*.
+    """
+    if not selected:
+        return (
+            "*Bairros selecionados:* nenhum ainda.\nToque em mais bairros ou conclua."
+        )
+    names = ", ".join(escape_markdown(n, version=1) for n in sorted(selected))
+    return f"*Bairros selecionados:* {names}\nToque em mais bairros ou conclua."
 
 
 def wizard_nome_invalido() -> str:

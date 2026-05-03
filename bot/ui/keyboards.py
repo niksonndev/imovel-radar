@@ -2,7 +2,9 @@
 Teclados inline do Telegram para o menu principal e para o wizard de alerta.
 
 Cada botão usa ``callback_data`` (até 64 bytes) para o ``CallbackQueryHandler``
-associado — por isso bairros usam ``nbd_<índice>`` em vez do nome completo.
+associado — por isso bairros usam ``nbd_<índice>`` (índice global na lista)
+em vez do nome completo. Paginação: ``nbd_pg_prev``, ``nbd_pg_next``,
+``nbd_pg_info`` (indicador de página, só confirma o toque).
 
 Callbacks *Meus alertas*: ``mal_m`` (menu), ``mal_b`` (lista), ``mal_p_<id>``,
 ``mal_ed_<id>``, ``mal_rm_<id>``.
@@ -13,6 +15,38 @@ from __future__ import annotations
 from typing import Any
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+# Bairros por página no wizard /novo_alerta (Telegram + UX).
+NEIGHBORHOODS_PAGE_SIZE = 12
+# Rótulo máximo por botão (API Telegram).
+_INLINE_BTN_TEXT_MAX = 64
+
+
+def _neighbourhood_button_caption(name: str, *, selected: bool) -> str:
+    """``[ ✅ Bairro ]`` ou ``[ Bairro ]``, respeitando o limite de 64 caracteres."""
+    if selected:
+        prefix, suffix = " ✅ ", ""
+    else:
+        prefix, suffix = " ", " "
+    room = _INLINE_BTN_TEXT_MAX - len(prefix) - len(suffix)
+    if room < 2:
+        short = "…"
+    elif len(name) <= room:
+        short = name
+    else:
+        short = name[: max(1, room - 1)] + "…"
+    text = prefix + short + suffix
+    return text[:_INLINE_BTN_TEXT_MAX]
+
+
+def _neighbourhoods_done_caption(n_selected: int) -> str:
+    if n_selected == 0:
+        return "Concluir bairros"
+    if n_selected == 1:
+        label = "✅ Concluir (1 selecionado)"
+    else:
+        label = f"✅ Concluir ({n_selected} selecionados)"
+    return label[:_INLINE_BTN_TEXT_MAX]
 
 
 def price_range_keyboard() -> InlineKeyboardMarkup:
@@ -34,32 +68,62 @@ def price_range_keyboard() -> InlineKeyboardMarkup:
 
 
 def neighborhoods_keyboard(
-    selected: list[str], neighbourhoods: list[str]
+    selected: list[str],
+    neighbourhoods: list[str],
+    *,
+    page: int = 0,
+    per_page: int = NEIGHBORHOODS_PAGE_SIZE,
 ) -> InlineKeyboardMarkup:
     """
-    Usa índice em ``callback_data`` (``nbd_0``, …), não o nome do bairro:
-    limite de 64 bytes do Telegram e só bairros da lista carregada são aceitos.
+    Usa índice global em ``callback_data`` (``nbd_0``, … na lista completa), não
+    o nome do bairro. Paginação com ``page`` / ``per_page``; navegação
+    ``nbd_pg_prev`` / ``nbd_pg_next`` acima de Concluir.
     """
-    # Limite defensivo para evitar teclados gigantes e manter UX aceitável no Telegram.
-    items = neighbourhoods[:24]
+    n = len(neighbourhoods)
+    total_pages = max(1, (n + per_page - 1) // per_page) if n else 1
+    page = max(0, min(page, total_pages - 1))
+    start = page * per_page
+    end = min(start + per_page, n)
+    page_items = [(idx, neighbourhoods[idx]) for idx in range(start, end)]
+
     buttons: list[list[InlineKeyboardButton]] = []
-    for i in range(0, len(items), 2):
-        # Monta duas colunas por linha para caber melhor em telas pequenas.
+    for i in range(0, len(page_items), 2):
         row: list[InlineKeyboardButton] = []
         for j in (i, i + 1):
-            if j >= len(items):
+            if j >= len(page_items):
                 break
-            n = items[j]
+            global_idx, name = page_items[j]
             row.append(
                 InlineKeyboardButton(
-                    ("✓ " if n in selected else "") + n[:18],
-                    callback_data=f"nbd_{j}",
+                    _neighbourhood_button_caption(name, selected=name in selected),
+                    callback_data=f"nbd_{global_idx}",
                 )
             )
-        # Cada linha é adicionada mesmo quando há apenas 1 botão (quantidade ímpar).
         buttons.append(row)
-    # Botão de término explícito para encerrar seleção sem depender de timeout/comando.
-    buttons.append([InlineKeyboardButton("Concluir bairros", callback_data="nbd_done")])
+
+    if total_pages > 1:
+        nav_row: list[InlineKeyboardButton] = []
+        if page > 0:
+            nav_row.append(InlineKeyboardButton("◀", callback_data="nbd_pg_prev"))
+        nav_row.append(
+            InlineKeyboardButton(
+                f"Página {page + 1} de {total_pages}",
+                callback_data="nbd_pg_info",
+            )
+        )
+        if page < total_pages - 1:
+            nav_row.append(InlineKeyboardButton("▶", callback_data="nbd_pg_next"))
+        buttons.append(nav_row)
+
+    n_sel = len(selected)
+    buttons.append(
+        [
+            InlineKeyboardButton(
+                _neighbourhoods_done_caption(n_sel),
+                callback_data="nbd_done",
+            )
+        ]
+    )
     return InlineKeyboardMarkup(buttons)
 
 
@@ -126,9 +190,7 @@ def meus_alertas_pick_keyboard(alerts: list[dict[str, Any]]) -> InlineKeyboardMa
         ]
         for a in alerts
     ]
-    rows.append(
-        [InlineKeyboardButton("🏠 Menu principal", callback_data="mal_m")]
-    )
+    rows.append([InlineKeyboardButton("🏠 Menu principal", callback_data="mal_m")])
     return InlineKeyboardMarkup(rows)
 
 
@@ -156,6 +218,10 @@ def meus_alertas_edit_stub_keyboard(alert_id: int) -> InlineKeyboardMarkup:
     """Após tocar em Editar (stub): volta ao detalhe do mesmo alerta."""
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("⬅️ Voltar ao alerta", callback_data=f"mal_p_{alert_id}")],
+            [
+                InlineKeyboardButton(
+                    "⬅️ Voltar ao alerta", callback_data=f"mal_p_{alert_id}"
+                )
+            ],
         ]
     )
