@@ -8,7 +8,12 @@ ajuste de copy e tradução sem espalhar strings nos handlers.
 
 from __future__ import annotations
 
+import json
+from typing import Any
+
 from telegram.helpers import escape_markdown
+
+from utils.pricing import format_brl
 
 
 def start_welcome() -> str:
@@ -28,11 +33,70 @@ def ajuda_comandos_plain() -> str:
     )
 
 
-def menu_meus_alertas() -> str:
+def meus_alertas_erro() -> str:
     return (
         "📋 *Meus Alertas*\n\n"
-        "Em breve você poderá listar e gerenciar seus alertas por aqui."
+        "Não consegui carregar seus alertas agora. Tente de novo em instantes."
     )
+
+
+def _meus_alertas_format_one(a: dict[str, Any]) -> str:
+    raw_name = a.get("alert_name") or "Sem nome"
+    name = escape_markdown(str(raw_name), version=1)
+    active = int(a.get("active") or 0)
+    status = "✅ Ativo" if active else "⏸ Pausado"
+
+    pmin, pmax = a.get("min_price"), a.get("max_price")
+    if pmin is None and pmax is None:
+        price_line = "💰 *Preço:* qualquer faixa"
+    else:
+        price_line = f"💰 *Preço:* {format_brl(pmin)} – {format_brl(pmax)}"
+
+    nh_raw = a.get("neighbourhoods") or "[]"
+    try:
+        nh = json.loads(nh_raw) if isinstance(nh_raw, str) else nh_raw
+    except json.JSONDecodeError:
+        nh = []
+    if isinstance(nh, list) and nh:
+        nh_joined = ", ".join(str(x) for x in nh)
+        nh_str = escape_markdown(nh_joined, version=1)
+        loc = f"📍 *Bairros:* {nh_str}"
+    else:
+        loc = "📍 *Bairros:* todos"
+
+    created = str(a.get("created_at") or "")
+    esc_created = escape_markdown(created, version=1)
+    return (
+        f"*{name}*\n"
+        f"{status}\n"
+        f"{price_line}\n"
+        f"{loc}\n"
+        f"📅 *Criado:* `{esc_created}`"
+    )
+
+
+def meus_alertas_view(alerts: list[dict[str, Any]]) -> str:
+    """Monta a mensagem Markdown da lista de alertas (dicts com colunas de ``alerts``)."""
+    header = "📋 *Meus Alertas*\n\n"
+    if not alerts:
+        return header + "Você ainda não tem alertas. Use `/novo_alerta` para criar o primeiro."
+
+    blocks = [_meus_alertas_format_one(a) for a in alerts]
+    max_len = 4080
+    while blocks:
+        body = "\n\n".join(blocks)
+        full = header + body
+        omitted = len(alerts) - len(blocks)
+        suffix = ""
+        if omitted > 0:
+            suffix = (
+                f"\n\n_… e mais {omitted} alerta(s) "
+                "(limite de tamanho da mensagem)._"
+            )
+        if len(full) + len(suffix) <= max_len:
+            return full + suffix
+        blocks.pop()
+    return header + "Não coube listar os alertas nesta mensagem. Tente /ajuda."
 
 
 def menu_watchlist() -> str:

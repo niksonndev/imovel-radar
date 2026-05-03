@@ -49,6 +49,14 @@ FROM alerts
 WHERE id = ?
 """.strip()
 
+LIST_ALERTS_FOR_USER_SQL = """
+SELECT id, user_id, alert_name, min_price, max_price, neighbourhoods,
+       active, created_at
+FROM alerts
+WHERE user_id = ?
+ORDER BY id DESC
+""".strip()
+
 GET_ACTIVE_ALERTS_WITH_CHAT_SQL = """
 SELECT a.id, a.alert_name, a.min_price, a.max_price, a.neighbourhoods,
        u.chat_id
@@ -114,6 +122,13 @@ def get_alert_by_id(
 ) -> sqlite3.Row | None:
     """Retorna a linha do alerta pelo id, ou None se não existir."""
     return conn.execute(GET_ALERT_BY_ID_SQL, (alert_id,)).fetchone()
+
+
+def list_alerts_for_user(
+    conn: sqlite3.Connection, user_id: int
+) -> list[sqlite3.Row]:
+    """Lista todos os alertas de um usuário (interno), do mais recente ao mais antigo."""
+    return conn.execute(LIST_ALERTS_FOR_USER_SQL, (user_id,)).fetchall()
 
 
 def get_filtered_listings(

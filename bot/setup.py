@@ -3,7 +3,7 @@ Registra handlers no ``Application`` do python-telegram-bot.
 
 Define os comandos exibidos no menu do Telegram (``set_my_commands``), o fluxo
 ``/novo_alerta`` (wizard em ``create_new_alert``), os comandos ``/start`` e
-``/ajuda`` e o roteamento dos botões inline do menu principal (``menu_*``).
+``/ajuda``, *Meus Alertas* (``bot.meus_alertas``) e o menu inline genérico (``menu_*``).
 Os textos de UI ficam centralizados em ``bot.ui.menus``.
 """
 
@@ -18,6 +18,7 @@ from telegram.ext import (
 
 from bot.carousel import register_handlers as register_carousel_handlers
 from bot.create_new_alert import new_alert_conversation
+from bot.meus_alertas import meus_alertas_callback
 from bot.ui import keyboards, menus
 
 BOT_COMMANDS = [
@@ -50,7 +51,6 @@ async def main_menu_callback(
     await query.answer()
 
     handlers: dict[str, tuple[str, bool]] = {
-        "menu_meus_alertas": (menus.menu_meus_alertas(), True),
         "menu_watchlist": (menus.menu_watchlist(), True),
         "menu_ajuda": (menus.ajuda_comandos_plain(), False),
     }
@@ -69,6 +69,9 @@ def setup(app: Application) -> None:
     app.add_handler(new_alert_conversation())
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("ajuda", help_cmd))
+    app.add_handler(
+        CallbackQueryHandler(meus_alertas_callback, pattern=r"^menu_meus_alertas$")
+    )
     app.add_handler(CallbackQueryHandler(main_menu_callback, pattern=r"^menu_"))
     register_carousel_handlers(app)
 
