@@ -29,16 +29,11 @@ def _normalize_property_value(name: str, value: Any) -> Any:
 def normalize_olx_listing(raw: dict[str, Any]) -> Listing:
     title_raw = raw.get("title") or raw.get("subject") or ""
     title = str(title_raw)[:500] if title_raw else ""
-    location = raw.get("locationDetails")
-    location = location if isinstance(location, dict) else {}
-    props = raw.get("properties")
-    props = props if isinstance(props, list) else []
-    images = raw.get("images")
-    images = images if isinstance(images, list) else []
+    location = raw["locationDetails"]
 
     properties_list = [
         {name: _normalize_property_value(name.lower(), prop["value"])}
-        for prop in props
+        for prop in raw["properties"]
         if isinstance(prop, dict)
         and (name := str(prop.get("name") or "").strip())
         and "value" in prop
@@ -46,7 +41,7 @@ def normalize_olx_listing(raw: dict[str, Any]) -> Listing:
 
     images_list = [
         img["originalWebp"]
-        for img in images
+        for img in raw["images"]
         if isinstance(img, dict) and "originalWebp" in img
     ]
 

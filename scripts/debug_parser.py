@@ -14,6 +14,7 @@ import cloudscraper
 from bs4 import BeautifulSoup
 
 from scraper.parser import normalize_olx_listing
+from utils.models import Listing
 
 URL = (
     "https://www.olx.com.br/imoveis/aluguel/estado-al/alagoas/maceio"
@@ -37,7 +38,7 @@ def _is_numeric_id(val: Any) -> bool:
     return False
 
 
-def _first_ad_object(obj: Any, depth: int = 0) -> dict | None:
+def _first_ad_object(obj: Any, depth: int = 0) -> dict[str, Any] | None:
     # Limite defensivo evita recursão excessiva em payloads inesperadamente profundos.
     if depth > 30 or obj is None:
         return None
@@ -55,6 +56,14 @@ def _first_ad_object(obj: Any, depth: int = 0) -> dict | None:
             if found is not None:
                 return found
     return None
+
+
+def _listing_debug_view(listing: Listing) -> dict[str, Any]:
+    return {
+        **listing,
+        "properties": json.loads(listing["properties"]),
+        "images": json.loads(listing["images"]),
+    }
 
 
 def main() -> None:
@@ -85,9 +94,10 @@ def main() -> None:
     print(f"Salvo: {OUT_JSON}", flush=True)
 
     # Segundo dump: payload transformado para o formato usado internamente no projeto.
-    parsed = normalize_olx_listing(ad)
+    parsed: Listing = normalize_olx_listing(ad)
     parsed_text = json.dumps(parsed, indent=2, ensure_ascii=False)
     OUT_PARSED.write_text(parsed_text + "\n", encoding="utf-8")
+    print(json.dumps(_listing_debug_view(parsed), indent=2, ensure_ascii=False))
     print(f"Salvo: {OUT_PARSED}", flush=True)
 
 
