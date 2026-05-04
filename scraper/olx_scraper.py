@@ -158,7 +158,7 @@ async def search_all_rent_maceio() -> list[Listing]:
     Deduplica por listId; sem filtros locais (job decidem depois).
     """
     global _cycle_headers
-    all_ads: dict[int, Listing] = {}
+    listings_by_id: dict[int, Listing] = {}
     _cycle_headers = _build_headers()
     try:
         page = 1
@@ -171,25 +171,33 @@ async def search_all_rent_maceio() -> list[Listing]:
             except Exception as e:
                 logger.exception("Erro ao buscar %s: %s", url, e)
                 break
-            ads = extract_listings_from_search_page(html)
-            logger.info("Página %s: %s anúncios brutos", page, len(ads))
-            if not ads:
+            try:
+                page_listings = extract_listings_from_search_page(html)
+            except Exception as e:
+                logger.exception("Erro ao extrair listings de %s: %s", url, e)
                 break
-            new_in_page = 0
-            for ad in ads:
-                list_id = ad["listId"]
-                if list_id not in all_ads:
-                    new_in_page += 1
-                all_ads[list_id] = ad
-            if new_in_page == 0:
+
+            logger.info("Página %s: %s listings extraídos", page, len(page_listings))
+            if not page_listings:
+                break
+
+            new_listing_count = 0
+            for listing in page_listings:
+                list_id = listing["listId"]
+                if list_id not in listings_by_id:
+                    new_listing_count += 1
+                listings_by_id[list_id] = listing
+
+            if new_listing_count == 0:
                 break
             page += 1
     finally:
         _cycle_headers = None
         await close()
-    out = list(all_ads.values())
-    logger.info("Total anúncios únicos (scraping): %s", len(out))
-    return out
+
+    listings = list(listings_by_id.values())
+    logger.info("Total listings únicos (scraping): %s", len(listings))
+    return listings
 
 
 def coletar() -> list[Listing]:

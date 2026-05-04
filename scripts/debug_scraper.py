@@ -1,5 +1,14 @@
+"""
+Debug helpers para o scraper OLX.
+
+Uso:
+    python -m scripts.debug_scraper extract-page
+    python -m scripts.debug_scraper search-all
+"""
+
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import logging
@@ -14,7 +23,11 @@ from bs4 import BeautifulSoup
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "debug-token")
 
 import config
-from scraper.olx_scraper import extract_listings_from_search_page, fetch
+from scraper.olx_scraper import (
+    extract_listings_from_search_page,
+    fetch,
+    search_all_rent_maceio,
+)
 from utils.models import Listing
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -22,6 +35,7 @@ LOGS_DIR = ROOT / "logs"
 LOG_FILE = LOGS_DIR / "debug_scraper.log"
 PAGE1_NEXT_DATA = LOGS_DIR / "debug_scraper_page1_next_data.json"
 PAGE1_LISTINGS = LOGS_DIR / "debug_scraper_page1_listings.json"
+SEARCH_ALL_LISTINGS = LOGS_DIR / "debug_scraper_search_all_listings.json"
 
 logger = logging.getLogger(__name__)
 
@@ -75,10 +89,8 @@ def _count_ads_objects(next_data: dict[str, Any]) -> int:
     return sum(1 for item in ads if isinstance(item, dict))
 
 
-async def main() -> None:
-    setup_logging()
-
-    logger.info("Iniciando debug do scraper OLX")
+async def debug_extract_listings_from_search_page() -> None:
+    logger.info("Iniciando debug de extract_listings_from_search_page")
     logger.info("URL base da coleta: %s", config.MACEIO_RENT_LISTINGS_URL)
 
     html = await fetch(config.MACEIO_RENT_LISTINGS_URL)
@@ -100,6 +112,47 @@ async def main() -> None:
         len(page1_listings),
         PAGE1_LISTINGS,
     )
+
+
+async def debug_search_all_rent_maceio() -> None:
+    logger.info("Iniciando debug de search_all_rent_maceio")
+    logger.info("URL base da coleta: %s", config.MACEIO_RENT_LISTINGS_URL)
+
+    listings = await search_all_rent_maceio()
+    _write_json(
+        SEARCH_ALL_LISTINGS,
+        [_listing_debug_view(listing) for listing in listings],
+    )
+    logger.info(
+        "Coleta paginada concluída: %s anúncios salvos em %s",
+        len(listings),
+        SEARCH_ALL_LISTINGS,
+    )
+
+
+def _build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Debug do scraper OLX")
+    parser.add_argument(
+        "command",
+        choices=("extract-page", "search-all"),
+        help="`extract-page` testa extract_listings_from_search_page; `search-all` testa search_all_rent_maceio",
+    )
+    return parser
+
+
+async def main() -> None:
+    setup_logging()
+    args = _build_arg_parser().parse_args()
+
+    if args.command == "extract-page":
+        await debug_extract_listings_from_search_page()
+        return
+
+    if args.command == "search-all":
+        await debug_search_all_rent_maceio()
+        return
+
+    raise SystemExit(f"Comando não suportado: {args.command}")
 
 
 if __name__ == "__main__":
