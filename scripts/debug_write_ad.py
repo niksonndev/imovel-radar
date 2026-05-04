@@ -1,10 +1,23 @@
+"""
+Script de debug para inserir um anúncio no banco de dados local.
+
+Uso:
+    python -m scripts.debug_write_ad
+
+Lê o arquivo `parsed_debug_ad.json` na raiz do projeto e faz upsert
+do registro na tabela `listings` via SQLite.
+
+O arquivo JSON deve conter um único objeto com os campos do modelo
+Listing (listId, url, title, priceValue, etc.). O campo `listId`
+é obrigatório — sem ele o upsert não é executado.
+"""
+
 from __future__ import annotations
 
 import json
 import logging
 import os
 from pathlib import Path
-from typing import Any
 
 # `database/db.py` importa `config.py`, que exige TELEGRAM_BOT_TOKEN.
 # Para este debug de insert (sem Telegram), criamos um valor dummy.
@@ -17,6 +30,8 @@ from database.db import get_connection
 
 from database.queries import upsert_listing
 
+from utils.models import Listing
+
 
 logger = logging.getLogger(__name__)
 
@@ -26,41 +41,13 @@ ROOT = Path(__file__).resolve().parent.parent
 JSON_PATH = ROOT / "parsed_debug_ad.json"
 
 
-COLUMNS = [
-    "listId",
-    "url",
-    "title",
-    "priceValue",
-    "oldPrice",
-    "municipality",
-    "neighbourhood",
-    "category",
-    "images",
-    "properties",
-]
-
-
-def load_ads_from_json() -> list[dict[str, Any]]:
-    # Aceita tanto um único objeto quanto lista de objetos para facilitar debug manual.
+def load_ad_from_json() -> Listing:
     raw = json.loads(JSON_PATH.read_text(encoding="utf-8"))
 
-    if isinstance(raw, list):
-        return [x for x in raw if isinstance(x, dict)]
+    if not isinstance(raw, dict):
+        raise SystemExit(f"Formato inesperado em {JSON_PATH}: esperado dict")
 
-    if isinstance(raw, dict):
-        return [raw]
-
-    raise SystemExit(f"Formato inesperado em {JSON_PATH}: esperado list ou dict")
-
-
-def ad_to_listing(ad: dict[str, Any]) -> dict[str, Any] | None:
-    # `listId` é o identificador canônico da OLX no nosso schema.
-    # Sem ele não há como fazer upsert determinístico.
-    if ad.get("listId") is None:
-        return None
-
-    # Filtra apenas colunas persistidas na tabela `listings`.
-    return {col: ad.get(col) for col in COLUMNS}
+    return Listing(**raw)
 
 
 def main() -> None:
@@ -74,28 +61,18 @@ def main() -> None:
 
     create_tables()
 
-    ads = load_ads_from_json()
+    listing = load_ad_from_json()
 
-    listings: list[dict[str, Any]] = []
+    logger.info("Tentando upsert de %s linhas (da JSON)", listing)
 
-    for ad in ads:
-        listing = ad_to_listing(ad)
-
-        if listing is not None:
-            listings.append(listing)
-
-    logger.info("Tentando upsert de %s linhas (da JSON)", len(listings))
-
-    if not listings:
+    if not listing:
         raise SystemExit("Nenhuma linha válida para inserir (listId ausente)")
 
     # Uma única transação para batch: commit ao fim ou rollback implícito em erro.
     conn = get_connection()
 
     try:
-        for listing in listings:
-            upsert_listing(conn, listing)
-
+        upsert_listing(conn, listing)
         conn.commit()
 
     finally:
