@@ -27,54 +27,39 @@ _http = cloudscraper.create_scraper()
 _cycle_headers: dict[str, str] | None = None
 
 
-def _is_listing_payload(obj: dict[str, Any]) -> bool:
-    return (
-        obj.get("listId") is not None
-        and isinstance(obj.get("locationDetails"), dict)
-        and isinstance(obj.get("properties"), list)
-        and isinstance(obj.get("images"), list)
-        and isinstance(obj.get("friendlyUrl") or obj.get("url"), str)
-    )
-
-
-def _try_normalize_listing(raw: dict[str, Any]) -> Listing | None:
-    try:
-        return normalize_olx_listing(raw)
-    except (KeyError, TypeError, ValueError):
-        return None
-
-
-def _walk_collect_listings(obj: Any, out: list[Listing], depth: int = 0) -> None:
-    """Percorre o `__NEXT_DATA__` e acumula nós que já têm shape de listing."""
-    if depth > 25 or obj is None:
-        return
-    if isinstance(obj, dict):
-        if _is_listing_payload(obj):
-            normalized = _try_normalize_listing(obj)
-            if normalized is not None:
-                out.append(normalized)
-                return
-        for v in obj.values():
-            _walk_collect_listings(v, out, depth + 1)
-    elif isinstance(obj, list):
-        for item in obj:
-            _walk_collect_listings(item, out, depth + 1)
-
-
-def extract_listings_from_search_page(html: str) -> list[Listing]:
-    """HTML da listagem → lista de anúncios (formato normalizado)."""
-    listings: list[Listing] = []
-
+def _extract_next_data(html: str) -> dict[str, Any]:
     script = BeautifulSoup(html, "lxml").find("script", id="__NEXT_DATA__")
     if not script or not script.string:
         raise ParseError('Tag <script id="__NEXT_DATA__"> não encontrada ou vazia')
 
     try:
-        data = json.loads(script.string)
+        return json.loads(script.string)
     except json.JSONDecodeError as e:
         raise ParseError(f"Falha ao decodificar __NEXT_DATA__: {e}") from e
 
-    _walk_collect_listings(data, listings)
+
+def _extract_ads_payload(next_data: dict[str, Any]) -> list[dict[str, Any]]:
+    try:
+        ads = next_data["props"]["pageProps"]["ads"]
+    except KeyError as e:
+        raise ParseError(f"Caminho ausente no __NEXT_DATA__: {e}") from e
+
+    if not isinstance(ads, list):
+        raise ParseError("`props.pageProps.ads` não é uma lista")
+
+    return [item for item in ads if isinstance(item, dict)]
+
+
+def extract_listings_from_search_page(html: str) -> list[Listing]:
+    """HTML da listagem → lista de anúncios (formato normalizado)."""
+    next_data = _extract_next_data(html)
+    ads = _extract_ads_payload(next_data)
+
+    listings: list[Listing] = []
+    for ad in ads:
+        if ad.get("listId") is None:
+            continue
+        listings.append(normalize_olx_listing(ad))
     return listings
 
 

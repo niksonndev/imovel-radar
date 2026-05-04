@@ -7,8 +7,10 @@ import os
 from pathlib import Path
 from typing import Any
 
+from bs4 import BeautifulSoup
+
 # `config.py` exige TELEGRAM_BOT_TOKEN ao importar `scraper.olx_scraper`.
-# Para este script de debug do scraper, um valor dummy é suficiente.
+# Para este script de debug do scraper, um valor dummy e suficiente.
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "debug-token")
 
 import config
@@ -18,7 +20,7 @@ from utils.models import Listing
 ROOT = Path(__file__).resolve().parent.parent
 LOGS_DIR = ROOT / "logs"
 LOG_FILE = LOGS_DIR / "debug_scraper.log"
-PAGE1_HTML = LOGS_DIR / "debug_scraper_page1.html"
+PAGE1_NEXT_DATA = LOGS_DIR / "debug_scraper_page1_next_data.json"
 PAGE1_LISTINGS = LOGS_DIR / "debug_scraper_page1_listings.json"
 
 logger = logging.getLogger(__name__)
@@ -59,6 +61,20 @@ def _write_json(path: Path, payload: Any) -> None:
     )
 
 
+def _extract_next_data(html: str) -> dict[str, Any]:
+    script = BeautifulSoup(html, "lxml").find("script", id="__NEXT_DATA__")
+    if not script or not script.string:
+        raise SystemExit('Tag <script id="__NEXT_DATA__"> não encontrada ou vazia')
+    return json.loads(script.string)
+
+
+def _count_ads_objects(next_data: dict[str, Any]) -> int:
+    ads = next_data["props"]["pageProps"]["ads"]
+    if not isinstance(ads, list):
+        raise SystemExit("`props.pageProps.ads` não é uma lista")
+    return sum(1 for item in ads if isinstance(item, dict))
+
+
 async def main() -> None:
     setup_logging()
 
@@ -66,8 +82,13 @@ async def main() -> None:
     logger.info("URL base da coleta: %s", config.MACEIO_RENT_LISTINGS_URL)
 
     html = await fetch(config.MACEIO_RENT_LISTINGS_URL)
-    PAGE1_HTML.write_text(html, encoding="utf-8")
-    logger.info("HTML da primeira página salvo em %s", PAGE1_HTML)
+    next_data = _extract_next_data(html)
+    _write_json(PAGE1_NEXT_DATA, next_data)
+    logger.info("__NEXT_DATA__ da primeira página salvo em %s", PAGE1_NEXT_DATA)
+    logger.info(
+        "`props.pageProps.ads` contém %s objetos",
+        _count_ads_objects(next_data),
+    )
 
     page1_listings = extract_listings_from_search_page(html)
     _write_json(
