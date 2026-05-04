@@ -3,6 +3,8 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Iterable, Sequence
 
+from utils.models import Listing
+
 UPSERT_LISTING_SQL = """
 INSERT INTO listings (
     listId, url, title, priceValue, oldPrice,
@@ -110,7 +112,7 @@ LISTING_COLUMNS = (
 _LISTING_COLUMNS_SQL = ", ".join(LISTING_COLUMNS)
 
 
-def upsert_listing(conn: sqlite3.Connection, listing: dict) -> None:
+def upsert_listing(conn: sqlite3.Connection, listing: Listing) -> None:
     conn.execute(UPSERT_LISTING_SQL, listing)
 
 
@@ -121,7 +123,10 @@ def get_maceio_neighbourhoods(conn: sqlite3.Connection) -> list[str]:
 
 def create_new_alert(conn: sqlite3.Connection, alert: dict) -> int:
     cur = conn.execute(INSERT_ALERT_SQL, alert)
-    return cur.lastrowid
+    last_id = cur.lastrowid
+    if last_id is None:
+        raise RuntimeError("Falha ao obter ID do alerta inserido")
+    return last_id
 
 
 def get_alert_by_id(

@@ -1,10 +1,31 @@
+"""
+Scrape diário do OLX Maceió — busca imóveis para aluguel e persiste no banco.
+
+Uso:
+    python -m scripts.run_daily_scrape
+
+O que faz:
+    1. Busca todos os anúncios de aluguel em Maceió via OLX scraper (async)
+    2. Faz upsert de cada anúncio no banco SQLite (listings)
+    3. Marca como inativos os anúncios que sumiram do OLX desde o último scrape
+    4. Grava log em logs/scrape.log e exibe resumo no terminal
+
+Variáveis de ambiente:
+    TELEGRAM_BOT_TOKEN  Definida automaticamente como dummy se ausente
+                        (o bot não é necessário para este script)
+
+Saída esperada:
+    Resumo: fetched=X inserted=X skipped=X errors=X deactivated=X
+"""
+
 from __future__ import annotations
 
 import asyncio
 import logging
 import os
 from pathlib import Path
-from typing import Any
+
+from utils.models import Listing
 
 # `config.py` exige TELEGRAM_BOT_TOKEN ao importar `database/db.py` e `scraper/olx_scraper.py`.
 # Este script roda via scheduler externo e não precisa do bot; então garantimos um dummy.
@@ -20,19 +41,6 @@ logger = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parent.parent
 LOGS_DIR = ROOT / "logs"
 LOG_FILE = LOGS_DIR / "scrape.log"
-
-COLUMNS = [
-    "listId",
-    "url",
-    "title",
-    "priceValue",
-    "oldPrice",
-    "municipality",
-    "neighbourhood",
-    "category",
-    "images",
-    "properties",
-]
 
 
 def setup_logging() -> None:
@@ -56,7 +64,7 @@ def setup_logging() -> None:
     root_logger.addHandler(file_handler)
 
 
-def run_insert_batch(ads: list[dict[str, Any]]) -> tuple[int, int, int, int]:
+def run_insert_batch(ads: list[Listing]) -> tuple[int, int, int, int]:
     total_fetched = len(ads)
     total_inserted = 0
     total_skipped = 0
@@ -80,9 +88,8 @@ def run_insert_batch(ads: list[dict[str, Any]]) -> tuple[int, int, int, int]:
                     continue
 
                 try:
-                    # "Normaliza por seleção": só colunas conhecidas seguem para o upsert.
-                    listing = {col: ad.get(col) for col in COLUMNS}
-                    upsert_listing(conn, listing)
+                    # ad já é um Listing — passa direto para o upsert.
+                    upsert_listing(conn, ad)
                     total_inserted += 1
                     logger.debug(
                         "[%s/%s] Inserted/Updated listId=%s",
@@ -146,8 +153,8 @@ def main() -> None:
     create_tables()
 
     try:
-        # Mantemos entrypoint síncrono; asyncio.run cria/fecha loop só para esta execução.
         ads = asyncio.run(search_all_rent_maceio())
+        # Mantemos entrypoint síncrono; asyncio.run cria/fecha loop só para esta execução.
     except Exception:
         logger.exception("Falha ao buscar anúncios no OLX.")
         raise
@@ -178,4 +185,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
