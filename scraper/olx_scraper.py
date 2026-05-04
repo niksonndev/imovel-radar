@@ -19,6 +19,7 @@ from bs4 import BeautifulSoup
 
 import config
 from scraper.parser import normalize_olx_listing
+from utils.models import Listing
 
 logger = logging.getLogger(__name__)
 
@@ -26,29 +27,33 @@ _http = cloudscraper.create_scraper()
 _cycle_headers: dict[str, str] | None = None
 
 
-def _walk_collect_listings(obj: Any, out: list[dict], depth: int = 0) -> None:
-    """Percorre JSON do __NEXT_DATA__ e acumula anúncios normalizados.
-    A ideia é deixar `normalize_olx_listing` (parser.py) com a responsabilidade de:
-    - descobrir `listId` / `adId`
-    - validar/filtrar
-    - normalizar `url`, `properties`, `images`, etc.
-    """
+def _is_listing_payload(obj: dict[str, Any]) -> bool:
+    return (
+        obj.get("listId") is not None
+        and isinstance(obj.get("locationDetails"), dict)
+        and isinstance(obj.get("properties"), list)
+        and isinstance(obj.get("images"), list)
+        and isinstance(obj.get("friendlyUrl") or obj.get("url"), str)
+    )
+
+
+def _try_normalize_listing(raw: dict[str, Any]) -> Listing | None:
+    try:
+        return normalize_olx_listing(raw)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _walk_collect_listings(obj: Any, out: list[Listing], depth: int = 0) -> None:
+    """Percorre o `__NEXT_DATA__` e acumula nós que já têm shape de listing."""
     if depth > 25 or obj is None:
         return
     if isinstance(obj, dict):
-        # Heurística mínima para reduzir chamadas de normalização:
-        # objetos com `listId`/`adId` ou com URL de anúncio (/d/).
-        has_explicit_id = obj.get("listId") is not None or obj.get("adId") is not None
-        url_val = (
-            obj.get("url")
-            if isinstance(obj.get("url"), str)
-            else obj.get("friendlyUrl")
-        )
-        has_url_hint = isinstance(url_val, str) and "/d/" in url_val
-        if has_explicit_id or has_url_hint:
-            normalized = normalize_olx_listing(obj)
-            if normalized.get("listId") is not None:
+        if _is_listing_payload(obj):
+            normalized = _try_normalize_listing(obj)
+            if normalized is not None:
                 out.append(normalized)
+                return
         for v in obj.values():
             _walk_collect_listings(v, out, depth + 1)
     elif isinstance(obj, list):
@@ -56,56 +61,21 @@ def _walk_collect_listings(obj: Any, out: list[dict], depth: int = 0) -> None:
             _walk_collect_listings(item, out, depth + 1)
 
 
-def parse_search_page(html: str) -> list[dict]:
+def extract_listings_from_search_page(html: str) -> list[Listing]:
     """HTML da listagem → lista de anúncios (formato normalizado)."""
-    out: list[dict] = []
-    seen_ids: set[str] = set()
+    listings: list[Listing] = []
 
-    soup = BeautifulSoup(html, "lxml")
-    script = soup.find("script", id="__NEXT_DATA__")
-    if script and script.string:
-        try:
-            data = json.loads(script.string)
-            _walk_collect_listings(data, out)
-        except json.JSONDecodeError as e:
-            logger.warning("__NEXT_DATA__ JSON: %s", e)
+    script = BeautifulSoup(html, "lxml").find("script", id="__NEXT_DATA__")
+    if not script or not script.string:
+        raise ParseError('Tag <script id="__NEXT_DATA__"> não encontrada ou vazia')
 
-    dedup: dict[str, dict] = {}
-    for ad in out:
-        lid = ad.get("listId")
-        oid = str(lid) if lid is not None else ""
-        if not oid or oid in seen_ids:
-            continue
-        if oid not in dedup or (
-            ad.get("url") and "olx.com.br/d/" in str(ad.get("url"))
-        ):
-            dedup[oid] = ad
-        seen_ids.add(oid)
-    result = list(dedup.values())
+    try:
+        data = json.loads(script.string)
+    except json.JSONDecodeError as e:
+        raise ParseError(f"Falha ao decodificar __NEXT_DATA__: {e}") from e
 
-    if len(result) < 3:
-        for a in soup.find_all("a", href=True):
-            href = a["href"]
-            if "/d/" not in href:
-                continue
-            # Fallback quando o `__NEXT_DATA__` falha/retorna pouco:
-            # reaproveita o parser para garantir o formato fixo.
-            raw = {
-                "url": href,
-                "friendlyUrl": href,
-                "title": a.get_text() or "Anúncio",
-            }
-            normalized = normalize_olx_listing(raw)
-            oid = normalized.get("listId")
-            if oid is None:
-                continue
-            oid_s = str(oid)
-            if oid_s in dedup:
-                continue
-            dedup[oid_s] = normalized
-        result = list(dedup.values())
-
-    return result
+    _walk_collect_listings(data, listings)
+    return listings
 
 
 def _rent_maceio_listings_url(page: int) -> str:
@@ -123,6 +93,10 @@ class FetchError(Exception):
         self.status_code = status_code
         self.url = url
         super().__init__(f"HTTP {status_code} para {url}")
+
+
+class ParseError(Exception):
+    """Erro ao extrair listings do HTML da busca."""
 
 
 async def close() -> None:
@@ -193,13 +167,13 @@ async def fetch(url: str, headers: dict[str, str] | None = None) -> str:
     return text
 
 
-async def search_all_rent_maceio() -> list[dict]:
+async def search_all_rent_maceio() -> list[Listing]:
     """
     Todas as páginas de aluguel Maceió (1, depois ?o=2, ?o=3, ...).
     Deduplica por listId; sem filtros locais (job decidem depois).
     """
     global _cycle_headers
-    all_ads: dict[str, dict] = {}
+    all_ads: dict[int, Listing] = {}
     _cycle_headers = _build_headers()
     try:
         page = 1
@@ -212,19 +186,16 @@ async def search_all_rent_maceio() -> list[dict]:
             except Exception as e:
                 logger.exception("Erro ao buscar %s: %s", url, e)
                 break
-            ads = parse_search_page(html)
+            ads = extract_listings_from_search_page(html)
             logger.info("Página %s: %s anúncios brutos", page, len(ads))
             if not ads:
                 break
             new_in_page = 0
             for ad in ads:
-                lid = ad.get("listId")
-                oid = str(lid) if lid is not None else ""
-                if not oid:
-                    continue
-                if oid not in all_ads:
+                list_id = ad["listId"]
+                if list_id not in all_ads:
                     new_in_page += 1
-                all_ads[oid] = ad
+                all_ads[list_id] = ad
             if new_in_page == 0:
                 break
             page += 1
@@ -236,6 +207,6 @@ async def search_all_rent_maceio() -> list[dict]:
     return out
 
 
-def coletar() -> list[dict]:
+def coletar() -> list[Listing]:
     """Executa a coleta síncrona (útil em threads sem event loop asyncio ativo)."""
     return asyncio.run(search_all_rent_maceio())
