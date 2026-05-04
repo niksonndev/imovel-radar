@@ -1,16 +1,15 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional
+from typing import TypedDict
 
 
-@dataclass
-class Alert:
-    user_id: int
-    created_at: datetime
-    id: Optional[int] = None
-    alert_name: Optional[str] = None
-    min_price: Optional[int] = None
-    max_price: Optional[int] = None
-    neighbourhoods: list[str] = field(default_factory=list)
-    active: bool = True
+class Listing(TypedDict):
+    listId: int
+    url: str
+    title: str
+    priceValue: int | None
+    oldPrice: int | None
+    municipality: str
+    neighbourhood: str | None
+    category: str
+    images: str
+    properties: str
