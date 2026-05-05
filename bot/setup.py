@@ -29,7 +29,8 @@ BOT_COMMANDS = [
 
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(
+    assert update.effective_message
+    await update.effective_message.reply_text(
         menus.start_welcome(),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.main_menu_keyboard(),
@@ -37,7 +38,8 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(
+    assert update.effective_message
+    await update.effective_message.reply_text(
         menus.ajuda_comandos_plain(),
         reply_markup=keyboards.main_menu_keyboard(),
     )
@@ -48,6 +50,7 @@ async def main_menu_callback(
 ) -> None:
     """Roteia ações do menu principal mantendo navegação só por botões inline."""
     query = update.callback_query
+    assert query
     await query.answer()
 
     handlers: dict[str, tuple[str, bool]] = {
