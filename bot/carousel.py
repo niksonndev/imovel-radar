@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 
 from telegram import (
     Bot,
@@ -40,7 +39,7 @@ from telegram import (
 from telegram.error import BadRequest, TelegramError
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
 
-from utils.pricing import format_brl, money_to_int
+from utils.pricing import format_brl
 
 logger = logging.getLogger(__name__)
 
