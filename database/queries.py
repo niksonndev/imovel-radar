@@ -21,7 +21,7 @@ VALUES (
 ON CONFLICT(listId) DO UPDATE SET
     priceValue = excluded.priceValue,
     oldPrice = excluded.oldPrice,
-    active = 1,
+    active = TRUE,
     updated_at = strftime('%Y-%m-%dT%H:%M:%S', 'now')
 """.strip()
 
@@ -129,16 +129,12 @@ def create_new_alert(conn: sqlite3.Connection, alert: dict) -> int:
     return last_id
 
 
-def get_alert_by_id(
-    conn: sqlite3.Connection, alert_id: int
-) -> sqlite3.Row | None:
+def get_alert_by_id(conn: sqlite3.Connection, alert_id: int) -> sqlite3.Row | None:
     """Retorna a linha do alerta pelo id, ou None se não existir."""
     return conn.execute(GET_ALERT_BY_ID_SQL, (alert_id,)).fetchone()
 
 
-def list_alerts_for_user(
-    conn: sqlite3.Connection, user_id: int
-) -> list[sqlite3.Row]:
+def list_alerts_for_user(conn: sqlite3.Connection, user_id: int) -> list[sqlite3.Row]:
     """Lista todos os alertas de um usuário (interno), do mais recente ao mais antigo."""
     return conn.execute(LIST_ALERTS_FOR_USER_SQL, (user_id,)).fetchall()
 
@@ -147,9 +143,7 @@ def get_alert_for_user(
     conn: sqlite3.Connection, alert_id: int, user_id: int
 ) -> sqlite3.Row | None:
     """Retorna o alerta se existir e pertencer ao ``user_id`` interno."""
-    return conn.execute(
-        GET_ALERT_FOR_USER_SQL, (alert_id, user_id)
-    ).fetchone()
+    return conn.execute(GET_ALERT_FOR_USER_SQL, (alert_id, user_id)).fetchone()
 
 
 def delete_alert_for_user(
@@ -281,12 +275,7 @@ def get_unnotified_matches_for_alert(
         limit_sql = " LIMIT ?"
         params.append(limit)
 
-    sql = (
-        base
-        + where_sql
-        + " ORDER BY l.first_seen_at DESC, l.listId DESC"
-        + limit_sql
-    )
+    sql = base + where_sql + " ORDER BY l.first_seen_at DESC, l.listId DESC" + limit_sql
     return conn.execute(sql, params).fetchall()
 
 

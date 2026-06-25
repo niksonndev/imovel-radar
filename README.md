@@ -67,5 +67,3 @@ python main.py
 - Handlers registrados em `bot/setup.py`, nunca em `main.py`
 - Logs via `logging`, nunca `print()` em produção
 - Variáveis sensíveis sempre via `.env`, nunca hardcoded
-
-TEst

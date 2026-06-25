@@ -8,7 +8,7 @@ def create_tables():
             """
             CREATE TABLE IF NOT EXISTS listings (
                 listId         INTEGER PRIMARY KEY,
-                active         INTEGER  NOT NULL  DEFAULT 1, -- 0 = sumiu do OLX
+                active         BOOLEAN  NOT NULL  DEFAULT TRUE, -- FALSE = listing removed from source
                 url            TEXT,
                 title          TEXT,
                 priceValue     INTEGER,
