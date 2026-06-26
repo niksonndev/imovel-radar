@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Iterable, Sequence
 
-from utils.models import Listing
+from utils.models import Listing, Alert
 
 UPSERT_LISTING_SQL = """
 INSERT INTO listings (
@@ -32,6 +32,15 @@ WHERE municipality = 'Maceió'
   AND neighbourhood != ''
 GROUP BY neighbourhood
 ORDER BY COUNT(*) DESC
+""".strip()
+
+GET_FILTERED_LISTINGS_SQL = """
+SELECT listId, url, title, priceValue, oldPrice,
+               municipality, neighbourhood, category, images, properties
+        FROM listings
+        WHERE active = TRUE
+          AND priceValue >= :min_price
+          AND priceValue <= :max_price
 """.strip()
 
 INSERT_ALERT_SQL = """
@@ -93,24 +102,6 @@ WHERE am.listing_id IS NULL
   AND l.active = 1
 """.strip()
 
-# Colunas devolvidas pelas buscas de listings. Declaradas uma única vez para
-# que consumidores possam confiar na ordem/presença dos campos.
-LISTING_COLUMNS = (
-    "listId",
-    "url",
-    "title",
-    "priceValue",
-    "oldPrice",
-    "municipality",
-    "neighbourhood",
-    "category",
-    "images",
-    "properties",
-    "first_seen_at",
-    "updated_at",
-)
-_LISTING_COLUMNS_SQL = ", ".join(LISTING_COLUMNS)
-
 
 def upsert_listing(conn: sqlite3.Connection, listing: Listing) -> None:
     conn.execute(UPSERT_LISTING_SQL, listing)
@@ -160,43 +151,14 @@ def delete_alert_for_user(
 
 def get_filtered_listings(
     conn: sqlite3.Connection,
-    *,
-    min_price: int | None = None,
-    max_price: int | None = None,
-    neighbourhoods: Sequence[str] | None = None,
-    municipality: str | None = "Maceió",
-    only_active: bool = True,
-    limit: int | None = None,
-) -> list[sqlite3.Row]:
-    """Lê listings do cache local aplicando filtros opcionais.
-
-    - ``min_price``/``max_price``: inclusivos; passe ``None`` para não filtrar.
-    - ``neighbourhoods``: se vazio/``None``, não restringe por bairro.
-    - ``municipality``: ``None`` desliga o filtro (útil em queries globais).
-    - ``only_active``: se ``True``, considera apenas ``active = 1``.
-    - ``limit``: se ``None``, não aplica ``LIMIT`` (devolve todos).
-
-    Retorna ``list[sqlite3.Row]`` sem fazer parse de JSON (``images``/``properties``);
+    alert: Alert,
+) -> list[Listing]:
+    """Lê listings de alert aplicando filtros.
+    Retorna ``list[Listing]`` sem fazer parse de JSON (``images``/``properties``);
     a camada que consumir decide se normaliza.
     """
     where: list[str] = []
     params: list[Any] = []
-
-    if only_active:
-        where.append("active = 1")
-    if municipality:
-        where.append("municipality = ?")
-        params.append(municipality)
-    if isinstance(min_price, int):
-        where.append("priceValue >= ?")
-        params.append(min_price)
-    if isinstance(max_price, int):
-        where.append("priceValue <= ?")
-        params.append(max_price)
-    if neighbourhoods:
-        placeholders = ", ".join(["?"] * len(neighbourhoods))
-        where.append(f"neighbourhood IN ({placeholders})")
-        params.extend(neighbourhoods)
 
     where_sql = f"WHERE {' AND '.join(where)}" if where else ""
     limit_sql = ""
@@ -233,7 +195,7 @@ def get_unnotified_matches_for_alert(
     since_iso: str | None = None,
     only_active: bool = True,
     limit: int | None = None,
-) -> list[sqlite3.Row]:
+) -> list[Listing]:
     """Listings que casam com o alerta e ainda NÃO estão em ``alert_matches``.
 
     Usa ``LEFT JOIN … IS NULL`` para filtrar anúncios já notificados para

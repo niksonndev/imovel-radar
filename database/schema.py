@@ -34,10 +34,10 @@ def create_tables():
                 id             INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id        INTEGER NOT NULL,
                 alert_name     TEXT,
-                min_price      INTEGER,
-                max_price      INTEGER,
+                min_price      INTEGER NOT NULL,
+                max_price      INTEGER NOT NULL,
                 neighbourhoods TEXT, -- JSON array de nomes de bairros
-                active         INTEGER NOT NULL DEFAULT 1,
+                active         BOOLEAN NOT NULL DEFAULT TRUE,
                 created_at     TEXT    NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             );

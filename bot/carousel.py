@@ -1,9 +1,8 @@
 """
 Carrossel de anuncios: camada de apresentacao pura.
 
-Recebe uma ``list[dict]`` já pronta (preparada por ``bot.alert_matching`` ou
-por outro orquestrador) e renderiza no Telegram como uma sequência paginada
-de mensagens com foto (quando disponível) e teclado inline.
+Recebe uma ``list[Listing]`` e renderiza no Telegram como uma sequência
+paginada de mensagens com foto (quando disponível) e teclado inline.
 
 Este módulo **não** acessa o banco de dados; a responsabilidade de buscar
 e normalizar os anúncios é de quem chama ``send_carousel``.
@@ -40,6 +39,7 @@ from telegram.error import BadRequest, TelegramError
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
 
 from utils.pricing import format_brl
+from utils.models import Listing
 
 logger = logging.getLogger(__name__)
 
@@ -252,7 +252,7 @@ def _coerce_state(state: object) -> CarouselState | None:
 async def send_carousel(
     bot: Bot,
     chat_id: int,
-    ads: list[dict],
+    ads: list[Listing],
     carousel_id: str,
     state_store: MutableMapping[str, object],
 ) -> None:
