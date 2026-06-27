@@ -129,8 +129,6 @@ nikson_alert_rows = get_filtered_listings(
     min_price=nikson_alert_min_price,
     max_price=nikson_alert_max_price,
     neighbourhoods=nikson_alert_neighbourhoods,
-    municipality="Maceió",
-    only_active=True,
 )
 
 # Snapshot rápido para comparar resultado da query com a expectativa do alerta.

@@ -21,6 +21,6 @@ class Alert(TypedDict):
     alert_name: str
     min_price: int
     max_price: int
-    neighbourhoods: str | None  # JSON array, deserializar quando usar
+    neighbourhoods: str  # JSON array, deserializar quando usar
     active: bool
     created_at: str

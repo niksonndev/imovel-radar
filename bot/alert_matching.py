@@ -46,7 +46,6 @@ from database import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MUNICIPALITY = "Maceió"
 # Pausa curta entre notificações para usuários distintos, para não estourar
 # o rate-limit do Bot API (30 msg/s global).
 _NOTIFY_USER_GAP_SECONDS = 0.1
@@ -75,9 +74,7 @@ def _parse_neighbourhoods_field(raw: object, alert_id: int) -> list[str]:
         try:
             parsed = json.loads(raw)
         except Exception:
-            logger.warning(
-                "neighbourhoods inválido no alerta %s: %r", alert_id, raw
-            )
+            logger.warning("neighbourhoods inválido no alerta %s: %r", alert_id, raw)
             return []
         if isinstance(parsed, list):
             return [n for n in parsed if isinstance(n, str)]
@@ -91,9 +88,7 @@ def _row_to_ad(row: sqlite3.Row) -> dict:
     return ad
 
 
-def get_alert_filters(
-    conn: sqlite3.Connection, alert_id: int
-) -> dict | None:
+def get_alert_filters(conn: sqlite3.Connection, alert_id: int) -> dict | None:
     """Lê o alerta e devolve só os filtros relevantes para o matching."""
     row = get_alert_by_id(conn, alert_id)
     if row is None:
@@ -101,10 +96,17 @@ def get_alert_filters(
     return {
         "min_price": row["min_price"],
         "max_price": row["max_price"],
-        "neighbourhoods": _parse_neighbourhoods_field(
-            row["neighbourhoods"], alert_id
-        ),
+        "neighbourhoods": _parse_neighbourhoods_field(row["neighbourhoods"], alert_id),
     }
+
+
+"""         neighbourhoods = json.loads(alert["neighbourhoods"])
+
+    placeholders = ",".join("?" * len(neighbourhoods))
+
+    query = GET_FILTERED_LISTINGS_SQL.format(placeholders=placeholders)
+
+    params = [alert["min_price"], alert["max_price"], *neighbourhoods] """
 
 
 def find_matches_for_alert(
@@ -129,10 +131,7 @@ def find_matches_for_alert(
             conn,
             min_price=filters["min_price"],
             max_price=filters["max_price"],
-            neighbourhoods=filters["neighbourhoods"] or None,
-            municipality=municipality,
-            only_active=True,
-            limit=limit,
+            neighbourhoods=filters["neighbourhoods"],
         )
     finally:
         conn.close()
@@ -145,8 +144,6 @@ def find_matches(
     min_price: int | None = None,
     max_price: int | None = None,
     neighbourhoods: Sequence[str] | None = None,
-    municipality: str | None = DEFAULT_MUNICIPALITY,
-    limit: int | None = None,
 ) -> list[dict]:
     """Versão sem ``alert_id`` útil para scripts/relatórios ad-hoc."""
     conn = get_connection()
@@ -156,9 +153,6 @@ def find_matches(
             min_price=min_price,
             max_price=max_price,
             neighbourhoods=neighbourhoods,
-            municipality=municipality,
-            only_active=True,
-            limit=limit,
         )
     finally:
         conn.close()
@@ -209,9 +203,7 @@ async def seed_alert_carousel(
         try:
             await bot.send_message(chat_id=tg_id, text=menus.seed_sem_cache())
         except TelegramError:
-            logger.exception(
-                "Falha ao enviar mensagem de erro do seed para %s", tg_id
-            )
+            logger.exception("Falha ao enviar mensagem de erro do seed para %s", tg_id)
         return
 
     if not matches:
@@ -267,17 +259,12 @@ async def _notify_one_alert(app: Application, alert_row: sqlite3.Row) -> int:
     try:
         await app.bot.send_message(
             chat_id=chat_id,
-            text=(
-                f"🔔 {len(ads)} novo(s) imóvel(is) para o alerta "
-                f"*{alert_name}*"
-            ),
+            text=(f"🔔 {len(ads)} novo(s) imóvel(is) para o alerta *{alert_name}*"),
             parse_mode="Markdown",
         )
         # carousel_id com sufixo 'n' para não colidir com o seed (id=str(alert_id))
         # nem com futuros carrosséis diferentes do mesmo alerta.
-        await send_carousel(
-            app.bot, chat_id, ads, f"{alert_id}n", app.bot_data
-        )
+        await send_carousel(app.bot, chat_id, ads, f"{alert_id}n", app.bot_data)
     except TelegramError:
         logger.exception(
             "Falha ao enviar notificação do alerta %s para chat %s",
