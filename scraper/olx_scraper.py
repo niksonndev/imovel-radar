@@ -19,7 +19,7 @@ from bs4 import BeautifulSoup
 
 import config
 from scraper.parser import normalize_olx_listing
-from utils.models import Listing
+from models import Listing
 
 logger = logging.getLogger(__name__)
 

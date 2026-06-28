@@ -57,9 +57,7 @@ async def _enter_neighbourhoods(msg, context) -> None:
     await msg.reply_text(
         menus.wizard_bairros_instrucao(sel),
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=keyboards.neighborhoods_keyboard(
-            sel, nb_options, page=0
-        ),
+        reply_markup=keyboards.neighborhoods_keyboard(sel, nb_options, page=0),
     )
 
 
@@ -284,7 +282,6 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             "alert_name": wizard["alert_name"],
             "min_price": wizard.get("min_price"),
             "max_price": wizard.get("max_price"),
-            # Persiste bairros como JSON para manter schema simples em SQLite.
             "neighbourhoods": json.dumps(wizard.get("neighbourhoods") or []),
         }
         alert_id = create_new_alert(conn, alert_data)

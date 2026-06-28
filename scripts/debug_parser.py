@@ -4,6 +4,7 @@ e imprime + grava em debug_ad.json; aplica normalize_olx_listing e grava parsed_
 
 Uso: python scripts/debug_parser.py
 """
+
 from __future__ import annotations
 
 import json
@@ -14,11 +15,9 @@ import cloudscraper
 from bs4 import BeautifulSoup
 
 from scraper.parser import normalize_olx_listing
-from utils.models import Listing
+from models import Listing
 
-URL = (
-    "https://www.olx.com.br/imoveis/aluguel/estado-al/alagoas/maceio"
-)
+URL = "https://www.olx.com.br/imoveis/aluguel/estado-al/alagoas/maceio"
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT_JSON = ROOT / "debug_ad.json"
@@ -80,7 +79,7 @@ def main() -> None:
     # OLX/Next.js serializa estado da página em __NEXT_DATA__; usamos isso como fonte primária.
     script = soup.find("script", id="__NEXT_DATA__")
     if not script or not script.string:
-        raise SystemExit("Tag <script id=\"__NEXT_DATA__\"> não encontrada ou vazia")
+        raise SystemExit('Tag <script id="__NEXT_DATA__"> não encontrada ou vazia')
 
     data = json.loads(script.string)
     ad = _first_ad_object(data)

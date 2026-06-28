@@ -28,17 +28,17 @@ import asyncio
 import json
 import logging
 import sqlite3
-from typing import Sequence
 
 from telegram.error import TelegramError
 from telegram.ext import Application
 
+from models import Listing, Alert
+
 from bot.carousel import send_carousel
 from bot.ui import keyboards, menus
 from database import (
-    get_active_alerts_with_chat,
-    get_alert_by_id,
     get_connection,
+    get_alert_by_id,
     get_filtered_listings,
     get_unnotified_matches_for_alert,
     mark_listings_notified,
@@ -88,75 +88,26 @@ def _row_to_ad(row: sqlite3.Row) -> dict:
     return ad
 
 
-def get_alert_filters(conn: sqlite3.Connection, alert_id: int) -> dict | None:
-    """Lê o alerta e devolve só os filtros relevantes para o matching."""
-    row = get_alert_by_id(conn, alert_id)
-    if row is None:
-        return None
-    return {
-        "min_price": row["min_price"],
-        "max_price": row["max_price"],
-        "neighbourhoods": _parse_neighbourhoods_field(row["neighbourhoods"], alert_id),
-    }
-
-
-"""         neighbourhoods = json.loads(alert["neighbourhoods"])
-
-    placeholders = ",".join("?" * len(neighbourhoods))
-
-    query = GET_FILTERED_LISTINGS_SQL.format(placeholders=placeholders)
-
-    params = [alert["min_price"], alert["max_price"], *neighbourhoods] """
+"""          """
 
 
 def find_matches_for_alert(
+    conn: sqlite3.Connection,
     alert_id: int,
-    *,
-    municipality: str | None = DEFAULT_MUNICIPALITY,
-    limit: int | None = None,
-) -> list[dict]:
-    """Retorna listings ativos que combinam com os filtros do alerta.
+) -> list[Listing]:
 
-    - Sem ``limit`` por padrão: devolve todos os anúncios que casam.
-    - ``municipality`` pode ser desligado com ``None`` para matching global.
-    - Se o alerta não existir, devolve ``[]``.
-    """
-    conn = get_connection()
-    try:
-        filters = get_alert_filters(conn, alert_id)
-        if filters is None:
-            logger.warning("Alerta %s não encontrado ao buscar matches.", alert_id)
-            return []
-        rows = get_filtered_listings(
-            conn,
-            min_price=filters["min_price"],
-            max_price=filters["max_price"],
-            neighbourhoods=filters["neighbourhoods"],
-        )
-    finally:
-        conn.close()
+    alert = get_alert_by_id(conn, alert_id)
 
-    return [_row_to_ad(row) for row in rows]
+    neighbourhoods = json.loads(alert["neighbourhoods"])
 
+    listings = get_filtered_listings(
+        conn,
+        alert["min_price"],
+        alert["max_price"],
+        neighbourhoods,
+    )
 
-def find_matches(
-    *,
-    min_price: int | None = None,
-    max_price: int | None = None,
-    neighbourhoods: Sequence[str] | None = None,
-) -> list[dict]:
-    """Versão sem ``alert_id`` útil para scripts/relatórios ad-hoc."""
-    conn = get_connection()
-    try:
-        rows = get_filtered_listings(
-            conn,
-            min_price=min_price,
-            max_price=max_price,
-            neighbourhoods=neighbourhoods,
-        )
-    finally:
-        conn.close()
-    return [_row_to_ad(row) for row in rows]
+    return listings
 
 
 def _mark_all_notified(alert_id: int, listing_ids: list[int]) -> None:
@@ -194,8 +145,10 @@ async def seed_alert_carousel(
     """
     bot = app.bot
 
+    conn = get_connection()
+
     try:
-        matches = find_matches_for_alert(alert_id)
+        matches = find_matches_for_alert(conn, alert_id)
     except Exception:
         logger.exception(
             "Falha ao buscar matches no cache local para alerta %s", alert_id
@@ -230,7 +183,7 @@ async def seed_alert_carousel(
 # ────────────────────── notificação recorrente (scheduler) ──────────────────────
 
 
-async def _notify_one_alert(app: Application, alert_row: sqlite3.Row) -> int:
+async def _notify_one_alert(app: Application, alert_row: Alert) -> int:
     """Envia novas casadas para um alerta. Retorna quantos foram notificados."""
     alert_id = int(alert_row["id"])
     chat_id = int(alert_row["chat_id"])

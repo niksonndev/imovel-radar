@@ -25,7 +25,7 @@ import logging
 import os
 from pathlib import Path
 
-from utils.models import Listing
+from models import Listing
 
 # `config.py` exige TELEGRAM_BOT_TOKEN ao importar `database/db.py` e `scraper/olx_scraper.py`.
 # Este script roda via scheduler externo e não precisa do bot; então garantimos um dummy.

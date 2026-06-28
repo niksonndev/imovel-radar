@@ -3,13 +3,14 @@ Normaliza um dict bruto de anúncio da OLX (ex.: nó em __NEXT_DATA__) para um
 formato fixo com apenas: listId, url, title, priceValue, oldPrice, municipality,
 neighbourhood, properties, category, images.
 """
+
 from __future__ import annotations
 
 import json
 import re
 from typing import Any
 
-from utils.models import Listing
+from models import Listing
 from utils.pricing import money_to_int
 
 __all__ = ["normalize_olx_listing"]

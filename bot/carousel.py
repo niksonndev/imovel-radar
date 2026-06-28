@@ -39,7 +39,7 @@ from telegram.error import BadRequest, TelegramError
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
 
 from utils.pricing import format_brl
-from utils.models import Listing
+from models import Listing
 
 logger = logging.getLogger(__name__)
 

@@ -30,7 +30,7 @@ from database.db import get_connection
 
 from database.queries import upsert_listing
 
-from utils.models import Listing
+from models import Listing
 
 
 logger = logging.getLogger(__name__)

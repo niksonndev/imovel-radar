@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Iterable, Sequence
 
-from utils.models import Listing, Alert
+from models import Listing, Alert
 
 UPSERT_LISTING_SQL = """
 INSERT INTO listings (
@@ -77,15 +77,6 @@ FROM alerts
 WHERE id = ? AND user_id = ?
 """.strip()
 
-GET_ACTIVE_ALERTS_WITH_CHAT_SQL = """
-SELECT a.id, a.alert_name, a.min_price, a.max_price, a.neighbourhoods,
-       u.chat_id
-FROM alerts a
-JOIN users u ON u.id = a.user_id
-WHERE a.active = 1
-ORDER BY a.id
-""".strip()
-
 INSERT_ALERT_MATCH_SQL = """
 INSERT OR IGNORE INTO alert_matches (alert_id, listing_id, notified_at)
 VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%S', 'now'))
@@ -114,8 +105,8 @@ def get_maceio_neighbourhoods(conn: sqlite3.Connection) -> list[str]:
     return [row[0] for row in rows]
 
 
-def create_new_alert(conn: sqlite3.Connection, alert: Alert) -> int:
-    cur = conn.execute(INSERT_ALERT_SQL, alert)
+def create_new_alert(conn: sqlite3.Connection, alert_data: dict) -> int:
+    cur = conn.execute(INSERT_ALERT_SQL, alert_data)
     last_id = cur.lastrowid
     if last_id is None:
         raise RuntimeError("Falha ao obter ID do alerta inserido")
@@ -123,8 +114,8 @@ def create_new_alert(conn: sqlite3.Connection, alert: Alert) -> int:
 
 
 def get_alert_by_id(conn: sqlite3.Connection, alert_id: int) -> Alert:
-    """Retorna a linha do alerta pelo id, ou None se não existir."""
-    return conn.execute(GET_ALERT_BY_ID_SQL, (alert_id,)).fetchone()
+    row = conn.execute(GET_ALERT_BY_ID_SQL, (alert_id,)).fetchone()
+    return Alert(**dict(row))
 
 
 def list_alerts_for_user(conn: sqlite3.Connection, user_id: int) -> list[Alert]:
@@ -163,13 +154,6 @@ def get_filtered_listings(
     rows = cursor.fetchall()
 
     return [Listing(**dict(row)) for row in rows]
-
-
-def get_active_alerts_with_chat(
-    conn: sqlite3.Connection,
-) -> list[sqlite3.Row]:
-    """Lista todos os alertas ativos com ``chat_id`` do dono para notificação."""
-    return conn.execute(GET_ACTIVE_ALERTS_WITH_CHAT_SQL).fetchall()
 
 
 def get_unnotified_matches_for_alert(

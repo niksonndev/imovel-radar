@@ -28,7 +28,7 @@ from scraper.olx_scraper import (
     fetch,
     search_all_rent_maceio,
 )
-from utils.models import Listing
+from models import Listing
 
 ROOT = Path(__file__).resolve().parent.parent
 LOGS_DIR = ROOT / "logs"

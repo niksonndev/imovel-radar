@@ -8,7 +8,7 @@ Bot Telegram para monitorar anúncios de imóveis no OLX Maceió. Realiza scrapi
 
 - **Python 3.11+**
 - **Scraper**: `cloudscraper` + `BeautifulSoup4`
-- **Bot**: `python-telegram-bot>=20` (polling)
+- **Bot**: `python-telegram-bot>=21` (polling)
 - **Banco**: SQLite via `sqlite3` nativo
 - **Agendamento**: cron local → APScheduler (planejado)
 
@@ -40,6 +40,11 @@ imovel-radar/
 ```
 cron → main.py → scraper.coletar() → database.upsert_listing()
                                     → database.match_alertas() → bot.notificar()
+
+get_filtered_listings — retorna tudo que bate com o alert
+get_unnotified_matches_for_alert — filtra o que já foi notificado via alert_matches
+Bot envia o carousel com o que sobrou
+Insere na alert_matches os que foram notificados agora
 ```
 
 ## Comandos do bot
