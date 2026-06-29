@@ -1,7 +1,7 @@
 """
 Carrossel de anuncios: camada de apresentacao pura.
 
-Recebe uma ``list[Listing]`` e renderiza no Telegram como uma sequência
+Recebe uma ``list[HydratedListing]`` e renderiza no Telegram como uma sequência
 paginada de mensagens com foto (quando disponível) e teclado inline.
 
 Este módulo **não** acessa o banco de dados; a responsabilidade de buscar

@@ -1,17 +1,13 @@
 import json
-from typing import TypedDict
 
-from models import Listing
-
-
-class HydratedListing(Listing, TypedDict):
-    images: list[str]
-    properties: list[dict]
+from models import Listing, HydratedListing
 
 
 def hydrate_listing(listing: Listing) -> HydratedListing:
     return {
         **listing,
-        "images": json.loads(listing["images"]),
-        "properties": json.loads(listing["properties"]),
+        "images": json.loads(listing["images"]) if listing["images"] else None,
+        "properties": json.loads(listing["properties"])
+        if listing["properties"]
+        else [],
     }
