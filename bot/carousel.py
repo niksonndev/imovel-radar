@@ -39,7 +39,7 @@ from telegram.error import BadRequest, TelegramError
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
 
 from utils.pricing import format_brl
-from models import Listing
+from hydrator import HydratedListing
 
 logger = logging.getLogger(__name__)
 
@@ -252,7 +252,7 @@ def _coerce_state(state: object) -> CarouselState | None:
 async def send_carousel(
     bot: Bot,
     chat_id: int,
-    ads: list[Listing],
+    ads: list[HydratedListing],
     carousel_id: str,
     state_store: MutableMapping[str, object],
 ) -> None:

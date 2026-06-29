@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import Any, Iterable, Sequence
+from typing import Any, Sequence
 
 from models import Listing, Alert
 
@@ -216,15 +216,8 @@ def get_unnotified_matches_for_alert(
 def mark_listings_notified(
     conn: sqlite3.Connection,
     alert_id: int,
-    listing_ids: Iterable[int],
-) -> int:
-    """Grava em ``alert_matches`` que estes listings já foram notificados.
-
-    ``INSERT OR IGNORE`` preserva idempotência (a PK composta evita duplicatas).
-    Retorna o número de linhas realmente inseridas.
-    """
-    pairs = [(alert_id, int(lid)) for lid in listing_ids]
-    if not pairs:
-        return 0
-    cur = conn.executemany(INSERT_ALERT_MATCH_SQL, pairs)
-    return cur.rowcount or 0
+    listing_ids: list[int],
+) -> None:
+    conn.executemany(
+        INSERT_ALERT_MATCH_SQL, [(alert_id, listing_id) for listing_id in listing_ids]
+    )

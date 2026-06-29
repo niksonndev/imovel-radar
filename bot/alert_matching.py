@@ -16,7 +16,6 @@ Camada de caso-de-uso entre o banco (``database/``) e a UI do bot
     ``job_daily``; para cada alerta ativo, envia os listings novos (ainda não
     presentes em ``alert_matches``) e grava-os lá.
 
-``carousel.py`` continua sendo apenas camada de apresentação: recebe
 ``list[dict]`` pronto e renderiza. O estado de navegação é gravado em
 ``app.bot_data`` para funcionar também fora do contexto de um update
 (ex.: notificações do scheduler).
@@ -24,7 +23,6 @@ Camada de caso-de-uso entre o banco (``database/``) e a UI do bot
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import sqlite3
@@ -32,7 +30,7 @@ import sqlite3
 from telegram.error import TelegramError
 from telegram.ext import Application
 
-from models import Listing, Alert
+from models import Listing
 
 from bot.carousel import send_carousel
 from bot.ui import keyboards, menus
@@ -40,55 +38,11 @@ from database import (
     get_connection,
     get_alert_by_id,
     get_filtered_listings,
-    get_unnotified_matches_for_alert,
     mark_listings_notified,
 )
+from hydrator import hydrate_listing
 
 logger = logging.getLogger(__name__)
-
-# Pausa curta entre notificações para usuários distintos, para não estourar
-# o rate-limit do Bot API (30 msg/s global).
-_NOTIFY_USER_GAP_SECONDS = 0.1
-
-
-def _parse_images_field(raw: object) -> list[object]:
-    """Converte o campo ``images`` (JSON string) em ``list``."""
-    if isinstance(raw, str) and raw.strip():
-        try:
-            parsed = json.loads(raw)
-        except Exception:
-            return []
-        return parsed if isinstance(parsed, list) else []
-    if isinstance(raw, list):
-        return raw
-    return []
-
-
-def _parse_neighbourhoods_field(raw: object, alert_id: int) -> list[str]:
-    """Converte ``alerts.neighbourhoods`` (JSON) em ``list[str]``."""
-    if not raw:
-        return []
-    if isinstance(raw, list):
-        return [n for n in raw if isinstance(n, str)]
-    if isinstance(raw, str):
-        try:
-            parsed = json.loads(raw)
-        except Exception:
-            logger.warning("neighbourhoods inválido no alerta %s: %r", alert_id, raw)
-            return []
-        if isinstance(parsed, list):
-            return [n for n in parsed if isinstance(n, str)]
-    return []
-
-
-def _row_to_ad(row: sqlite3.Row) -> dict:
-    """Normaliza uma linha de ``listings`` no formato esperado pelo carrossel."""
-    ad = dict(row)
-    ad["images"] = _parse_images_field(ad.get("images"))
-    return ad
-
-
-"""          """
 
 
 def find_matches_for_alert(
@@ -100,33 +54,14 @@ def find_matches_for_alert(
 
     neighbourhoods = json.loads(alert["neighbourhoods"])
 
-    listings = get_filtered_listings(
+    filtered_listings = get_filtered_listings(
         conn,
         alert["min_price"],
         alert["max_price"],
         neighbourhoods,
     )
 
-    return listings
-
-
-def _mark_all_notified(alert_id: int, listing_ids: list[int]) -> None:
-    """Grava ``alert_matches`` em uma conexão dedicada (isolada do matching)."""
-    if not listing_ids:
-        return
-    conn = get_connection()
-    try:
-        mark_listings_notified(conn, alert_id, listing_ids)
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        logger.exception(
-            "Falha ao marcar %s listings como notificados (alerta %s)",
-            len(listing_ids),
-            alert_id,
-        )
-    finally:
-        conn.close()
+    return filtered_listings
 
 
 async def seed_alert_carousel(
@@ -134,140 +69,43 @@ async def seed_alert_carousel(
     alert_id: int,
     tg_id: int,
 ) -> None:
-    """Após criar um alerta, envia um carrossel com os imóveis que já casam.
+    """Envia carousel com matches atuais após criação do alerta.
 
-    Também grava TODOS os matches atuais em ``alert_matches`` para que o
-    ``notify_new_matches_all_alerts`` do próximo scrape só envie o que for
-    novo de verdade.
-
-    Estado do carrossel vai para ``app.bot_data`` para que a navegação
-    funcione em qualquer handler/chat.
+    Grava os matches em alert_matches para que notificações futuras
+    enviem apenas listings novos.
     """
     bot = app.bot
-
     conn = get_connection()
 
     try:
         matches = find_matches_for_alert(conn, alert_id)
-    except Exception:
-        logger.exception(
-            "Falha ao buscar matches no cache local para alerta %s", alert_id
+        if not matches:
+            await bot.send_message(
+                chat_id=tg_id,
+                text=menus.seed_nenhum_imovel(),
+                reply_markup=keyboards.main_menu_keyboard(),
+            )
+            return
+
+        hydrated = [hydrate_listing(match) for match in matches]
+
+        await send_carousel(bot, tg_id, hydrated, str(alert_id), app.bot_data)
+        await bot.send_message(
+            chat_id=tg_id,
+            text=menus.seed_alert_created(),
+            reply_markup=keyboards.main_menu_keyboard(),
         )
+
+        mark_listings_notified(conn, alert_id, [match["listId"] for match in matches])
+        conn.commit()
+
+    except Exception:
+        conn.rollback()
+        logger.exception("Falha no seed do carousel para alerta %s", alert_id)
         try:
             await bot.send_message(chat_id=tg_id, text=menus.seed_sem_cache())
         except TelegramError:
             logger.exception("Falha ao enviar mensagem de erro do seed para %s", tg_id)
-        return
 
-    if not matches:
-        await bot.send_message(
-            chat_id=tg_id,
-            text=menus.seed_nenhum_imovel(),
-            reply_markup=keyboards.main_menu_keyboard(),
-        )
-        return
-
-    await send_carousel(bot, tg_id, matches, str(alert_id), app.bot_data)
-    await bot.send_message(
-        chat_id=tg_id,
-        text=menus.seed_alert_created(),
-        reply_markup=keyboards.main_menu_keyboard(),
-    )
-
-    _mark_all_notified(
-        alert_id,
-        [int(ad["listId"]) for ad in matches if ad.get("listId") is not None],
-    )
-
-
-# ────────────────────── notificação recorrente (scheduler) ──────────────────────
-
-
-async def _notify_one_alert(app: Application, alert_row: Alert) -> int:
-    """Envia novas casadas para um alerta. Retorna quantos foram notificados."""
-    alert_id = int(alert_row["id"])
-    chat_id = int(alert_row["chat_id"])
-    alert_name = alert_row["alert_name"] or f"alerta #{alert_id}"
-    nbs = _parse_neighbourhoods_field(alert_row["neighbourhoods"], alert_id)
-
-    conn = get_connection()
-    try:
-        rows = get_unnotified_matches_for_alert(
-            conn,
-            alert_id,
-            min_price=alert_row["min_price"],
-            max_price=alert_row["max_price"],
-            neighbourhoods=nbs or None,
-            municipality=DEFAULT_MUNICIPALITY,
-        )
     finally:
         conn.close()
-
-    if not rows:
-        return 0
-
-    ads = [_row_to_ad(r) for r in rows]
-    listing_ids = [int(ad["listId"]) for ad in ads if ad.get("listId") is not None]
-
-    try:
-        await app.bot.send_message(
-            chat_id=chat_id,
-            text=(f"🔔 {len(ads)} novo(s) imóvel(is) para o alerta *{alert_name}*"),
-            parse_mode="Markdown",
-        )
-        # carousel_id com sufixo 'n' para não colidir com o seed (id=str(alert_id))
-        # nem com futuros carrosséis diferentes do mesmo alerta.
-        await send_carousel(app.bot, chat_id, ads, f"{alert_id}n", app.bot_data)
-    except TelegramError:
-        logger.exception(
-            "Falha ao enviar notificação do alerta %s para chat %s",
-            alert_id,
-            chat_id,
-        )
-        # Mesmo que o envio falhe, NÃO marcamos como notificado — assim a
-        # próxima rodada tenta de novo.
-        return 0
-
-    _mark_all_notified(alert_id, listing_ids)
-    return len(ads)
-
-
-async def notify_new_matches_all_alerts(app: Application) -> dict:
-    """Para cada alerta ativo, notifica imóveis novos e grava em ``alert_matches``.
-
-    Retorna um resumo ``{"alerts": N, "notified": M}`` útil para logs do job.
-    """
-    conn = get_connection()
-    try:
-        alerts = get_active_alerts_with_chat(conn)
-    finally:
-        conn.close()
-
-    if not alerts:
-        logger.info("notify: nenhum alerta ativo")
-        return {"alerts": 0, "notified": 0}
-
-    total_notified = 0
-    for a in alerts:
-        try:
-            n = await _notify_one_alert(app, a)
-            total_notified += n
-            if n > 0:
-                logger.info(
-                    "notify: alerta %s (chat %s) — %s novo(s)",
-                    a["id"],
-                    a["chat_id"],
-                    n,
-                )
-        except Exception:
-            logger.exception(
-                "Falha ao notificar alerta %s", a["id"] if "id" in a.keys() else "?"
-            )
-        await asyncio.sleep(_NOTIFY_USER_GAP_SECONDS)
-
-    logger.info(
-        "notify: %s alerta(s) processado(s), %s notificação(ões) enviada(s)",
-        len(alerts),
-        total_notified,
-    )
-    return {"alerts": len(alerts), "notified": total_notified}
