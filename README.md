@@ -38,12 +38,20 @@ imovel-radar/
 ## Fluxo principal
 
 ```
-cron → main.py → scraper.coletar() → database.upsert_listing()
-                                    → database.match_alertas() → bot.notificar()
+cron (APScheduler) → job_daily()
+  → _do_full_scrape()
+      → search_all_rent_maceio()       # scraper: busca todas as páginas da OLX
+      → extract_listings_from_search_page()  # parser: descarta listings sem foto
+      → upsert listings no banco       # INSERT OR REPLACE em listings
 
-find_matches_for_alert — retorna anúncios compatíveis com o alert e que não foram notificados
-send_carousel Bot envia o carousel com os anuncios não notificados
-mark_listings_notified Insere na alert_matches os que foram notificados agora
+  → _notify_new_matches_all_alerts()
+      → list_active_alerts_with_chat() # todos os alertas ativos + chat_id do usuário
+      → para cada alerta:
+          seed_alert_carousel(app, alert_id, chat_id)
+            → find_matches_for_alert()     # listings que batem com o alerta e ainda não foram notificados (LEFT JOIN alert_matches IS NULL)
+            → hydrate_listing()            # json.loads em images/properties, normaliza real_estate_type
+            → send_carousel()              # bot envia carousel ao usuário
+            → mark_listings_notified()     # INSERT em alert_matches para não renotificar
 ```
 
 ## Comandos do bot
