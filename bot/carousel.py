@@ -17,29 +17,24 @@ Funções/objetos públicos:
 - ``carousel_nav_cb`` — handler dos botões ``crs_<id>_<action>``; lê estado
   de ``context.application.bot_data``.
 - ``register_handlers`` — registra ``carousel_nav_cb`` no ``Application``.
-
-Helpers como ``rooms_from_properties`` / ``area_m2_from_properties``
-normalizam o JSON de ``properties`` vindo do banco sob demanda.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 
 from telegram import (
     Bot,
-    CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    InputMediaPhoto,
     Update,
 )
-from telegram.error import BadRequest, TelegramError
+from telegram.error import TelegramError
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
 
 from utils.pricing import format_brl
 from hydrator import HydratedListing
+from models import Properties
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +42,6 @@ PAGE_SIZE = 10
 MAX_TITLE_LEN = 80
 CAROUSEL_CALLBACK_PREFIX = "crs_"
 
-_MAX_CALLBACK_DATA_BYTES = 64
 _NAV_ACTIONS = frozenset({"next", "prev", "pgn", "pgp"})
 
 
@@ -66,33 +60,23 @@ def _page_info(index: int, total: int) -> tuple[int, int, int, int]:
     return page, total_pages, idx_in_page, items_on_page
 
 
-def _transaction_label(ad: dict) -> str:
-    """Deriva o rótulo (Aluguel/Venda) a partir de ``category`` do anúncio."""
-    category = (ad.get("category") or "").lower()
-    if "sale" in category or "venda" in category:
-        return "Venda"
-    return "Aluguel"
-
-
 def _truncate(text: str, limit: int) -> str:
-    if len(text) <= limit:
-        return text
-    return text[: max(0, limit - 1)].rstrip() + "..."
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def _carousel_caption(ad: dict, index: int, total: int) -> str:
-    title = _truncate(ad.get("title") or "Imóvel", MAX_TITLE_LEN)
-    price = format_brl(ad.get("priceValue"))
-    bedrooms = ad.get("bedrooms")
-    if bedrooms is None:
-        bedrooms = rooms_from_properties(ad.get("properties"))
-    bed_s = f"{bedrooms} quartos" if bedrooms is not None else "—"
-    area = ad.get("area_m2")
-    if area is None:
-        area = area_m2_from_properties(ad.get("properties"))
-    area_s = f"{area:g}m²" if area else "—"
-    neighborhood = ad.get("neighbourhood") or ad.get("neighborhood") or "—"
-    tr_label = _transaction_label(ad)
+def _carousel_caption(listing: HydratedListing, index: int, total: int) -> str:
+    props: Properties = {}
+    for item in listing["properties"]:
+        props.update(item)
+
+    title = _truncate(listing["title"], MAX_TITLE_LEN)
+    price = format_brl(listing["priceValue"])
+    bedrooms = props.get("rooms")
+    bedrooms_label = f"{bedrooms} quarto(s)" if bedrooms is not None else "—"
+    area = props.get("size")
+    area_label = f"{area:g}m²" if area else "—"
+    neighbourhood = listing["neighbourhood"] or "—"
+    rental_or_sale = props.get("real_estate_type", "—")
 
     page, total_pages, idx_in_page, items_on_page = _page_info(index, total)
     counter = (
@@ -101,8 +85,8 @@ def _carousel_caption(ad: dict, index: int, total: int) -> str:
 
     return (
         f"🏠 {title}\n"
-        f"💰 {price} | 🛏 {bed_s} | 📐 {area_s}\n"
-        f"📍 {neighborhood} · {tr_label}\n\n"
+        f"💰 {price} | 🛏 {bedrooms_label} | 📐 {area_label}\n"
+        f"📍 {neighbourhood} · {rental_or_sale}\n\n"
         f"{counter}"
     )
 
@@ -151,71 +135,9 @@ def _carousel_keyboard(
     return InlineKeyboardMarkup(rows)
 
 
-def _carousel_photo_url(ad: dict) -> str | None:
-    imgs = ad.get("images")
-    if isinstance(imgs, list) and imgs:
-        u = imgs[0]
-        if isinstance(u, str) and u.startswith("http"):
-            return u
-        if isinstance(u, dict):
-            w = u.get("originalWebp") or u.get("original")
-            if isinstance(w, str) and w.startswith("http"):
-                return w
-    return None
-
-
-def _has_photo(ad: dict) -> bool:
-    return _carousel_photo_url(ad) is not None
-
-
-# ────────────────────── normalização de ``properties`` ──────────────────────
-
-
-def _properties_to_dict(props: object) -> dict[str, object]:
-    """Normaliza properties do anúncio para um dict simples {campo: valor}."""
-    if props is None:
-        return {}
-
-    data = props
-    if isinstance(props, str):
-        try:
-            data = json.loads(props)
-        except Exception:
-            return {}
-
-    out: dict[str, object] = {}
-    if isinstance(data, list):
-        for item in data:
-            if not isinstance(item, dict):
-                continue
-            for k, v in item.items():
-                if isinstance(k, str):
-                    out[k.strip().lower()] = v
-    elif isinstance(data, dict):
-        for k, v in data.items():
-            if isinstance(k, str):
-                out[k.strip().lower()] = v
-    return out
-
-
-def rooms_from_properties(props: object) -> int | None:
-    p = _properties_to_dict(props)
-    value = p.get("rooms")
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float) and value.is_integer():
-        return int(value)
-    return None
-
-
-def area_m2_from_properties(props: object) -> float | None:
-    p = _properties_to_dict(props)
-    value = p.get("size")
-    if isinstance(value, int):
-        return float(value)
-    if isinstance(value, float):
-        return value
-    return None
+def _carousel_photo_url(listing: HydratedListing) -> str | None:
+    images = listing["images"]
+    return images[0] if images else None
 
 
 # ────────────────────── enviar carrossel ──────────────────────
@@ -225,34 +147,10 @@ def _state_key(carousel_id: str) -> str:
     return f"carousel_{carousel_id}"
 
 
-def _coerce_state(state: object) -> CarouselState | None:
-    if not isinstance(state, dict):
-        return None
-
-    listings = state.get("listings")
-    if not isinstance(listings, list) or not listings:
-        return None
-
-    index = _normalize_int(state.get("index"))
-    chat_id = _normalize_int(state.get("chat_id"))
-    is_photo = bool(state.get("is_photo"))
-
-    if index is None or chat_id is None:
-        return None
-
-    return {
-        "chat_id": chat_id,
-        "listings": cast(list[Ad], listings),
-        "index": index,
-        "page_size": PAGE_SIZE,
-        "is_photo": is_photo,
-    }
-
-
 async def send_carousel(
     bot: Bot,
     chat_id: int,
-    ads: list[HydratedListing],
+    listings: list[HydratedListing],
     carousel_id: str,
     state_store: MutableMapping[str, object],
 ) -> None:
@@ -263,16 +161,13 @@ async def send_carousel(
     único** (ex.: ``str(alert_id)`` para o seed, ``f"{alert_id}n"`` para
     notificação recorrente), já que a chave ``carousel_<id>`` é compartilhada.
     """
-    if not ads:
-        return
 
-    total = len(ads)
-    ad = ads[0]
-    caption = _carousel_caption(ad, 0, total)
-    keyboard = _carousel_keyboard(carousel_id, 0, total, ad.get("url"))
+    total = len(listings)
+    listing = listings[0]
+    caption = _carousel_caption(listing, 0, total)
+    keyboard = _carousel_keyboard(carousel_id, 0, total, listing.get("url"))
 
-    is_photo = False
-    photo_url = _carousel_photo_url(ad)
+    photo_url = _carousel_photo_url(listing)
     if photo_url:
         try:
             await bot.send_photo(
@@ -281,14 +176,13 @@ async def send_carousel(
                 caption=caption,
                 reply_markup=keyboard,
             )
-            is_photo = True
+            return
         except TelegramError as e:
             logger.warning(
                 "send_photo falhou para %s (%s); caindo para texto.", carousel_id, e
             )
-            await bot.send_message(chat_id=chat_id, text=caption, reply_markup=keyboard)
-    else:
-        await bot.send_message(chat_id=chat_id, text=caption, reply_markup=keyboard)
+
+    await bot.send_message(chat_id=chat_id, text=caption, reply_markup=keyboard)
 
     state_store[_state_key(carousel_id)] = {
         "chat_id": chat_id,
@@ -320,91 +214,6 @@ def _next_index(index: int, action: str, total: int) -> int:
     if action == "pgp":
         return max((page - 1) * PAGE_SIZE, 0)
     return safe_index
-
-
-async def _replace_message_with_page(
-    query: CallbackQuery,
-    context: ContextTypes.DEFAULT_TYPE,
-    *,
-    carousel_id: str,
-    page: CarouselPage,
-    state: CarouselState,
-) -> None:
-    message = query.message
-    if message is None:
-        logger.warning("Mensagem ausente ao atualizar carrossel %s.", carousel_id)
-        return
-
-    is_photo = await _send_carousel_page(
-        context.bot,
-        chat_id=message.chat_id,
-        page=page,
-        carousel_id=carousel_id,
-    )
-    state["is_photo"] = is_photo
-
-    try:
-        await message.delete()
-    except TelegramError:
-        logger.debug(
-            "Não foi possível apagar mensagem antiga do carrossel %s",
-            carousel_id,
-        )
-
-
-async def _render_carousel_update(
-    query: CallbackQuery,
-    context: ContextTypes.DEFAULT_TYPE,
-    carousel_id: str,
-    state: CarouselState,
-) -> None:
-    ads = state["listings"]
-    total = len(ads)
-    index: int = state["index"]
-    ad = ads[index]
-    caption = _carousel_caption(ad, index, total)
-    keyboard = _carousel_keyboard(carousel_id, index, total, ad.get("url"))
-    was_photo: bool = bool(state.get("is_photo"))
-    photo_url = _carousel_photo_url(ad)
-
-    try:
-        if was_photo and has_photo:
-            await query.edit_message_media(
-                media=InputMediaPhoto(media=photo_url, caption=caption),
-                reply_markup=keyboard,
-            )
-            state["is_photo"] = True
-        elif not was_photo and not photo_url:
-            await query.edit_message_text(text=caption, reply_markup=keyboard)
-            state["is_photo"] = False
-        else:
-            # Muda o tipo de mídia (texto↔foto): Telegram não permite editar
-            # entre tipos diferentes, então apaga e reenvia.
-            chat_id = query.message.chat_id
-            try:
-                await query.message.delete()
-            except TelegramError:
-                logger.debug(
-                    "Não foi possível apagar mensagem do carrossel %s", carousel_id
-                )
-            if photo_url:
-                await context.bot.send_photo(
-                    chat_id=chat_id,
-                    photo=photo_url,
-                    caption=caption,
-                    reply_markup=keyboard,
-                )
-                state["is_photo"] = True
-            else:
-                await context.bot.send_message(
-                    chat_id=chat_id, text=caption, reply_markup=keyboard
-                )
-                state["is_photo"] = False
-    except BadRequest as e:
-        # Principal caso: "message is not modified" quando o conteúdo não mudou.
-        logger.debug("Carrossel %s sem alteração: %s", carousel_id, e)
-    except TelegramError:
-        logger.exception("Erro ao renderizar carrossel %s", carousel_id)
 
 
 async def carousel_nav_cb(
