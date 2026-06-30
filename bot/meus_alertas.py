@@ -34,8 +34,7 @@ async def _render_alert_list_message(
     conn = get_connection()
     try:
         internal_user_id = ensure_user(conn, telegram_user_id)
-        rows = list_alerts_for_user(conn, internal_user_id)
-        alerts = [dict(row) for row in rows]
+        alerts = list_alerts_for_user(conn, internal_user_id)
     except Exception:
         logger.exception("Falha ao listar alertas do usuário.")
         await query.edit_message_text(
@@ -111,7 +110,7 @@ async def meus_alertas_actions_callback(
         conn = get_connection()
         try:
             internal_user_id = ensure_user(conn, telegram_user_id)
-            row = get_alert_for_user(conn, alert_id, internal_user_id)
+            alert = get_alert_for_user(conn, alert_id, internal_user_id)
         except Exception:
             logger.exception("Falha ao carregar alerta (detalhe).")
             await query.answer("Não foi possível abrir o alerta.", show_alert=True)
@@ -119,12 +118,11 @@ async def meus_alertas_actions_callback(
         finally:
             conn.close()
 
-        if row is None:
+        if alert is None:
             await query.answer("Alerta não encontrado.", show_alert=True)
             await _render_alert_list_message(query, telegram_user_id)
             return
 
-        alert = dict(row)
         await query.edit_message_text(
             text=menus.meus_alertas_detail_view(alert),
             parse_mode=ParseMode.MARKDOWN,
@@ -139,7 +137,7 @@ async def meus_alertas_actions_callback(
         conn = get_connection()
         try:
             internal_user_id = ensure_user(conn, telegram_user_id)
-            row = get_alert_for_user(conn, alert_id, internal_user_id)
+            alert = get_alert_for_user(conn, alert_id, internal_user_id)
         except Exception:
             logger.exception("Falha ao carregar alerta (edição).")
             await query.answer("Não foi possível abrir o alerta.", show_alert=True)
@@ -147,12 +145,11 @@ async def meus_alertas_actions_callback(
         finally:
             conn.close()
 
-        if row is None:
+        if alert is None:
             await query.answer("Alerta não encontrado.", show_alert=True)
             await _render_alert_list_message(query, telegram_user_id)
             return
 
-        alert = dict(row)
         await query.edit_message_text(
             text=menus.meus_alertas_editar_stub(alert),
             parse_mode=ParseMode.MARKDOWN,

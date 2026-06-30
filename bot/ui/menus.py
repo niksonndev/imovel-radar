@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Any
 
 from telegram.helpers import escape_markdown
 
 from utils.pricing import format_brl
+from models import Alert
 
 
 def start_welcome() -> str:
@@ -54,7 +54,7 @@ def _meus_alertas_created_display(raw: object) -> str:
     return escape_markdown(formatted, version=1)
 
 
-def _meus_alertas_format_one(a: dict[str, Any]) -> str:
+def _meus_alertas_format_one(a: Alert) -> str:
     raw_name = a.get("alert_name") or "Sem nome"
     name = escape_markdown(str(raw_name), version=1)
     active = int(a.get("active") or 0)
@@ -82,7 +82,7 @@ def _meus_alertas_format_one(a: dict[str, Any]) -> str:
     return f"*{name}*\n{status}\n{price_line}\n{loc}\n📅 *Criado:* {esc_created}"
 
 
-def meus_alertas_detail_view(alert: dict[str, Any]) -> str:
+def meus_alertas_detail_view(alert: Alert) -> str:
     """Texto compacto de um alerta (tela de detalhe antes de editar/remover)."""
     raw_name = alert.get("alert_name") or "Sem nome"
     name = escape_markdown(str(raw_name), version=1)
@@ -118,7 +118,7 @@ def meus_alertas_detail_view(alert: dict[str, Any]) -> str:
     )
 
 
-def meus_alertas_editar_stub(alert: dict[str, Any]) -> str:
+def meus_alertas_editar_stub(alert: Alert) -> str:
     """Mensagem temporária até o wizard de edição existir."""
     raw_name = alert.get("alert_name") or "Sem nome"
     esc = escape_markdown(str(raw_name), version=1)
@@ -131,8 +131,8 @@ def meus_alertas_editar_stub(alert: dict[str, Any]) -> str:
 
 
 def meus_alertas_list_message(
-    alerts: list[dict[str, Any]],
-) -> tuple[str, list[dict[str, Any]]]:
+    alerts: list[Alert],
+) -> tuple[str, list[Alert]]:
     """
     Texto da listagem e sublista de alertas realmente incluídos no texto
     (para montar botões de escolha alinhados ao que aparece na mensagem).
@@ -169,7 +169,7 @@ def meus_alertas_list_message(
     )
 
 
-def meus_alertas_view(alerts: list[dict[str, Any]]) -> str:
+def meus_alertas_view(alerts: list[Alert]) -> str:
     """Compat: só o texto da listagem (sem separar alertas visíveis)."""
     text, _ = meus_alertas_list_message(alerts)
     return text

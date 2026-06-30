@@ -12,9 +12,9 @@ Callbacks *Meus alertas*: ``mal_m`` (menu), ``mal_b`` (lista), ``mal_p_<id>``,
 
 from __future__ import annotations
 
-from typing import Any
-
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from models import Alert
+
 
 # Bairros por página no wizard /novo_alerta (Telegram + UX).
 NEIGHBORHOODS_PAGE_SIZE = 12
@@ -167,7 +167,7 @@ def alert_confirmation_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def _meus_alertas_pick_button_label(alert: dict[str, Any]) -> str:
+def _meus_alertas_pick_button_label(alert: Alert) -> str:
     """Rótulo do botão de escolha (limite 64 caracteres do Telegram)."""
     name = str(alert.get("alert_name") or "Sem nome").strip() or "Sem nome"
     prefix = "▶ "
@@ -175,7 +175,7 @@ def _meus_alertas_pick_button_label(alert: dict[str, Any]) -> str:
     return prefix + name[:max_name]
 
 
-def meus_alertas_pick_keyboard(alerts: list[dict[str, Any]]) -> InlineKeyboardMarkup:
+def meus_alertas_pick_keyboard(alerts: list[Alert]) -> InlineKeyboardMarkup:
     """
     Um botão por alerta (``mal_p_<id>``) + retorno ao menu (``mal_m``).
 

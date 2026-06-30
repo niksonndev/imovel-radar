@@ -16,7 +16,7 @@ def create_tables():
                 municipality   TEXT,
                 neighbourhood  TEXT,
                 category       TEXT,
-                images         TEXT, -- JSON array de URLs
+                images         TEXT NOT NULL, -- JSON array de URLs
                 properties     TEXT,  -- JSON bruto com category, real_estate_type,
                                      -- condominio, iptu, size, rooms, bathrooms,
                                      -- garage_spaces, re_types

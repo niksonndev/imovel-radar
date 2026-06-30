@@ -17,7 +17,7 @@ class Listing(TypedDict):
 
 class Properties(TypedDict, total=False):
     category: str
-    real_estate_type: str
+    real_estate_type: str  # Aluguel/Venda
     size: int
     rooms: int
     bathrooms: int
@@ -38,7 +38,7 @@ class HydratedListing(TypedDict):
     municipality: str
     neighbourhood: str | None
     category: str
-    images: list[str] | None  # after json.loads
+    images: list[str]  # after json.loads
     properties: list[Properties]  # after json.loads
 
 

@@ -2,7 +2,6 @@ from .db import get_connection
 from .queries import (
     create_new_alert,
     delete_alert_for_user,
-    get_active_alerts_with_chat,
     get_alert_by_id,
     get_alert_for_user,
     get_filtered_listings,
@@ -19,7 +18,6 @@ __all__ = [
     "create_tables",
     "delete_alert_for_user",
     "ensure_user",
-    "get_active_alerts_with_chat",
     "get_alert_by_id",
     "get_alert_for_user",
     "get_connection",

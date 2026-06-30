@@ -59,7 +59,10 @@ def extract_listings_from_search_page(html: str) -> list[Listing]:
     for ad in ads:
         if ad.get("listId") is None:
             continue
-        listings.append(normalize_olx_listing(ad))
+        listing = normalize_olx_listing(ad)
+        if not listing["images"]:
+            continue
+        listings.append(listing)
     return listings
 
 
