@@ -51,3 +51,7 @@ class Alert(TypedDict):
     neighbourhoods: str  # JSON array, deserializar quando usar
     active: bool
     created_at: str
+
+
+class AlertWithChat(Alert):
+    chat_id: int  # de users.chat_id

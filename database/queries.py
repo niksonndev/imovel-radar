@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from typing import cast
 
-from models import Listing, Alert
+from models import Listing, Alert, AlertWithChat
 
 UPSERT_LISTING_SQL = """
 INSERT INTO listings (
@@ -85,6 +85,15 @@ INSERT OR IGNORE INTO alert_matches (alert_id, listing_id, notified_at)
 VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%S', 'now'))
 """.strip()
 
+LIST_ACTIVE_ALERTS_WITH_CHAT_SQL = """
+SELECT a.id, a.user_id, a.alert_name, a.min_price, a.max_price, a.neighbourhoods,
+       a.active, a.created_at, u.chat_id
+FROM alerts a
+JOIN users u ON u.id = a.user_id
+WHERE a.active = TRUE
+ORDER BY a.id
+""".strip()
+
 
 def upsert_listing(conn: sqlite3.Connection, listing: Listing) -> None:
     conn.execute(UPSERT_LISTING_SQL, listing)
@@ -153,3 +162,8 @@ def mark_listings_notified(
     conn.executemany(
         INSERT_ALERT_MATCH_SQL, [(alert_id, listing_id) for listing_id in listing_ids]
     )
+
+
+def list_active_alerts_with_chat(conn: sqlite3.Connection) -> list[AlertWithChat]:
+    listings = conn.execute(LIST_ACTIVE_ALERTS_WITH_CHAT_SQL).fetchall()
+    return cast(list[AlertWithChat], [dict(listing) for listing in listings])

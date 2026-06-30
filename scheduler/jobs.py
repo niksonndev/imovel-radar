@@ -17,9 +17,9 @@ import logging
 from telegram.ext import Application
 
 import scraper
-from bot.alert_matching import notify_new_matches_all_alerts
 from database import get_connection
-from database.queries import upsert_listing
+from database.queries import upsert_listing, list_active_alerts_with_chat
+from bot.alert_matching import seed_alert_carousel
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,28 @@ def _do_full_scrape() -> bool:
     except Exception:
         logger.exception("Coleta agendada falhou")
         return False
+
+
+async def _notify_new_matches_all_alerts(app: Application) -> None:
+    """Job diário: notifica matches novos para cada alerta ativo."""
+    conn = get_connection()
+    try:
+        alerts = list_active_alerts_with_chat(conn)
+    finally:
+        conn.close()
+
+    if not alerts:
+        logger.info("notify: nenhum alerta ativo")
+        return
+
+    for alert in alerts:
+        try:
+            await seed_alert_carousel(app, alert["id"], alert["chat_id"])
+        except Exception:
+            logger.exception("notify: falha ao processar alerta %s", alert["id"])
+        await asyncio.sleep(2)  # avoid flood of telegram messages
+
+    logger.info("notify: %s alerta(s) processado(s)", len(alerts))
 
 
 def job_full_scrape() -> None:
@@ -82,7 +104,7 @@ def job_daily(app: Application, loop: asyncio.AbstractEventLoop) -> None:
     try:
         # notify_* é async e precisa do loop do PTB; run_coroutine_threadsafe “ponteia” thread do cron → thread do bot.
         fut = asyncio.run_coroutine_threadsafe(
-            notify_new_matches_all_alerts(app), loop
+            _notify_new_matches_all_alerts(app), loop
         )
         summary = fut.result(timeout=_NOTIFY_TIMEOUT_SECONDS)
         logger.info("job_daily: notify summary=%s", summary)
