@@ -41,10 +41,9 @@ imovel-radar/
 cron → main.py → scraper.coletar() → database.upsert_listing()
                                     → database.match_alertas() → bot.notificar()
 
-get_filtered_listings — retorna tudo que bate com o alert
-get_unnotified_matches_for_alert — filtra o que já foi notificado via alert_matches
-Bot envia o carousel com o que sobrou
-Insere na alert_matches os que foram notificados agora
+find_matches_for_alert — retorna anúncios compatíveis com o alert e que não foram notificados
+send_carousel Bot envia o carousel com os anuncios não notificados
+mark_listings_notified Insere na alert_matches os que foram notificados agora
 ```
 
 ## Comandos do bot

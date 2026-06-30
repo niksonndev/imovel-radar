@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import Any, Sequence
+from typing import cast
 
 from models import Listing, Alert
 
@@ -35,14 +35,17 @@ ORDER BY COUNT(*) DESC
 """.strip()
 
 GET_FILTERED_LISTINGS_SQL = """
-SELECT listId, url, title, priceValue, oldPrice,
-       municipality, neighbourhood, category, images, properties
-FROM listings
-WHERE active = TRUE
-  AND municipality = 'Maceió'
-  AND priceValue >= ?
-  AND priceValue <= ?
-  AND neighbourhood IN ({placeholders})
+SELECT l.listId, l.url, l.title, l.priceValue, l.oldPrice,
+       l.municipality, l.neighbourhood, l.category, l.images, l.properties
+FROM listings l
+LEFT JOIN alert_matches am
+  ON am.listing_id = l.listId AND am.alert_id = ?
+WHERE l.active = TRUE
+  AND l.municipality = 'Maceió'
+  AND l.priceValue >= ?
+  AND l.priceValue <= ?
+  AND l.neighbourhood IN ({placeholders})
+  AND am.listing_id IS NULL
 """.strip()
 
 INSERT_ALERT_SQL = """
@@ -80,19 +83,6 @@ WHERE id = ? AND user_id = ?
 INSERT_ALERT_MATCH_SQL = """
 INSERT OR IGNORE INTO alert_matches (alert_id, listing_id, notified_at)
 VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%S', 'now'))
-""".strip()
-
-# Base do SELECT de matches não notificados. Os filtros dinâmicos (preço,
-# bairros, etc.) são concatenados em ``get_unnotified_matches_for_alert``.
-_GET_UNNOTIFIED_MATCHES_SQL_BASE = """
-SELECT l.listId, l.url, l.title, l.priceValue, l.oldPrice,
-       l.municipality, l.neighbourhood, l.category, l.images, l.properties,
-       l.first_seen_at, l.updated_at
-FROM listings l
-LEFT JOIN alert_matches am
-    ON am.alert_id = ? AND am.listing_id = l.listId
-WHERE am.listing_id IS NULL
-  AND l.active = 1
 """.strip()
 
 
@@ -142,75 +132,17 @@ def delete_alert_for_user(
 
 def get_filtered_listings(
     conn: sqlite3.Connection,
+    alert_id: int,
     min_price: int,
     max_price: int,
     neighbourhoods: list[str],
 ) -> list[Listing]:
     placeholders = ",".join("?" * len(neighbourhoods))
     query = GET_FILTERED_LISTINGS_SQL.format(placeholders=placeholders)
-    params = [min_price, max_price, *neighbourhoods]
+    params = [alert_id, min_price, max_price, *neighbourhoods]
 
-    cursor = conn.execute(query, params)
-    rows = cursor.fetchall()
-
-    return [Listing(**dict(row)) for row in rows]
-
-
-def get_unnotified_matches_for_alert(
-    conn: sqlite3.Connection,
-    alert_id: int,
-    *,
-    min_price: int | None = None,
-    max_price: int | None = None,
-    neighbourhoods: Sequence[str] | None = None,
-    municipality: str | None = "Maceió",
-    since_iso: str | None = None,
-    only_active: bool = True,
-    limit: int | None = None,
-) -> list[Listing]:
-    """Listings que casam com o alerta e ainda NÃO estão em ``alert_matches``.
-
-    Usa ``LEFT JOIN … IS NULL`` para filtrar anúncios já notificados para
-    aquele alerta. ``since_iso``, se informado, aplica ``first_seen_at >= ?``
-    como uma rede de segurança adicional.
-    """
-    where: list[str] = []
-    params: list[Any] = [alert_id]
-
-    # ``only_active`` já está no base, mas mantém a flag para permitir reuso
-    # em relatórios que queiram incluir inativos.
-    base = _GET_UNNOTIFIED_MATCHES_SQL_BASE
-    if not only_active:
-        base = base.replace("\n  AND l.active = 1", "")
-
-    if municipality:
-        where.append("l.municipality = ?")
-        params.append(municipality)
-    if isinstance(min_price, int):
-        where.append("l.priceValue >= ?")
-        params.append(min_price)
-    if isinstance(max_price, int):
-        where.append("l.priceValue <= ?")
-        params.append(max_price)
-    if neighbourhoods:
-        placeholders = ", ".join(["?"] * len(neighbourhoods))
-        where.append(f"l.neighbourhood IN ({placeholders})")
-        params.extend(neighbourhoods)
-    if since_iso:
-        where.append("l.first_seen_at >= ?")
-        params.append(since_iso)
-
-    where_sql = ""
-    if where:
-        where_sql = " AND " + " AND ".join(where)
-
-    limit_sql = ""
-    if isinstance(limit, int) and limit > 0:
-        limit_sql = " LIMIT ?"
-        params.append(limit)
-
-    sql = base + where_sql + " ORDER BY l.first_seen_at DESC, l.listId DESC" + limit_sql
-    return conn.execute(sql, params).fetchall()
+    listings = conn.execute(query, params).fetchall()
+    return cast(list[Listing], [dict(listing) for listing in listings])
 
 
 def mark_listings_notified(

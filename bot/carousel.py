@@ -135,11 +135,6 @@ def _carousel_keyboard(
     return InlineKeyboardMarkup(rows)
 
 
-def _carousel_photo_url(listing: HydratedListing) -> str | None:
-    images = listing["images"]
-    return images[0] if images else None
-
-
 # ────────────────────── enviar carrossel ──────────────────────
 
 

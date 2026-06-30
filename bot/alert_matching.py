@@ -56,6 +56,7 @@ def find_matches_for_alert(
 
     filtered_listings = get_filtered_listings(
         conn,
+        alert_id,
         alert["min_price"],
         alert["max_price"],
         neighbourhoods,
