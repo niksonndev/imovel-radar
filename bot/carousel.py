@@ -213,7 +213,7 @@ def _next_index(index: int, action: str, total: int) -> int:
 
 async def carousel_nav_cb(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
+    context: CustomContext,
 ) -> None:
     """Handler para os botões Anterior/Próximo/Páginas do carrossel.
 

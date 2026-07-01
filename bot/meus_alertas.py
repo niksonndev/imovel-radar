@@ -9,7 +9,8 @@ import re
 
 from telegram import CallbackQuery, Update
 from telegram.constants import ParseMode
-from telegram.ext import ContextTypes
+from models import CustomContext
+
 
 from bot.ui import keyboards, menus
 from database import (
@@ -59,9 +60,7 @@ async def _render_alert_list_message(
     )
 
 
-async def meus_alertas_callback(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+async def meus_alertas_callback(update: Update, context: CustomContext) -> None:
     """Abre a listagem a partir do botão *Meus Alertas* do menu principal."""
     query = update.callback_query
     if query is None:
@@ -75,9 +74,7 @@ async def meus_alertas_callback(
     await _render_alert_list_message(query, user.id)
 
 
-async def meus_alertas_actions_callback(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+async def meus_alertas_actions_callback(update: Update, context: CustomContext) -> None:
     """Roteia ``mal_*``: menu principal, lista, detalhe, edição (stub), remoção."""
     query = update.callback_query
     if query is None:

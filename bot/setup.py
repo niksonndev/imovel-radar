@@ -13,8 +13,9 @@ from telegram.ext import (
     Application,
     CallbackQueryHandler,
     CommandHandler,
-    ContextTypes,
 )
+from models import CustomContext
+
 
 from bot.carousel import register_handlers as register_carousel_handlers
 from bot.create_new_alert import new_alert_conversation
@@ -28,7 +29,7 @@ BOT_COMMANDS = [
 ]
 
 
-async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start_cmd(update: Update, context: CustomContext) -> None:
     assert update.effective_message
     await update.effective_message.reply_text(
         menus.start_welcome(),
@@ -37,7 +38,7 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def help_cmd(update: Update, context: CustomContext) -> None:
     assert update.effective_message
     await update.effective_message.reply_text(
         menus.ajuda_comandos_plain(),
@@ -45,9 +46,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-async def main_menu_callback(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+async def main_menu_callback(update: Update, context: CustomContext) -> None:
     """Roteia ações do menu principal mantendo navegação só por botões inline."""
     query = update.callback_query
     assert query

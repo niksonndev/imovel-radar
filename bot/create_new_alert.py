@@ -21,11 +21,12 @@ from telegram.helpers import escape_markdown
 from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
-    ContextTypes,
     ConversationHandler,
     MessageHandler,
     filters,
 )
+from models import CustomContext, CreateAlertDraft
+
 
 from bot.alert_matching import seed_alert_carousel
 from bot.ui import keyboards, menus
@@ -42,6 +43,14 @@ logger = logging.getLogger(__name__)
     NAME,
     CONFIRM,
 ) = range(4)
+
+
+def _get_draft(context: CustomContext) -> CreateAlertDraft:
+    """Assume que o fluxo já foi iniciado via new_alert_cmd, que sempre
+    popula create_alert_draft antes de qualquer outro state rodar."""
+    assert context.user_data is not None
+    assert "create_alert_draft" in context.user_data
+    return context.user_data["create_alert_draft"]
 
 
 async def _enter_neighbourhoods(msg, context) -> None:
@@ -77,13 +86,12 @@ def _confirm_summary(*, price_s: str, nb_s: str, name: str) -> str:
     )
 
 
-async def new_alert_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["new_alert"] = {
-        "alert_name": None,
-        "min_price": None,
-        "max_price": None,
-        "neighbourhoods": [],
-    }
+async def new_alert_cmd(update: Update, context: CustomContext) -> int:
+    assert context.user_data is not None
+    assert update.effective_message is not None
+
+    context.user_data["create_alert_draft"] = CreateAlertDraft()
+
     await update.effective_message.reply_text(
         menus.wizard_novo_alerta_intro(),
         parse_mode=ParseMode.MARKDOWN,
@@ -92,32 +100,38 @@ async def new_alert_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     return PRICE
 
 
-async def wiz_price_preset_cb(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
+async def wiz_price_preset_cb(update: Update, context: CustomContext) -> int:
+    assert update.effective_message is not None
+    assert update.callback_query is not None
+    assert context.user_data is not None
+
     query = update.callback_query
     await query.answer()
-    wizard = context.user_data.get("new_alert")
-    if wizard is None:
-        await query.message.reply_text("Sessão expirada. Use /novo_alerta novamente.")
+
+    if "create_alert_draft" not in context.user_data:
+        await update.effective_message.reply_text(
+            "Sessão expirada. Use /novo_alerta novamente."
+        )
         return ConversationHandler.END
 
+    draft = context.user_data["create_alert_draft"]
+
+    assert query.data is not None
     preset_map = {
-        "wiz_price_preset_rent_0": (None, 800),
+        "wiz_price_preset_rent_0": (0, 800),
         "wiz_price_preset_rent_1": (800, 1500),
         "wiz_price_preset_rent_2": (1500, 3000),
-        "wiz_price_preset_rent_3": (3000, None),
+        "wiz_price_preset_rent_3": (3000, 999_999),
     }
-    pmin, pmax = preset_map.get(query.data, (None, None))
-    wizard["min_price"] = pmin
-    wizard["max_price"] = pmax
-    await _enter_neighbourhoods(query.message, context)
+    pmin, pmax = preset_map.get(query.data, (0, 999_999))
+    draft["min_price"] = pmin
+    draft["max_price"] = pmax
+
+    await _enter_neighbourhoods(update.effective_message, context)
     return NEIGHBOURHOODS
 
 
-async def wiz_price_custom_cb(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
+async def wiz_price_custom_cb(update: Update, context: CustomContext) -> int:
     query = update.callback_query
     await query.answer()
     context.user_data["new_alert"]["awaiting"] = "price_min"
@@ -125,7 +139,7 @@ async def wiz_price_custom_cb(
     return PRICE
 
 
-async def wiz_price_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def wiz_price_text(update: Update, context: CustomContext) -> int:
     wizard = context.user_data["new_alert"]
     value = int(re.sub(r"\D", "", update.message.text or "") or 0)
     if value <= 0:
@@ -154,9 +168,7 @@ async def wiz_price_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     return NEIGHBOURHOODS
 
 
-async def wiz_neighbourhoods_cb(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
+async def wiz_neighbourhoods_cb(update: Update, context: CustomContext) -> int:
     query = update.callback_query
     await query.answer()
     data = query.data or ""
@@ -230,7 +242,7 @@ async def wiz_neighbourhoods_cb(
     return NEIGHBOURHOODS
 
 
-async def wiz_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def wiz_name(update: Update, context: CustomContext) -> int:
     wizard = context.user_data["new_alert"]
 
     name = (update.effective_message.text or "").strip()[:200]
@@ -260,7 +272,7 @@ async def wiz_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return CONFIRM
 
 
-async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
     query = update.callback_query
     await query.answer()
     wizard = context.user_data["new_alert"]
@@ -306,7 +318,7 @@ async def wiz_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     return ConversationHandler.END
 
 
-async def cancel_wiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def cancel_wiz(update: Update, context: CustomContext) -> int:
     context.user_data.pop("new_alert", None)
     await update.effective_message.reply_text(
         "Criação do alerta cancelada.",

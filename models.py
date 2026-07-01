@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import TypedDict
+from telegram.ext import CallbackContext, ExtBot
 
 
 class Listing(TypedDict):
@@ -40,6 +41,32 @@ class HydratedListing(TypedDict):
     category: str
     images: list[str]  # after json.loads
     properties: list[Properties]  # after json.loads
+
+
+class CreateAlertDraft(TypedDict, total=False):
+    """Estado parcial durante o fluxo incremental de criação de alerta."""
+
+    alert_name: str
+    min_price: int
+    max_price: int
+    neighbourhoods: list[str]
+
+
+class CreateAlertData(TypedDict):
+    """Alerta completo, pronto para INSERT. Todos os campos são obrigatórios."""
+
+    user_id: int
+    alert_name: str
+    min_price: int
+    max_price: int
+    neighbourhoods: list[str]
+
+
+class UserData(TypedDict, total=False):
+    create_alert_draft: CreateAlertDraft
+
+
+CustomContext = CallbackContext[ExtBot, UserData, dict, dict]
 
 
 class Alert(TypedDict):

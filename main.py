@@ -10,7 +10,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from telegram.ext import Application
+from telegram.ext import Application, ContextTypes
+from models import CustomContext, UserData
 
 import config
 from bot.setup import apply_bot_commands, setup
@@ -53,7 +54,9 @@ async def post_init(app: Application) -> None:
     create_tables()
 
     if db_was_missing:
-        logger.info("imoveis.db não encontrado — rodando scrape inicial antes de iniciar o bot")
+        logger.info(
+            "imoveis.db não encontrado — rodando scrape inicial antes de iniciar o bot"
+        )
         # Scrape bloqueia (rede + SQLite); roda em thread para não travar o loop
         # do PTB. O polling só começa quando post_init retorna, então na primeira
         # subida o bot só responde depois que a base está populada.
@@ -84,6 +87,7 @@ def main() -> None:
     app = (
         Application.builder()
         .token(config.TELEGRAM_BOT_TOKEN)
+        .context_types(ContextTypes(context=CustomContext, user_data=UserData))
         .post_init(post_init)
         .post_shutdown(post_shutdown)
         .build()
