@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from telegram.ext import Application, ContextTypes
+from telegram.ext import Application, ContextTypes, PicklePersistence
 from models import CustomContext, UserData
 
 import config
@@ -83,11 +83,14 @@ async def post_shutdown(app: Application) -> None:
 
 
 def main() -> None:
+    persistence = PicklePersistence(filepath="carousel_state.pickle")
+
     # Application = coração da lib: token, handlers, polling
     app = (
         Application.builder()
         .token(config.TELEGRAM_BOT_TOKEN)
         .context_types(ContextTypes(context=CustomContext, user_data=UserData))
+        .persistence(persistence)
         .post_init(post_init)
         .post_shutdown(post_shutdown)
         .build()

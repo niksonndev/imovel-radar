@@ -28,13 +28,15 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Update,
+    InputMediaPhoto,
 )
 from collections.abc import MutableMapping
 from telegram.ext import Application, CallbackQueryHandler
 
 from utils.pricing import format_brl
-from hydrator import HydratedListing
+from hydrator import hydrate_listing, HydratedListing
 from models import Properties, CustomContext
+from database import get_connection, get_listings_by_ids
 
 logger = logging.getLogger(__name__)
 
@@ -109,11 +111,22 @@ def _carousel_keyboard(
     return InlineKeyboardMarkup(rows)
 
 
-# ────────────────────── enviar carrossel ──────────────────────
+def _parse_nav_callback(data: str) -> tuple[str, str] | None:
+    """Extrai (carousel_id, action) de ``crs_<id>_<action>``."""
+    if not data.startswith(CAROUSEL_CALLBACK_PREFIX):
+        return None
+    rest = data[len(CAROUSEL_CALLBACK_PREFIX) :]
+    carousel_id, sep, action = rest.rpartition("_")
+    if not sep or not carousel_id or action not in _NAV_ACTIONS:
+        return None
+    return carousel_id, action
 
 
 def _state_key(carousel_id: str) -> str:
     return f"carousel_{carousel_id}"
+
+
+# ────────────────────── enviar carrossel ──────────────────────
 
 
 async def send_carousel(
@@ -123,7 +136,17 @@ async def send_carousel(
     carousel_id: str,
     state_store: MutableMapping[str, object],
 ) -> None:
-    """Envia a primeira página do carrossel e grava o estado em *state_store*."""
+    """Envia a primeira página do carrossel e grava o estado em *state_store*.
+
+    *state_store* deve ser o mesmo dict lido pelo handler de navegação —
+    normalmente ``app.bot_data``. O ``carousel_id`` deve ser **globalmente
+    único** (ex.: ``str(alert_id)`` para o seed, ``f"{alert_id}n"`` para
+    notificação recorrente), já que a chave ``carousel_<id>`` é compartilhada.
+
+    Apenas os IDs dos listings são persistidos — a navegação re-busca os
+    dados do banco a cada clique, garantindo que anúncios removidos (active=0)
+    somem do carrossel automaticamente.
+    """
 
     total = len(listings)
     listing = listings[0]
@@ -139,32 +162,13 @@ async def send_carousel(
 
     state_store[_state_key(carousel_id)] = {
         "chat_id": chat_id,
-        "listings": listings,
+        "listing_ids": [item.listId for item in listings],
         "index": 0,
     }
 
 
-def _parse_nav_callback(data: str) -> tuple[str, str] | None:
-    """Extrai (carousel_id, action) de ``crs_<id>_<action>``."""
-    if not data.startswith(CAROUSEL_CALLBACK_PREFIX):
-        return None
-    rest = data[len(CAROUSEL_CALLBACK_PREFIX) :]
-    carousel_id, sep, action = rest.rpartition("_")
-    if not sep or not carousel_id or action not in _NAV_ACTIONS:
-        return None
-    return carousel_id, action
-
-
-async def carousel_nav_cb(
-    update: Update,
-    context: CustomContext,
-) -> None:
-    """Handler para os botões Anterior/Próximo/Páginas do carrossel.
-
-    Lê o estado de ``context.application.bot_data`` (onde ``send_carousel``
-    gravou). Isso permite que tanto carrosséis do wizard quanto os disparados
-    pelo scheduler compartilhem o mesmo fluxo de navegação.
-    """
+async def carousel_nav_cb(update: Update, context: CustomContext) -> None:
+    """Handler para os botões Anterior/Próximo do carrossel."""
     query = update.callback_query
     if query is None:
         return
@@ -177,26 +181,44 @@ async def carousel_nav_cb(
     carousel_id, action = parsed
     bot_data = context.application.bot_data
     state = bot_data.get(_state_key(carousel_id)) if bot_data is not None else None
-    if not isinstance(state, dict) or not state.get("listings"):
+    if not isinstance(state, dict) or not state.get("listing_ids"):
         await query.answer(
             "Carrossel expirado. Crie um novo alerta para ver os imoveis.",
             show_alert=False,
         )
         return
 
-    total = len(state["listings"])
-    current: int = int(state.get("index", 0))
+    conn = get_connection()
+    try:
+        raw_listings = get_listings_by_ids(conn, state["listing_ids"])
+    finally:
+        conn.close()
+
+    listings = [hydrate_listing(listing) for listing in raw_listings]
+    total = len(listings)
+    if total == 0:
+        await query.answer("Todos os anúncios deste carrossel foram removidos.")
+        return
+
+    current: int = min(int(state.get("index", 0)), total - 1)
     new_index = _next_index(current, action, total)
     if new_index == current:
         await query.answer()
         return
 
+    listing = listings[new_index]
     state["index"] = new_index
-    if bot_data is not None:
-        bot_data[_state_key(carousel_id)] = state
+    state["listing_ids"] = [item.listId for item in listings]
+    bot_data[_state_key(carousel_id)] = state
 
     await query.answer()
-    await _render_carousel_update(query, context, carousel_id, state)
+
+    caption = _carousel_caption(listing, new_index, total)
+    keyboard = _carousel_keyboard(carousel_id, new_index, total, listing.url)
+    await query.edit_message_media(
+        media=InputMediaPhoto(media=listing.images[0], caption=caption),
+        reply_markup=keyboard,
+    )
 
 
 def register_handlers(app: Application) -> None:

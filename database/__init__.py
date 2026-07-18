@@ -8,6 +8,7 @@ from .queries import (
     list_alerts_for_user,
     mark_listings_notified,
     upsert_listing,
+    get_listings_by_ids,
 )
 from .schema import create_tables
 from .users import ensure_user
@@ -24,4 +25,5 @@ __all__ = [
     "get_filtered_listings",
     "mark_listings_notified",
     "upsert_listing",
+    "get_listings_by_ids",
 ]

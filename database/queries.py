@@ -5,6 +5,51 @@ from typing import cast
 
 from models import Listing, Alert, AlertWithChat
 
+GET_MACEIO_NEIGHBOURHOODS_SQL = """
+SELECT neighbourhood
+FROM listings
+WHERE municipality = 'Maceió'
+  AND neighbourhood != ''
+GROUP BY neighbourhood
+ORDER BY COUNT(*) DESC
+""".strip()
+
+GET_LISTINGS_BY_IDS_SQL = """
+SELECT listId, url, title, priceValue, oldPrice,
+       municipality, neighbourhood, category, images, properties
+FROM listings
+WHERE listId IN ({placeholders})
+  AND active = TRUE
+""".strip()
+
+GET_FILTERED_LISTINGS_SQL = """
+SELECT l.listId, l.url, l.title, l.priceValue, l.oldPrice,
+       l.municipality, l.neighbourhood, l.category, l.images, l.properties
+FROM listings l
+LEFT JOIN alert_matches am
+  ON am.listing_id = l.listId AND am.alert_id = ?
+WHERE l.active = TRUE
+  AND l.municipality = 'Maceió'
+  AND l.priceValue >= ?
+  AND l.priceValue <= ?
+  AND l.neighbourhood IN ({placeholders})
+  AND am.listing_id IS NULL
+""".strip()
+
+GET_ALERT_FOR_USER_SQL = """
+SELECT id, user_id, alert_name, min_price, max_price, neighbourhoods,
+       active, created_at
+FROM alerts
+WHERE id = ? AND user_id = ?
+""".strip()
+
+GET_ALERT_BY_ID_SQL = """
+SELECT id, user_id, alert_name, min_price, max_price, neighbourhoods,
+       active, created_at
+FROM alerts
+WHERE id = ?
+""".strip()
+
 UPSERT_LISTING_SQL = """
 INSERT INTO listings (
     listId, url, title, priceValue, oldPrice,
@@ -25,29 +70,6 @@ ON CONFLICT(listId) DO UPDATE SET
     updated_at = strftime('%Y-%m-%dT%H:%M:%S', 'now')
 """.strip()
 
-GET_MACEIO_NEIGHBOURHOODS_SQL = """
-SELECT neighbourhood
-FROM listings
-WHERE municipality = 'Maceió'
-  AND neighbourhood != ''
-GROUP BY neighbourhood
-ORDER BY COUNT(*) DESC
-""".strip()
-
-GET_FILTERED_LISTINGS_SQL = """
-SELECT l.listId, l.url, l.title, l.priceValue, l.oldPrice,
-       l.municipality, l.neighbourhood, l.category, l.images, l.properties
-FROM listings l
-LEFT JOIN alert_matches am
-  ON am.listing_id = l.listId AND am.alert_id = ?
-WHERE l.active = TRUE
-  AND l.municipality = 'Maceió'
-  AND l.priceValue >= ?
-  AND l.priceValue <= ?
-  AND l.neighbourhood IN ({placeholders})
-  AND am.listing_id IS NULL
-""".strip()
-
 INSERT_ALERT_SQL = """
 INSERT INTO alerts (
     user_id, alert_name, min_price, max_price, neighbourhoods, created_at
@@ -58,11 +80,9 @@ VALUES (
 )
 """.strip()
 
-GET_ALERT_BY_ID_SQL = """
-SELECT id, user_id, alert_name, min_price, max_price, neighbourhoods,
-       active, created_at
-FROM alerts
-WHERE id = ?
+INSERT_ALERT_MATCH_SQL = """
+INSERT OR IGNORE INTO alert_matches (alert_id, listing_id, notified_at)
+VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%S', 'now'))
 """.strip()
 
 LIST_ALERTS_FOR_USER_SQL = """
@@ -73,17 +93,6 @@ WHERE user_id = ?
 ORDER BY id DESC
 """.strip()
 
-GET_ALERT_FOR_USER_SQL = """
-SELECT id, user_id, alert_name, min_price, max_price, neighbourhoods,
-       active, created_at
-FROM alerts
-WHERE id = ? AND user_id = ?
-""".strip()
-
-INSERT_ALERT_MATCH_SQL = """
-INSERT OR IGNORE INTO alert_matches (alert_id, listing_id, notified_at)
-VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%S', 'now'))
-""".strip()
 
 LIST_ACTIVE_ALERTS_WITH_CHAT_SQL = """
 SELECT a.id, a.user_id, a.alert_name, a.min_price, a.max_price, a.neighbourhoods,
@@ -152,6 +161,20 @@ def get_filtered_listings(
 
     listings = conn.execute(query, params).fetchall()
     return cast(list[Listing], [dict(listing) for listing in listings])
+
+
+def get_listings_by_ids(
+    conn: sqlite3.Connection,
+    listing_ids: list[int],
+) -> list[Listing]:
+    if not listing_ids:
+        return []
+    placeholders = ",".join("?" * len(listing_ids))
+    query = GET_LISTINGS_BY_IDS_SQL.format(placeholders=placeholders)
+    rows = conn.execute(query, listing_ids).fetchall()
+    by_id = {row["listId"]: dict(row) for row in rows}
+    # reordena conforme listing_ids, pulando os que sumiram (inativos)
+    return cast(list[Listing], [by_id[lid] for lid in listing_ids if lid in by_id])
 
 
 def mark_listings_notified(

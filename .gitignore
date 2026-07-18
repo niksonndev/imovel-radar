@@ -40,6 +40,7 @@ env/
 *.sqlite
 *.sqlite3
 data/
+*.pickle
 
 # Testes / cobertura
 .pytest_cache/
