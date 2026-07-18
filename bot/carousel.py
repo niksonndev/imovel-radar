@@ -29,12 +29,12 @@ from telegram import (
     InlineKeyboardMarkup,
     Update,
 )
-from telegram.error import TelegramError
+from collections.abc import MutableMapping
 from telegram.ext import Application, CallbackQueryHandler
 
 from utils.pricing import format_brl
 from hydrator import HydratedListing
-from models import Properties
+from models import Properties, CustomContext
 
 logger = logging.getLogger(__name__)
 
@@ -42,22 +42,18 @@ PAGE_SIZE = 10
 MAX_TITLE_LEN = 80
 CAROUSEL_CALLBACK_PREFIX = "crs_"
 
-_NAV_ACTIONS = frozenset({"next", "prev", "pgn", "pgp"})
+_NAV_ACTIONS = frozenset({"next", "prev"})
 
 
 # ────────────────────── helpers de paginação/legenda ──────────────────────
 
 
-def _page_info(index: int, total: int) -> tuple[int, int, int, int]:
-    """Retorna (page 0-based, total_pages, idx_in_page, items_on_page)."""
-    safe_total = max(total, 0)
-    safe_index = _clamp_index(index, safe_total)
-    total_pages = max(1, (safe_total + PAGE_SIZE - 1) // PAGE_SIZE)
-    page = safe_index // PAGE_SIZE
-    page_start = page * PAGE_SIZE
-    items_on_page = min(PAGE_SIZE, total - page_start)
-    idx_in_page = index - page_start
-    return page, total_pages, idx_in_page, items_on_page
+def _next_index(index: int, action: str, total: int) -> int:
+    if action == "next":
+        return min(index + 1, total - 1)
+    if action == "prev":
+        return max(index - 1, 0)
+    return index
 
 
 def _truncate(text: str, limit: int) -> str:
@@ -78,10 +74,7 @@ def _carousel_caption(listing: HydratedListing, index: int, total: int) -> str:
     neighbourhood = listing.neighbourhood or "—"
     rental_or_sale = props.get("real_estate_type", "—")
 
-    page, total_pages, idx_in_page, items_on_page = _page_info(index, total)
-    counter = (
-        f"{idx_in_page + 1} de {items_on_page} - Pagina {page + 1} de {total_pages}"
-    )
+    counter = f"{index + 1} de {total}"
 
     return (
         f"🏠 {title}\n"
@@ -97,37 +90,18 @@ def _carousel_keyboard(
     total: int,
     url: str | None,
 ) -> InlineKeyboardMarkup:
-    page, total_pages, idx_in_page, items_on_page = _page_info(index, total)
-
     nav_row: list[InlineKeyboardButton] = []
-    if idx_in_page > 0:
+    if index > 0:
         nav_row.append(
             InlineKeyboardButton("◀ Anterior", callback_data=f"crs_{carousel_id}_prev")
         )
-    if idx_in_page < items_on_page - 1:
+    if index < total - 1:
         nav_row.append(
             InlineKeyboardButton("Próximo ▶", callback_data=f"crs_{carousel_id}_next")
         )
-
-    page_row: list[InlineKeyboardButton] = []
-    if page > 0:
-        page_row.append(
-            InlineKeyboardButton(
-                "◀ Página anterior", callback_data=f"crs_{carousel_id}_pgp"
-            )
-        )
-    if page < total_pages - 1:
-        page_row.append(
-            InlineKeyboardButton(
-                "⏭ Próxima página", callback_data=f"crs_{carousel_id}_pgn"
-            )
-        )
-
     rows: list[list[InlineKeyboardButton]] = []
     if nav_row:
         rows.append(nav_row)
-    if page_row:
-        rows.append(page_row)
     # Só oferece o link quando o anúncio realmente tem URL válida;
     # evita mandar o usuário para a home da OLX por engano.
     if isinstance(url, str) and url.startswith("http"):
@@ -149,41 +123,24 @@ async def send_carousel(
     carousel_id: str,
     state_store: MutableMapping[str, object],
 ) -> None:
-    """Envia a primeira página do carrossel e grava o estado em *state_store*.
-
-    *state_store* deve ser o mesmo dict lido pelo handler de navegação —
-    normalmente ``app.bot_data``. O ``carousel_id`` deve ser **globalmente
-    único** (ex.: ``str(alert_id)`` para o seed, ``f"{alert_id}n"`` para
-    notificação recorrente), já que a chave ``carousel_<id>`` é compartilhada.
-    """
+    """Envia a primeira página do carrossel e grava o estado em *state_store*."""
 
     total = len(listings)
     listing = listings[0]
     caption = _carousel_caption(listing, 0, total)
-    keyboard = _carousel_keyboard(carousel_id, 0, total, listing.get("url"))
+    keyboard = _carousel_keyboard(carousel_id, 0, total, listing.url)
 
-    photo_url = _carousel_photo_url(listing)
-    if photo_url:
-        try:
-            await bot.send_photo(
-                chat_id=chat_id,
-                photo=photo_url,
-                caption=caption,
-                reply_markup=keyboard,
-            )
-            return
-        except TelegramError as e:
-            logger.warning(
-                "send_photo falhou para %s (%s); caindo para texto.", carousel_id, e
-            )
-
-    await bot.send_message(chat_id=chat_id, text=caption, reply_markup=keyboard)
+    await bot.send_photo(
+        chat_id=chat_id,
+        photo=listing.images[0],
+        caption=caption,
+        reply_markup=keyboard,
+    )
 
     state_store[_state_key(carousel_id)] = {
         "chat_id": chat_id,
         "listings": listings,
         "index": 0,
-        "is_photo": is_photo,
     }
 
 
@@ -196,19 +153,6 @@ def _parse_nav_callback(data: str) -> tuple[str, str] | None:
     if not sep or not carousel_id or action not in _NAV_ACTIONS:
         return None
     return carousel_id, action
-
-
-def _next_index(index: int, action: str, total: int) -> int:
-    page = index // PAGE_SIZE
-    if action == "next":
-        return min(safe_index + 1, total - 1)
-    if action == "prev":
-        return max(safe_index - 1, 0)
-    if action == "pgn":
-        return min((page + 1) * PAGE_SIZE, total - 1)
-    if action == "pgp":
-        return max((page - 1) * PAGE_SIZE, 0)
-    return safe_index
 
 
 async def carousel_nav_cb(
