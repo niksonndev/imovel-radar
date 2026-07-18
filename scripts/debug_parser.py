@@ -14,8 +14,8 @@ from typing import Any
 import cloudscraper
 from bs4 import BeautifulSoup
 
-from scraper.parser import normalize_olx_listing
 from models import Listing
+from scraper.parser import normalize_olx_listing
 
 URL = "https://www.olx.com.br/imoveis/aluguel/estado-al/alagoas/maceio"
 

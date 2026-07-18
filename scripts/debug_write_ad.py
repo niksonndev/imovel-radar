@@ -24,14 +24,12 @@ from pathlib import Path
 
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "debug-token")
 
+from typing import cast
+
 from database import create_tables
-
 from database.db import get_connection
-
 from database.queries import upsert_listing
-
 from models import Listing
-
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +45,7 @@ def load_ad_from_json() -> Listing:
     if not isinstance(raw, dict):
         raise SystemExit(f"Formato inesperado em {JSON_PATH}: esperado dict")
 
-    return Listing(**raw)
+    return cast(Listing, raw)
 
 
 def main() -> None:

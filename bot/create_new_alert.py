@@ -17,7 +17,6 @@ import re
 
 from telegram import Update
 from telegram.constants import ParseMode
-from telegram.helpers import escape_markdown
 from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
@@ -25,13 +24,13 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
-from models import CustomContext, CreateAlertDraft
-
+from telegram.helpers import escape_markdown
 
 from bot.alert_matching import seed_alert_carousel
 from bot.ui import keyboards, menus
 from database import create_new_alert, ensure_user, get_connection
 from database.queries import get_maceio_neighbourhoods
+from models import CreateAlertDraft, CustomContext
 from utils.pricing import format_brl
 
 logger = logging.getLogger(__name__)
@@ -109,9 +108,7 @@ async def wiz_price_preset_cb(update: Update, context: CustomContext) -> int:
     await query.answer()
 
     if "create_alert_draft" not in context.user_data:
-        await update.effective_message.reply_text(
-            "Sessão expirada. Use /novo_alerta novamente."
-        )
+        await update.effective_message.reply_text("Sessão expirada. Use /novo_alerta novamente.")
         return ConversationHandler.END
 
     draft = context.user_data["create_alert_draft"]
@@ -199,9 +196,7 @@ async def wiz_neighbourhoods_cb(update: Update, context: CustomContext) -> int:
         if cur_page > 0:
             wizard["nb_page"] = cur_page - 1
         await query.edit_message_reply_markup(
-            reply_markup=keyboards.neighborhoods_keyboard(
-                sel, nb_options, page=wizard["nb_page"]
-            )
+            reply_markup=keyboards.neighborhoods_keyboard(sel, nb_options, page=wizard["nb_page"])
         )
         return NEIGHBOURHOODS
 
@@ -209,9 +204,7 @@ async def wiz_neighbourhoods_cb(update: Update, context: CustomContext) -> int:
         if cur_page < total_pages - 1:
             wizard["nb_page"] = cur_page + 1
         await query.edit_message_reply_markup(
-            reply_markup=keyboards.neighborhoods_keyboard(
-                sel, nb_options, page=wizard["nb_page"]
-            )
+            reply_markup=keyboards.neighborhoods_keyboard(sel, nb_options, page=wizard["nb_page"])
         )
         return NEIGHBOURHOODS
 
@@ -235,9 +228,7 @@ async def wiz_neighbourhoods_cb(update: Update, context: CustomContext) -> int:
     await query.edit_message_text(
         menus.wizard_bairros_instrucao(sel),
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=keyboards.neighborhoods_keyboard(
-            sel, nb_options, page=wizard["nb_page"]
-        ),
+        reply_markup=keyboards.neighborhoods_keyboard(sel, nb_options, page=wizard["nb_page"]),
     )
     return NEIGHBOURHOODS
 

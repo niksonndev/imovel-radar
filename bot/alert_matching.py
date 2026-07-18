@@ -30,17 +30,16 @@ import sqlite3
 from telegram.error import TelegramError
 from telegram.ext import Application
 
-from models import Listing
-
 from bot.carousel import send_carousel
+from bot.hydrator import hydrate_listing
 from bot.ui import keyboards, menus
 from database import (
-    get_connection,
     get_alert_by_id,
+    get_connection,
     get_filtered_listings,
     mark_listings_notified,
 )
-from hydrator import hydrate_listing
+from models import Listing
 
 logger = logging.getLogger(__name__)
 

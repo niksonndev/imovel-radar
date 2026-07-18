@@ -14,12 +14,12 @@ import random
 from typing import Any
 
 import cloudscraper
-from cloudscraper.exceptions import CloudflareChallengeError
 from bs4 import BeautifulSoup
+from cloudscraper.exceptions import CloudflareChallengeError
 
 import config
-from scraper.parser import normalize_olx_listing
 from models import Listing
+from scraper.parser import normalize_olx_listing
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +33,11 @@ def _extract_next_data(html: str) -> dict[str, Any]:
         raise ParseError('Tag <script id="__NEXT_DATA__"> não encontrada ou vazia')
 
     try:
-        return json.loads(script.string)
+        data: dict[str, Any] = json.loads(script.string)
     except json.JSONDecodeError as e:
         raise ParseError(f"Falha ao decodificar __NEXT_DATA__: {e}") from e
+
+    return data
 
 
 def _extract_ads_payload(next_data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -93,9 +95,7 @@ async def close() -> None:
 
 
 async def _delay() -> None:
-    await asyncio.sleep(
-        random.uniform(config.SCRAPER_DELAY_MIN, config.SCRAPER_DELAY_MAX)
-    )
+    await asyncio.sleep(random.uniform(config.SCRAPER_DELAY_MIN, config.SCRAPER_DELAY_MAX))
 
 
 def _build_headers() -> dict[str, str]:

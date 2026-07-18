@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from typing import cast
 
-from models import Listing, Alert, AlertWithChat
+from models import Alert, AlertWithChat, Listing
 
 GET_MACEIO_NEIGHBOURHOODS_SQL = """
 SELECT neighbourhood
@@ -123,7 +123,7 @@ def create_new_alert(conn: sqlite3.Connection, alert_data: dict) -> int:
 
 def get_alert_by_id(conn: sqlite3.Connection, alert_id: int) -> Alert:
     row = conn.execute(GET_ALERT_BY_ID_SQL, (alert_id,)).fetchone()
-    return Alert(**dict(row))
+    return cast(Alert, dict(row))
 
 
 def list_alerts_for_user(conn: sqlite3.Connection, user_id: int) -> list[Alert]:
@@ -133,12 +133,11 @@ def list_alerts_for_user(conn: sqlite3.Connection, user_id: int) -> list[Alert]:
 
 def get_alert_for_user(conn: sqlite3.Connection, alert_id: int, user_id: int) -> Alert:
     """Retorna o alerta se existir e pertencer ao ``user_id`` interno."""
-    return conn.execute(GET_ALERT_FOR_USER_SQL, (alert_id, user_id)).fetchone()
+    row = conn.execute(GET_ALERT_FOR_USER_SQL, (alert_id, user_id)).fetchone()
+    return cast(Alert, dict(row))
 
 
-def delete_alert_for_user(
-    conn: sqlite3.Connection, alert_id: int, user_id: int
-) -> bool:
+def delete_alert_for_user(conn: sqlite3.Connection, alert_id: int, user_id: int) -> bool:
     """Apaga o alerta e os vínculos em ``alert_matches``; retorna ``True`` se removeu linha."""
     conn.execute("DELETE FROM alert_matches WHERE alert_id = ?", (alert_id,))
     cur = conn.execute(
@@ -182,9 +181,7 @@ def mark_listings_notified(
     alert_id: int,
     listing_ids: list[int],
 ) -> None:
-    conn.executemany(
-        INSERT_ALERT_MATCH_SQL, [(alert_id, listing_id) for listing_id in listing_ids]
-    )
+    conn.executemany(INSERT_ALERT_MATCH_SQL, [(alert_id, listing_id) for listing_id in listing_ids])
 
 
 def list_active_alerts_with_chat(conn: sqlite3.Connection) -> list[AlertWithChat]:

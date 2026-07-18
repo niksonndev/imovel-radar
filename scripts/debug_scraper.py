@@ -79,7 +79,8 @@ def _extract_next_data(html: str) -> dict[str, Any]:
     script = BeautifulSoup(html, "lxml").find("script", id="__NEXT_DATA__")
     if not script or not script.string:
         raise SystemExit('Tag <script id="__NEXT_DATA__"> não encontrada ou vazia')
-    return json.loads(script.string)
+    data: dict[str, Any] = json.loads(script.string)
+    return data
 
 
 def _count_ads_objects(next_data: dict[str, Any]) -> int:

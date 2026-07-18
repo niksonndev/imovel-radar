@@ -10,7 +10,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import config  # noqa: E402
-from database.queries import get_filtered_listings  # noqa: E402
 
 LOGS_DIR = "logs"
 
@@ -45,9 +44,7 @@ def save_listings_log(filename, listings, header):
             list_id = row["listId"]
             url = row["url"] or "(sem url)"
             title = row["title"] or "(sem titulo)"
-            price_value = (
-                row["priceValue"] if row["priceValue"] is not None else "(sem preco)"
-            )
+            price_value = row["priceValue"] if row["priceValue"] is not None else "(sem preco)"
             neighbourhood = row["neighbourhood"] or "(sem bairro)"
             f.write(
                 f"listId={list_id} | priceValue={price_value} | "
@@ -111,35 +108,6 @@ save_log(
     f"BAIRROS EM MACEIÓ — {sum(r[1] for r in maceio_neighbourhood_rows)} listings | {len(maceio_neighbourhood_rows)} bairros distintos",
 )
 
-# --- Query tipo alerta do nikson: Antares, Mangabeiras, Benedito Bentes | R$ 140k–200k ---
-nikson_alert_neighbourhoods = [
-    "Antares",
-    "Serraria",
-    "Farol",
-    "Feitosa",
-    "Gruta de Lourdes",
-]
-nikson_alert_min_price = 1000
-nikson_alert_max_price = 1800
-
 # Usa a função canônica do projeto para garantir que o script avalie
 # exatamente o mesmo matching que o bot faz no runtime.
-nikson_alert_rows = get_filtered_listings(
-    conn,
-    min_price=nikson_alert_min_price,
-    max_price=nikson_alert_max_price,
-    neighbourhoods=nikson_alert_neighbourhoods,
-)
-
-# Snapshot rápido para comparar resultado da query com a expectativa do alerta.
-save_listings_log(
-    f"alerta_nikson_{timestamp}.log",
-    nikson_alert_rows,
-    (
-        f"ALERTA DO NIKSON — Maceió: {', '.join(nikson_alert_neighbourhoods)} | "
-        f"priceValue {nikson_alert_min_price}–{nikson_alert_max_price} — "
-        f"{len(nikson_alert_rows)} listings encontradas"
-    ),
-)
-
 conn.close()

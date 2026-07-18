@@ -22,21 +22,21 @@ Funções/objetos públicos:
 from __future__ import annotations
 
 import logging
+from collections.abc import MutableMapping
 
 from telegram import (
     Bot,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    Update,
     InputMediaPhoto,
+    Update,
 )
-from collections.abc import MutableMapping
 from telegram.ext import Application, CallbackQueryHandler
 
-from utils.pricing import format_brl
-from hydrator import hydrate_listing, HydratedListing
-from models import Properties, CustomContext
+from bot.hydrator import HydratedListing, hydrate_listing
 from database import get_connection, get_listings_by_ids
+from models import CustomContext, Properties
+from utils.pricing import format_brl
 
 logger = logging.getLogger(__name__)
 
@@ -94,13 +94,9 @@ def _carousel_keyboard(
 ) -> InlineKeyboardMarkup:
     nav_row: list[InlineKeyboardButton] = []
     if index > 0:
-        nav_row.append(
-            InlineKeyboardButton("◀ Anterior", callback_data=f"crs_{carousel_id}_prev")
-        )
+        nav_row.append(InlineKeyboardButton("◀ Anterior", callback_data=f"crs_{carousel_id}_prev"))
     if index < total - 1:
-        nav_row.append(
-            InlineKeyboardButton("Próximo ▶", callback_data=f"crs_{carousel_id}_next")
-        )
+        nav_row.append(InlineKeyboardButton("Próximo ▶", callback_data=f"crs_{carousel_id}_next"))
     rows: list[list[InlineKeyboardButton]] = []
     if nav_row:
         rows.append(nav_row)

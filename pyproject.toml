@@ -1,0 +1,16 @@
+[tool.mypy]
+python_version = "3.14"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false  # deixa false por enquanto, true é mais rígido depois
+
+[[tool.mypy.overrides]]
+module = ["cloudscraper.*", "apscheduler.*"]
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]  # erros, "F" pega bugs tipo variável indefinida, "I" ordena imports
