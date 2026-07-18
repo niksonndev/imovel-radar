@@ -1,6 +1,8 @@
 from __future__ import annotations
-from typing import TypedDict
+
 from dataclasses import dataclass
+from typing import Literal, TypedDict
+
 from telegram.ext import CallbackContext, ExtBot
 
 
@@ -54,7 +56,8 @@ class CreateAlertDraft(TypedDict, total=False):
     neighbourhoods: list[str]
 
 
-class CreateAlertData(TypedDict):
+@dataclass
+class CreateAlertData:
     """Alerta completo, pronto para INSERT. Todos os campos são obrigatórios."""
 
     user_id: int
@@ -64,11 +67,21 @@ class CreateAlertData(TypedDict):
     neighbourhoods: list[str]
 
 
+class CreateAlertWizardState(TypedDict, total=False):
+    """Estado temporário da interface do wizard, fora do draft persistível."""
+
+    awaiting: Literal["price_min", "price_max"]
+    neighbourhood_options: list[str]
+    neighbourhood_page: int
+
+
 class UserData(TypedDict, total=False):
     create_alert_draft: CreateAlertDraft
+    create_alert_wizard_state: CreateAlertWizardState
 
 
-CustomContext = CallbackContext[ExtBot, UserData, dict, dict]
+class CustomContext(CallbackContext[ExtBot, UserData, dict, dict]):
+    pass
 
 
 class Alert(TypedDict):
