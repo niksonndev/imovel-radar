@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import TypedDict
+from dataclasses import dataclass
 from telegram.ext import CallbackContext, ExtBot
 
 
@@ -30,7 +31,8 @@ class Properties(TypedDict, total=False):
     re_types: str
 
 
-class HydratedListing(TypedDict):
+@dataclass
+class HydratedListing:
     listId: int
     url: str
     title: str

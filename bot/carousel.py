@@ -30,7 +30,7 @@ from telegram import (
     Update,
 )
 from telegram.error import TelegramError
-from telegram.ext import Application, CallbackQueryHandler, ContextTypes
+from telegram.ext import Application, CallbackQueryHandler
 
 from utils.pricing import format_brl
 from hydrator import HydratedListing
@@ -66,16 +66,16 @@ def _truncate(text: str, limit: int) -> str:
 
 def _carousel_caption(listing: HydratedListing, index: int, total: int) -> str:
     props: Properties = {}
-    for item in listing["properties"]:
+    for item in listing.properties:
         props.update(item)
 
-    title = _truncate(listing["title"], MAX_TITLE_LEN)
-    price = format_brl(listing["priceValue"])
+    title = _truncate(listing.title, MAX_TITLE_LEN)
+    price = format_brl(listing.priceValue)
     bedrooms = props.get("rooms")
     bedrooms_label = f"{bedrooms} quarto(s)" if bedrooms is not None else "—"
     area = props.get("size")
     area_label = f"{area:g}m²" if area else "—"
-    neighbourhood = listing["neighbourhood"] or "—"
+    neighbourhood = listing.neighbourhood or "—"
     rental_or_sale = props.get("real_estate_type", "—")
 
     page, total_pages, idx_in_page, items_on_page = _page_info(index, total)
