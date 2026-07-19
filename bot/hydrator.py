@@ -1,6 +1,6 @@
 import json
 
-from models import Listing, HydratedListing, Properties
+from models import HydratedListing, Listing, Properties
 
 
 def hydrate_listing(listing: Listing) -> HydratedListing:

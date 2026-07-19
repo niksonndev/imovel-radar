@@ -5,10 +5,10 @@ from .queries import (
     get_alert_by_id,
     get_alert_for_user,
     get_filtered_listings,
+    get_listings_by_ids,
     list_alerts_for_user,
     mark_listings_notified,
     upsert_listing,
-    get_listings_by_ids,
 )
 from .schema import create_tables
 from .users import ensure_user

@@ -9,8 +9,6 @@ import re
 
 from telegram import CallbackQuery, Update
 from telegram.constants import ParseMode
-from models import CustomContext
-
 
 from bot.ui import keyboards, menus
 from database import (
@@ -20,6 +18,7 @@ from database import (
     get_connection,
     list_alerts_for_user,
 )
+from models import CustomContext
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +27,7 @@ MAL_ED_RE = re.compile(r"^mal_ed_(\d+)$")
 MAL_RM_RE = re.compile(r"^mal_rm_(\d+)$")
 
 
-async def _render_alert_list_message(
-    query: CallbackQuery, telegram_user_id: int
-) -> None:
+async def _render_alert_list_message(query: CallbackQuery, telegram_user_id: int) -> None:
     """Atualiza a mensagem com a listagem e o teclado de escolha (sem ``answer``)."""
     conn = get_connection()
     try:

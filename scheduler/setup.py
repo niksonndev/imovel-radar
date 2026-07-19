@@ -43,7 +43,8 @@ def start_scheduler(
         misfire_grace_time=300,
         # Várias execuções “atrasadas” viram uma só — evita rajada de scrapes/notificações.
         coalesce=True,
-        # O job roda na thread do scheduler; app + loop do PTB permitem despachar coroutines na thread do bot.
+        # O job roda na thread do scheduler; app + loop do PTB
+        # permitem despachar coroutines na thread do bot.
         args=(app, loop),
     )
     scheduler.start()

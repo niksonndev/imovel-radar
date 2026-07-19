@@ -67,11 +67,11 @@ neighbourhood_rows = run_query(
 """,
 )
 
-save_log(
-    f"neighbourhoods_{timestamp}.log",
-    neighbourhood_rows,
-    f"BAIRROS — {sum(r[1] for r in neighbourhood_rows)} listings | {len(neighbourhood_rows)} bairros distintos",
+header = (
+    f"BAIRROS — {sum(r[1] for r in neighbourhood_rows)} listings | "
+    f"{len(neighbourhood_rows)} bairros distintos"
 )
+save_log(f"neighbourhoods_{timestamp}.log", neighbourhood_rows, header)
 
 # --- Municipalities ---
 municipality_rows = run_query(
@@ -84,11 +84,11 @@ municipality_rows = run_query(
 """,
 )
 
-save_log(
-    f"municipalities_{timestamp}.log",
-    municipality_rows,
-    f"MUNICÍPIOS — {sum(r[1] for r in municipality_rows)} listings | {len(municipality_rows)} municípios distintos",
+header = (
+    f"MUNICÍPIOS — {sum(r[1] for r in municipality_rows)} listings | "
+    f"{len(municipality_rows)} municípios distintos"
 )
+save_log(f"municipalities_{timestamp}.log", municipality_rows, header)
 
 # --- Neighbourhoods em Maceió ---
 maceio_neighbourhood_rows = run_query(
@@ -102,11 +102,11 @@ maceio_neighbourhood_rows = run_query(
 """,
 )
 
-save_log(
-    f"neighbourhoods_maceio_{timestamp}.log",
-    maceio_neighbourhood_rows,
-    f"BAIRROS EM MACEIÓ — {sum(r[1] for r in maceio_neighbourhood_rows)} listings | {len(maceio_neighbourhood_rows)} bairros distintos",
+header = (
+    f"BAIRROS EM MACEIÓ — {sum(r[1] for r in maceio_neighbourhood_rows)} listings | "
+    f"{len(maceio_neighbourhood_rows)} bairros distintos"
 )
+save_log(f"neighbourhoods_maceio_{timestamp}.log", maceio_neighbourhood_rows, header)
 
 # Usa a função canônica do projeto para garantir que o script avalie
 # exatamente o mesmo matching que o bot faz no runtime.

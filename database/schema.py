@@ -8,7 +8,7 @@ def create_tables():
             """
             CREATE TABLE IF NOT EXISTS listings (
                 listId         INTEGER PRIMARY KEY,
-                active         BOOLEAN  NOT NULL  DEFAULT TRUE, -- FALSE = listing removed from source
+                active         BOOLEAN  NOT NULL  DEFAULT TRUE, -- FALSE = removed from source
                 url            TEXT,
                 title          TEXT,
                 priceValue     INTEGER,

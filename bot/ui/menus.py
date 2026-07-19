@@ -13,8 +13,8 @@ from datetime import datetime
 
 from telegram.helpers import escape_markdown
 
-from utils.pricing import format_brl
 from models import Alert
+from utils.pricing import format_brl
 
 
 def start_welcome() -> str:
@@ -36,8 +36,7 @@ def ajuda_comandos_plain() -> str:
 
 def meus_alertas_erro() -> str:
     return (
-        "📋 *Meus Alertas*\n\n"
-        "Não consegui carregar seus alertas agora. Tente de novo em instantes."
+        "📋 *Meus Alertas*\n\nNão consegui carregar seus alertas agora. Tente de novo em instantes."
     )
 
 
@@ -140,8 +139,7 @@ def meus_alertas_list_message(
     header = "📋 *Meus Alertas*\n\n"
     if not alerts:
         return (
-            header
-            + "Você ainda não tem alertas. Use `/novo_alerta` para criar o primeiro.",
+            header + "Você ainda não tem alertas. Use `/novo_alerta` para criar o primeiro.",
             [],
         )
 
@@ -156,9 +154,7 @@ def meus_alertas_list_message(
         omitted = len(alerts) - visible_count
         suffix = ""
         if omitted > 0:
-            suffix = (
-                f"\n\n_… e mais {omitted} alerta(s) (limite de tamanho da mensagem)._"
-            )
+            suffix = f"\n\n_… e mais {omitted} alerta(s) (limite de tamanho da mensagem)._"
         if len(full) + len(suffix) <= max_len:
             visible = alerts[:visible_count]
             return full + suffix, visible
@@ -183,10 +179,7 @@ def menu_watchlist() -> str:
 
 
 def wizard_novo_alerta_intro() -> str:
-    return (
-        "🆕 *Novo alerta (aluguel)*\n\n"
-        "Faixa de preço — toque em uma opção ou *Personalizado*."
-    )
+    return "🆕 *Novo alerta (aluguel)*\n\nFaixa de preço — toque em uma opção ou *Personalizado*."
 
 
 def wizard_sessao_expirada() -> str:
@@ -207,9 +200,7 @@ def wizard_bairros_instrucao(selected: list[str]) -> str:
     Nomes vêm do banco; escapados para evitar quebra de *Markdown*.
     """
     if not selected:
-        return (
-            "*Bairros selecionados:* nenhum ainda.\nToque em mais bairros ou conclua."
-        )
+        return "*Bairros selecionados:* nenhum ainda.\nToque em mais bairros ou conclua."
     names = ", ".join(escape_markdown(n, version=1) for n in sorted(selected))
     return f"*Bairros selecionados:* {names}\nToque em mais bairros ou conclua."
 

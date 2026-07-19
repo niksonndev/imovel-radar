@@ -14,3 +14,6 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]  # erros, "F" pega bugs tipo variável indefinida, "I" ordena imports
+
+[tool.ruff.lint.per-file-ignores]
+"config.py" = ["E501"]

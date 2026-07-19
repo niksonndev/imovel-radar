@@ -13,8 +13,8 @@ Callbacks *Meus alertas*: ``mal_m`` (menu), ``mal_b`` (lista), ``mal_p_<id>``,
 from __future__ import annotations
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from models import Alert
 
+from models import Alert
 
 # Bairros por página no wizard /novo_alerta (Telegram + UX).
 NEIGHBORHOODS_PAGE_SIZE = 12
@@ -61,9 +61,7 @@ def price_range_keyboard() -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = [
         [InlineKeyboardButton(label, callback_data=cb)] for cb, label in presets
     ]
-    rows.append(
-        [InlineKeyboardButton("Personalizado", callback_data="wiz_price_custom")]
-    )
+    rows.append([InlineKeyboardButton("Personalizado", callback_data="wiz_price_custom")])
     return InlineKeyboardMarkup(rows)
 
 
@@ -140,16 +138,8 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("🔔 Novo Alerta", callback_data="novo_alerta")],
-            [
-                InlineKeyboardButton(
-                    "📋 Meus Alertas", callback_data="menu_meus_alertas"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    "👀 Acompanhar anúncio", callback_data="menu_watchlist"
-                )
-            ],
+            [InlineKeyboardButton("📋 Meus Alertas", callback_data="menu_meus_alertas")],
+            [InlineKeyboardButton("👀 Acompanhar anúncio", callback_data="menu_watchlist")],
             [InlineKeyboardButton("❓ Ajuda", callback_data="menu_ajuda")],
         ]
     )
@@ -218,10 +208,6 @@ def meus_alertas_edit_stub_keyboard(alert_id: int) -> InlineKeyboardMarkup:
     """Após tocar em Editar (stub): volta ao detalhe do mesmo alerta."""
     return InlineKeyboardMarkup(
         [
-            [
-                InlineKeyboardButton(
-                    "⬅️ Voltar ao alerta", callback_data=f"mal_p_{alert_id}"
-                )
-            ],
+            [InlineKeyboardButton("⬅️ Voltar ao alerta", callback_data=f"mal_p_{alert_id}")],
         ]
     )

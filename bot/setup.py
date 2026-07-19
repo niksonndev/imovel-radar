@@ -14,13 +14,12 @@ from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
 )
-from models import CustomContext
-
 
 from bot.carousel import register_handlers as register_carousel_handlers
 from bot.create_new_alert import new_alert_conversation
 from bot.meus_alertas import meus_alertas_actions_callback, meus_alertas_callback
 from bot.ui import keyboards, menus
+from models import CustomContext
 
 BOT_COMMANDS = [
     BotCommand("start", "Abre o menu principal"),
@@ -71,12 +70,8 @@ def setup(app: Application) -> None:
     app.add_handler(new_alert_conversation())
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("ajuda", help_cmd))
-    app.add_handler(
-        CallbackQueryHandler(meus_alertas_callback, pattern=r"^menu_meus_alertas$")
-    )
-    app.add_handler(
-        CallbackQueryHandler(meus_alertas_actions_callback, pattern=r"^mal_")
-    )
+    app.add_handler(CallbackQueryHandler(meus_alertas_callback, pattern=r"^menu_meus_alertas$"))
+    app.add_handler(CallbackQueryHandler(meus_alertas_actions_callback, pattern=r"^mal_"))
     app.add_handler(CallbackQueryHandler(main_menu_callback, pattern=r"^menu_"))
     register_carousel_handlers(app)
 

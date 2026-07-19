@@ -11,11 +11,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from telegram.ext import Application, ContextTypes, PicklePersistence
-from models import CustomContext, UserData
 
 import config
 from bot.setup import apply_bot_commands, setup
 from database import create_tables
+from models import CustomContext, UserData
 from scheduler.jobs import run_initial_scrape
 from scheduler.setup import start_scheduler
 
@@ -54,9 +54,7 @@ async def post_init(app: Application) -> None:
     create_tables()
 
     if db_was_missing:
-        logger.info(
-            "imoveis.db não encontrado — rodando scrape inicial antes de iniciar o bot"
-        )
+        logger.info("imoveis.db não encontrado — rodando scrape inicial antes de iniciar o bot")
         # Scrape bloqueia (rede + SQLite); roda em thread para não travar o loop
         # do PTB. O polling só começa quando post_init retorna, então na primeira
         # subida o bot só responde depois que a base está populada.
