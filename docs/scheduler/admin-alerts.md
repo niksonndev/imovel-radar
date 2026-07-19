@@ -1,5 +1,8 @@
 # Admin alerts on scrape failure
 
+> Note: `job_daily` now runs via PTB's native JobQueue, not standalone
+> APScheduler. See `docs/scheduler/job-queue-migration.md`.
+
 **Date:** 2026-07-19
 
 ## Why

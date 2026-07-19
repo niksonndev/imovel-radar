@@ -5,7 +5,7 @@ warn_unused_configs = true
 disallow_untyped_defs = false  # deixa false por enquanto, true é mais rígido depois
 
 [[tool.mypy.overrides]]
-module = ["cloudscraper.*", "apscheduler.*"]
+module = ["cloudscraper.*"]
 ignore_missing_imports = true
 
 [tool.ruff]
