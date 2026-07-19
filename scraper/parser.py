@@ -1,7 +1,8 @@
 """
-Normaliza um dict bruto de anúncio da OLX (ex.: nó em __NEXT_DATA__) para um
-formato fixo com apenas: listId, url, title, priceValue, oldPrice, municipality,
-neighbourhood, properties, category, images.
+Normaliza um dict bruto de anúncio da OLX (nó do array "ads" extraído do
+payload RSC streaming) para um formato fixo com apenas: listId, url, title,
+priceValue, oldPrice, municipality, neighbourhood, properties, category,
+images.
 """
 
 from __future__ import annotations

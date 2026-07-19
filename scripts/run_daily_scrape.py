@@ -31,8 +31,8 @@ from models import Listing
 # Este script roda via scheduler externo e não precisa do bot; então garantimos um dummy.
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "debug-token")
 
-from database.db import get_connection
 from database import create_tables
+from database.db import get_connection
 from database.queries import upsert_listing
 from scraper.olx_scraper import search_all_rent_maceio
 

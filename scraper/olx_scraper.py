@@ -1,5 +1,6 @@
 """
-Cliente HTTP para o OLX (cloudscraper) + extração de __NEXT_DATA__ / fallback HTML.
+Cliente HTTP para o OLX (cloudscraper) + extração de anúncios via RSC
+streaming (App Router / self.__next_f.push).
 
 A listagem é sempre aluguel Maceió; cada anúncio é normalizado por
 ``parser.normalize_olx_listing`` (dict enxuto).
@@ -128,17 +129,15 @@ def _extract_ads_candidates(payload: str) -> list[list[dict[str, Any]]]:
     return candidates
 
 
-def _extract_next_data(html: str) -> dict[str, Any]:
+def _extract_ads_container_from_rsc(html: str) -> dict[str, Any]:
+    """Extrai do RSC o maior array ``ads`` que contém itens com ``listId``."""
     soup = BeautifulSoup(html, "lxml")
     payload = _extract_rsc_payload(html)
     candidates = _extract_ads_candidates(payload)
     candidates_with_list_id = [
         candidate
         for candidate in candidates
-        if any(
-            isinstance(item, dict) and item.get("listId") is not None
-            for item in candidate
-        )
+        if any(isinstance(item, dict) and item.get("listId") is not None for item in candidate)
     ]
 
     if not candidates_with_list_id:
@@ -163,22 +162,23 @@ def _extract_next_data(html: str) -> dict[str, Any]:
     return {"ads": max(candidates_with_list_id, key=len)}
 
 
-def _extract_ads_payload(next_data: dict[str, Any]) -> list[dict[str, Any]]:
+def _extract_ads_payload(ads_container: dict[str, Any]) -> list[dict[str, Any]]:
+    """Valida e retorna os objetos do array ``ads`` extraído do RSC."""
     try:
-        ads = next_data["ads"]
+        ads = ads_container["ads"]
     except KeyError as e:
-        raise ParseError(f"Caminho ausente no __NEXT_DATA__: {e}") from e
+        raise ParseError(f"Caminho ausente no payload de anúncios extraído do RSC: {e}") from e
 
     if not isinstance(ads, list):
-        raise ParseError("`props.pageProps.ads` não é uma lista")
+        raise ParseError("`ads` no payload de anúncios extraído do RSC não é uma lista")
 
     return [item for item in ads if isinstance(item, dict)]
 
 
 def extract_listings_from_search_page(html: str) -> list[Listing]:
     """HTML da listagem → lista de anúncios (formato normalizado)."""
-    next_data = _extract_next_data(html)
-    ads = _extract_ads_payload(next_data)
+    ads_container = _extract_ads_container_from_rsc(html)
+    ads = _extract_ads_payload(ads_container)
 
     listings: list[Listing] = []
     for ad in ads:

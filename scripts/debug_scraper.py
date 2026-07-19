@@ -17,8 +17,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-from bs4 import BeautifulSoup
-
 # `config.py` exige TELEGRAM_BOT_TOKEN ao importar `scraper.olx_scraper`.
 # Para este script de debug do scraper, um valor dummy e suficiente.
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "debug-token")
@@ -26,6 +24,7 @@ os.environ.setdefault("TELEGRAM_BOT_TOKEN", "debug-token")
 import config
 from models import Listing
 from scraper.olx_scraper import (
+    _extract_ads_container_from_rsc,
     _extract_rsc_payload,
     extract_listings_from_search_page,
     fetch,
@@ -35,7 +34,7 @@ from scraper.olx_scraper import (
 ROOT = Path(__file__).resolve().parent.parent
 LOGS_DIR = ROOT / "logs"
 LOG_FILE = LOGS_DIR / "debug_scraper.log"
-PAGE1_NEXT_DATA = LOGS_DIR / "debug_scraper_page1_next_data.json"
+PAGE1_ADS_PAYLOAD = LOGS_DIR / "debug_scraper_page1_ads_payload.json"
 PAGE1_LISTINGS = LOGS_DIR / "debug_scraper_page1_listings.json"
 SEARCH_ALL_LISTINGS = LOGS_DIR / "debug_scraper_search_all_listings.json"
 DEBUG_LAST_RESPONSE = ROOT / "debug_last_response.html"
@@ -79,33 +78,16 @@ def _write_json(path: Path, payload: Any) -> None:
     )
 
 
-def _extract_next_data(html: str) -> dict[str, Any]:
-    script = BeautifulSoup(html, "lxml").find("script", id="__NEXT_DATA__")
-    if not script or not script.string:
-        raise SystemExit('Tag <script id="__NEXT_DATA__"> não encontrada ou vazia')
-    data: dict[str, Any] = json.loads(script.string)
-    return data
-
-
-def _count_ads_objects(next_data: dict[str, Any]) -> int:
-    ads = next_data["props"]["pageProps"]["ads"]
-    if not isinstance(ads, list):
-        raise SystemExit("`props.pageProps.ads` não é uma lista")
-    return sum(1 for item in ads if isinstance(item, dict))
-
-
 async def debug_extract_listings_from_search_page() -> None:
     logger.info("Iniciando debug de extract_listings_from_search_page")
     logger.info("URL base da coleta: %s", config.MACEIO_RENT_LISTINGS_URL)
 
     html = await fetch(config.MACEIO_RENT_LISTINGS_URL)
-    next_data = _extract_next_data(html)
-    _write_json(PAGE1_NEXT_DATA, next_data)
-    logger.info("__NEXT_DATA__ da primeira página salvo em %s", PAGE1_NEXT_DATA)
-    logger.info(
-        "`props.pageProps.ads` contém %s objetos",
-        _count_ads_objects(next_data),
-    )
+    ads_container = _extract_ads_container_from_rsc(html)
+    ads = ads_container["ads"]
+    _write_json(PAGE1_ADS_PAYLOAD, ads)
+    logger.info("Anúncios extraídos do RSC salvos em %s", PAGE1_ADS_PAYLOAD)
+    logger.info("Array `ads` extraído do RSC contém %s objetos", len(ads))
 
     page1_listings = extract_listings_from_search_page(html)
     _write_json(

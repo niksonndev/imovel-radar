@@ -1,25 +1,30 @@
 """
-Busca listagem OLX, extrai __NEXT_DATA__, acha o primeiro anúncio (listId/adId numérico)
-e imprime + grava em debug_ad.json; aplica normalize_olx_listing e grava parsed_debug_ad.json.
-
-Uso: python scripts/debug_parser.py
+Busca listagem OLX, extrai anúncios via RSC streaming (App Router), acha o
+primeiro anúncio (listId/adId numérico) e imprime + grava em debug_ad.json;
+aplica normalize_olx_listing e grava parsed_debug_ad.json.
+Uso: python -m scripts.debug_scraper
 """
 
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
 import cloudscraper
-from bs4 import BeautifulSoup
 
 from models import Listing
+from scraper.olx_scraper import _extract_ads_candidates, _extract_rsc_payload
 from scraper.parser import normalize_olx_listing
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 
 URL = "https://www.olx.com.br/imoveis/aluguel/estado-al/alagoas/maceio"
 
-ROOT = Path(__file__).resolve().parent.parent
 OUT_JSON = ROOT / "debug_ad.json"
 OUT_PARSED = ROOT / "parsed_debug_ad.json"
 
@@ -75,14 +80,12 @@ def main() -> None:
     r.raise_for_status()
     html = r.text
 
-    soup = BeautifulSoup(html, "lxml")
-    # OLX/Next.js serializa estado da página em __NEXT_DATA__; usamos isso como fonte primária.
-    script = soup.find("script", id="__NEXT_DATA__")
-    if not script or not script.string:
-        raise SystemExit('Tag <script id="__NEXT_DATA__"> não encontrada ou vazia')
+    payload = _extract_rsc_payload(html)
+    candidates = _extract_ads_candidates(payload)
+    if not candidates:
+        raise SystemExit("Nenhum array 'ads' encontrado no payload RSC")
 
-    data = json.loads(script.string)
-    ad = _first_ad_object(data)
+    ad = _first_ad_object(candidates)
     if ad is None:
         raise SystemExit("Nenhum objeto com listId ou adId numérico encontrado")
 
