@@ -4,6 +4,7 @@ Debug helpers para o scraper OLX.
 Uso:
     python -m scripts.debug_scraper extract-page
     python -m scripts.debug_scraper search-all
+    python -m scripts.debug_scraper dump-rsc
 """
 
 from __future__ import annotations
@@ -23,12 +24,13 @@ from bs4 import BeautifulSoup
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "debug-token")
 
 import config
+from models import Listing
 from scraper.olx_scraper import (
+    _extract_rsc_payload,
     extract_listings_from_search_page,
     fetch,
     search_all_rent_maceio,
 )
-from models import Listing
 
 ROOT = Path(__file__).resolve().parent.parent
 LOGS_DIR = ROOT / "logs"
@@ -36,6 +38,8 @@ LOG_FILE = LOGS_DIR / "debug_scraper.log"
 PAGE1_NEXT_DATA = LOGS_DIR / "debug_scraper_page1_next_data.json"
 PAGE1_LISTINGS = LOGS_DIR / "debug_scraper_page1_listings.json"
 SEARCH_ALL_LISTINGS = LOGS_DIR / "debug_scraper_search_all_listings.json"
+DEBUG_LAST_RESPONSE = ROOT / "debug_last_response.html"
+DEBUG_RSC_PAYLOAD = ROOT / "debug_rsc_payload.txt"
 
 logger = logging.getLogger(__name__)
 
@@ -131,12 +135,27 @@ async def debug_search_all_rent_maceio() -> None:
     )
 
 
+def debug_dump_rsc() -> None:
+    html = DEBUG_LAST_RESPONSE.read_text(encoding="utf-8")
+    payload = _extract_rsc_payload(html)
+    DEBUG_RSC_PAYLOAD.write_text(payload, encoding="utf-8")
+    logger.info(
+        '"ads" encontrado: %s, tamanho: %s',
+        '"ads":[' in payload,
+        len(payload),
+    )
+
+
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Debug do scraper OLX")
     parser.add_argument(
         "command",
-        choices=("extract-page", "search-all"),
-        help="`extract-page` testa extract_listings_from_search_page; `search-all` testa search_all_rent_maceio",
+        choices=("extract-page", "search-all", "dump-rsc"),
+        help=(
+            "`extract-page` testa extract_listings_from_search_page; "
+            "`search-all` testa search_all_rent_maceio; "
+            "`dump-rsc` extrai o payload RSC salvo"
+        ),
     )
     return parser
 
@@ -151,6 +170,10 @@ async def main() -> None:
 
     if args.command == "search-all":
         await debug_search_all_rent_maceio()
+        return
+
+    if args.command == "dump-rsc":
+        debug_dump_rsc()
         return
 
     raise SystemExit(f"Comando não suportado: {args.command}")

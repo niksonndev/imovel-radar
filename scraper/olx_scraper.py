@@ -11,6 +11,8 @@ import asyncio
 import json
 import logging
 import random
+import re
+from pathlib import Path
 from typing import Any
 
 import cloudscraper
@@ -27,22 +29,143 @@ _http = cloudscraper.create_scraper()
 _cycle_headers: dict[str, str] | None = None
 
 
+def _extract_rsc_payload(html: str) -> str:
+    """Concatena todos os chunks de self.__next_f.push(...) presentes no HTML,
+    na ordem em que aparecem, retornando uma única string."""
+    soup = BeautifulSoup(html, "lxml")
+    chunks: list[str] = []
+
+    for script in soup.find_all("script"):
+        script_text = script.string or script.get_text()
+        if script.get("id") is not None or "__next_f.push" not in script_text:
+            continue
+
+        match = re.search(
+            r"self\.__next_f\.push\((\[.*?\])\)\s*$",
+            script_text,
+            re.DOTALL,
+        )
+        if not match:
+            continue
+
+        try:
+            payload = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            continue
+
+        if (
+            isinstance(payload, list)
+            and len(payload) >= 2
+            and isinstance(payload[0], int)
+            and isinstance(payload[1], str)
+        ):
+            chunks.append(payload[1])
+
+    return "".join(chunks)
+
+
+def _find_balanced_json(text: str, start_idx: int) -> str:
+    """A partir de start_idx (índice do caractere '[' de abertura), retorna
+    a substring balanceada correspondente, respeitando aspas e escapes
+    dentro de strings. Levanta ParseError se não fechar corretamente."""
+    if start_idx >= len(text) or text[start_idx] != "[":
+        raise ParseError("Índice inicial não aponta para um colchete de abertura")
+
+    depth = 0
+    in_string = False
+    escaped = False
+
+    for index in range(start_idx, len(text)):
+        char = text[index]
+
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+
+        if char == '"':
+            in_string = True
+        elif char == "[":
+            depth += 1
+        elif char == "]":
+            depth -= 1
+            if depth == 0:
+                return text[start_idx : index + 1]
+            if depth < 0:
+                break
+
+    raise ParseError("Array JSON não foi fechado corretamente")
+
+
+def _extract_ads_candidates(payload: str) -> list[list[dict[str, Any]]]:
+    """Encontra todas as ocorrências de '"ads":[' no payload RSC, faz
+    bracket-matching em cada uma a partir do '[' de abertura, tenta
+    json.loads, e retorna a lista de arrays decodificados com sucesso
+    (ignora silenciosamente os que falharem no parse)."""
+    marker = '"ads":['
+    candidates: list[list[dict[str, Any]]] = []
+    search_start = 0
+
+    while True:
+        marker_idx = payload.find(marker, search_start)
+        if marker_idx == -1:
+            break
+
+        array_start = marker_idx + len(marker) - 1
+        search_start = array_start + 1
+        try:
+            candidate = json.loads(_find_balanced_json(payload, array_start))
+        except (json.JSONDecodeError, ParseError):
+            continue
+
+        if isinstance(candidate, list):
+            candidates.append(candidate)
+
+    return candidates
+
+
 def _extract_next_data(html: str) -> dict[str, Any]:
-    script = BeautifulSoup(html, "lxml").find("script", id="__NEXT_DATA__")
-    if not script or not script.string:
-        raise ParseError('Tag <script id="__NEXT_DATA__"> não encontrada ou vazia')
+    soup = BeautifulSoup(html, "lxml")
+    payload = _extract_rsc_payload(html)
+    candidates = _extract_ads_candidates(payload)
+    candidates_with_list_id = [
+        candidate
+        for candidate in candidates
+        if any(
+            isinstance(item, dict) and item.get("listId") is not None
+            for item in candidate
+        )
+    ]
 
-    try:
-        data: dict[str, Any] = json.loads(script.string)
-    except json.JSONDecodeError as e:
-        raise ParseError(f"Falha ao decodificar __NEXT_DATA__: {e}") from e
+    if not candidates_with_list_id:
+        debug_path = Path("debug_last_response.html")
+        debug_path.write_text(html, encoding="utf-8")
 
-    return data
+        title = soup.find("title")
+
+        logger.error(
+            "Falha ao extrair anúncios do payload RSC | tamanho_html=%d | "
+            "title=%r | candidatos_ads_encontrados=%d | "
+            "candidatos_com_listId=%d | html_salvo_em=%s",
+            len(html),
+            title.string if title else None,
+            len(candidates),
+            len(candidates_with_list_id),
+            debug_path.resolve(),
+        )
+
+        raise ParseError("Nenhum array de anúncios válido encontrado no payload RSC")
+
+    return {"ads": max(candidates_with_list_id, key=len)}
 
 
 def _extract_ads_payload(next_data: dict[str, Any]) -> list[dict[str, Any]]:
     try:
-        ads = next_data["props"]["pageProps"]["ads"]
+        ads = next_data["ads"]
     except KeyError as e:
         raise ParseError(f"Caminho ausente no __NEXT_DATA__: {e}") from e
 
