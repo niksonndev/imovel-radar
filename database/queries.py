@@ -76,7 +76,7 @@ INSERT INTO alerts (
     user_id, alert_name, min_price, max_price, neighbourhoods, created_at
 )
 VALUES (
-    ?, ?, ?, ?, ?,
+    :user_id, :alert_name, :min_price, :max_price, :neighbourhoods,
     strftime('%Y-%m-%dT%H:%M:%S', 'now')
 )
 """.strip()
