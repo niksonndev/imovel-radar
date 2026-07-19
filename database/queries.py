@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import asdict
 from typing import cast
 
-from models import Alert, AlertWithChat, Listing
+from models import Alert, AlertWithChat, CreateAlertData, Listing
 
 GET_MACEIO_NEIGHBOURHOODS_SQL = """
 SELECT neighbourhood
@@ -75,7 +76,7 @@ INSERT INTO alerts (
     user_id, alert_name, min_price, max_price, neighbourhoods, created_at
 )
 VALUES (
-    :user_id, :alert_name, :min_price, :max_price, :neighbourhoods,
+    ?, ?, ?, ?, ?,
     strftime('%Y-%m-%dT%H:%M:%S', 'now')
 )
 """.strip()
@@ -113,8 +114,8 @@ def get_maceio_neighbourhoods(conn: sqlite3.Connection) -> list[str]:
     return [row[0] for row in rows]
 
 
-def create_new_alert(conn: sqlite3.Connection, alert_data: dict) -> int:
-    cur = conn.execute(INSERT_ALERT_SQL, alert_data)
+def create_new_alert(conn: sqlite3.Connection, alert_data: CreateAlertData) -> int:
+    cur = conn.execute(INSERT_ALERT_SQL, asdict(alert_data))
     last_id = cur.lastrowid
     if last_id is None:
         raise RuntimeError("Falha ao obter ID do alerta inserido")

@@ -77,7 +77,7 @@ def _finalize_draft(draft: CreateAlertDraft, user_id: int) -> CreateAlertData:
         alert_name=draft["alert_name"],
         min_price=draft["min_price"],
         max_price=draft["max_price"],
-        neighbourhoods=draft["neighbourhoods"],
+        neighbourhoods=json.dumps(draft["neighbourhoods"]),
     )
 
 
@@ -330,14 +330,7 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
     conn = get_connection()
     try:
         internal_user_id = ensure_user(conn, user.id)
-        alert = _finalize_draft(draft, internal_user_id)
-        alert_data = {
-            "user_id": alert.user_id,
-            "alert_name": alert.alert_name,
-            "min_price": alert.min_price,
-            "max_price": alert.max_price,
-            "neighbourhoods": json.dumps(alert.neighbourhoods),
-        }
+        alert_data = _finalize_draft(draft, internal_user_id)
         alert_id = create_new_alert(conn, alert_data)
         conn.commit()
     except Exception:

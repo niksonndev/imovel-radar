@@ -64,7 +64,7 @@ class CreateAlertData:
     alert_name: str
     min_price: int
     max_price: int
-    neighbourhoods: list[str]
+    neighbourhoods: str  # já serializado como JSON, pronto pra INSERT
 
 
 class CreateAlertWizardState(TypedDict, total=False):
