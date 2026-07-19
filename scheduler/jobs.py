@@ -1,12 +1,13 @@
 """
-Jobs agendados do APScheduler.
+Jobs agendados via JobQueue do PTB.
 
 ``job_daily`` é o job composto que roda 1x/dia: faz o full scrape e,
 em seguida, notifica os alertas com os imóveis novos.
 
-``_do_full_scrape`` e ``notify_new_matches_all_alerts`` (de
-``bot.alert_matching``) podem ser chamados independentemente — útil para
-execução manual / ad-hoc via REPL ou testes.
+``_do_full_scrape`` e ``_notify_new_matches_all_alerts`` podem ser
+chamados independentemente — útil para execução manual / ad-hoc via
+REPL ou testes. ``run_job_daily_now`` dispara ``job_daily`` fora do
+cron, para debug.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ import asyncio
 import logging
 from datetime import datetime
 
-from telegram.ext import Application
+from telegram.ext import Application, ContextTypes
 
 import config
 import scraper
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 # Limite para a fase assíncrona (Telegram): evita o job do scheduler ficar pendurado para sempre
 # se a rede ou a API travarem; o PTB continua na thread principal com seu próprio loop.
 _NOTIFY_TIMEOUT_SECONDS = 600
+_ADMIN_ALERT_TIMEOUT_SECONDS = 15
 
 
 def _do_full_scrape() -> tuple[bool, int]:
@@ -88,11 +90,6 @@ async def _notify_new_matches_all_alerts(app: Application) -> None:
     logger.info("notify: %s alerta(s) processado(s)", len(alerts))
 
 
-def job_full_scrape() -> None:
-    """Wrapper retrocompatível: apenas faz o scrape, sem notificações."""
-    _success, _count = _do_full_scrape()
-
-
 def run_initial_scrape() -> bool:
     """Scrape inicial executado no bootstrap quando o DB ainda não existe.
 
@@ -106,45 +103,59 @@ def run_initial_scrape() -> bool:
     return success
 
 
-def job_daily(app: Application, loop: asyncio.AbstractEventLoop) -> None:
+async def job_daily(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Job diário: full scrape + notificação dos novos matches por alerta.
 
-    Roda na thread do ``BackgroundScheduler``. A parte assíncrona (envio via
-    Telegram) é despachada no event loop do PTB via ``run_coroutine_threadsafe``
-    e aguardada com timeout para garantir ordem de execução e logs corretos.
+    Roda no event loop do PTB. O scrape síncrono é movido para uma thread,
+    enquanto os envios para o Telegram são aguardados diretamente.
     """
-    success, count = _do_full_scrape()
+    app = context.application
+    success, count = await asyncio.to_thread(_do_full_scrape)
     if not success:
         logger.warning("job_daily: pulando notificações porque o scrape falhou")
         try:
-            fut = asyncio.run_coroutine_threadsafe(
+            await asyncio.wait_for(
                 _alert_admin_scrape_issue(app, "Coleta falhou com exceção — ver logs do scraper"),
-                loop,
+                timeout=_ADMIN_ALERT_TIMEOUT_SECONDS,
             )
-            fut.result(timeout=_NOTIFY_TIMEOUT_SECONDS)
         except Exception:
             logger.exception("job_daily: falha ao enviar alerta de erro do scrape ao admin")
         return
 
     if count == 0:
         try:
-            fut = asyncio.run_coroutine_threadsafe(
+            await asyncio.wait_for(
                 _alert_admin_scrape_issue(
                     app,
                     "Coleta concluída mas retornou 0 anúncios — possível bloqueio "
                     "ou mudança na OLX",
                 ),
-                loop,
+                timeout=_ADMIN_ALERT_TIMEOUT_SECONDS,
             )
-            fut.result(timeout=_NOTIFY_TIMEOUT_SECONDS)
         except Exception:
             logger.exception("job_daily: falha ao enviar alerta de coleta vazia ao admin")
 
     try:
-        # notify_* é async e precisa do loop do PTB; run_coroutine_threadsafe
-        # "ponteia" thread do cron → thread do bot.
-        fut = asyncio.run_coroutine_threadsafe(_notify_new_matches_all_alerts(app), loop)
-        summary = fut.result(timeout=_NOTIFY_TIMEOUT_SECONDS)
+        # O callback já executa no loop do PTB, então basta aguardá-lo.
+        summary = await asyncio.wait_for(
+            _notify_new_matches_all_alerts(app), timeout=_NOTIFY_TIMEOUT_SECONDS
+        )
         logger.info("job_daily: notify summary=%s", summary)
     except Exception:
         logger.exception("job_daily: etapa de notificação falhou")
+
+
+async def run_job_daily_now(app: Application) -> None:
+    """Executa ``job_daily`` imediatamente, fora do cron — uso manual/debug."""
+    completed = asyncio.Event()
+
+    async def _run_and_signal(context: ContextTypes.DEFAULT_TYPE) -> None:
+        try:
+            await job_daily(context)
+        finally:
+            completed.set()
+
+    job_queue = app.job_queue
+    assert job_queue is not None, "JobQueue indisponível — confirme o extra [job-queue] instalado"
+    job_queue.run_once(_run_and_signal, when=0, name="debug-manual-run")
+    await completed.wait()

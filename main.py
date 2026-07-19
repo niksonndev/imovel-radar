@@ -8,7 +8,6 @@ import asyncio
 import logging
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from telegram.ext import Application, ContextTypes, PicklePersistence
 
@@ -18,9 +17,6 @@ from database import create_tables
 from models import CustomContext, UserData
 from scheduler.jobs import run_initial_scrape
 from scheduler.setup import start_scheduler
-
-if TYPE_CHECKING:
-    from apscheduler.schedulers.background import BackgroundScheduler
 
 # __file__ = caminho deste arquivo. .parent = pasta onde está o main.py.
 # sys.path = lista de pastas onde o Python procura módulos ao dar "import".
@@ -38,14 +34,9 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
-_scheduler: BackgroundScheduler | None = None
-
-
 # "async def" = função assíncrona (pode esperar rede/DB sem travar tudo).
 # O python-telegram-bot chama isso depois que o app está pronto.
 async def post_init(app: Application) -> None:
-    global _scheduler
-
     await apply_bot_commands(app)
 
     # Checagem tem que vir ANTES de create_tables(): sqlite3.connect cria o
@@ -64,19 +55,12 @@ async def post_init(app: Application) -> None:
                 "Scrape inicial falhou; scheduler seguirá e tentará novamente no próximo cron"
             )
 
-    # Captura o event loop do PTB para o scheduler despachar coroutines
-    # (envio via Bot API) a partir da thread do BackgroundScheduler.
-    loop = asyncio.get_running_loop()
-    _scheduler = start_scheduler(app, loop)
+    # A JobQueue do PTB executa o cron no mesmo event loop do bot.
+    start_scheduler(app)
     logger.info("Bot iniciado.")
 
 
 async def post_shutdown(app: Application) -> None:
-    # Ao fechar o programa: para o agendador
-    global _scheduler
-    if _scheduler is not None:
-        await asyncio.to_thread(_scheduler.shutdown, True)
-        _scheduler = None
     logger.info("Bot finalizado")
 
 
