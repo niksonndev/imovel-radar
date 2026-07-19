@@ -185,8 +185,9 @@ def extract_listings_from_search_page(html: str) -> list[Listing]:
         if ad.get("listId") is None:
             continue
         listing = normalize_olx_listing(ad)
-        if not listing["images"]:
+        if not json.loads(listing["images"]):
             continue
+        listing = normalize_olx_listing(ad)
         listings.append(listing)
     return listings
 
