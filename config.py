@@ -16,6 +16,14 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 if not TELEGRAM_BOT_TOKEN:
     raise RuntimeError("Defina TELEGRAM_BOT_TOKEN no .env")
 
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "").strip()
+if not ADMIN_CHAT_ID:
+    raise RuntimeError("Defina ADMIN_CHAT_ID no .env")
+try:
+    ADMIN_CHAT_ID = int(ADMIN_CHAT_ID)
+except ValueError as e:
+    raise RuntimeError("ADMIN_CHAT_ID deve ser um inteiro") from e
+
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
 # Entre uma requisição ao OLX e outra esperamos 2–5 s (menos agressivo que um robô "martelando" o site)
@@ -32,14 +40,16 @@ try:
     SCRAPE_TIMEZONE = ZoneInfo(SCRAPE_TIMEZONE_NAME)
 except ZoneInfoNotFoundError as e:
     raise RuntimeError(
-        f"SCRAPE_TIMEZONE inválido: {SCRAPE_TIMEZONE_NAME!r}. Use um ID IANA (ex.: America/Maceio). "
+        f"SCRAPE_TIMEZONE inválido: {SCRAPE_TIMEZONE_NAME!r}. Use um ID IANA (ex.: America/Maceio)."
         "No Windows instale o pacote PyPI 'tzdata' se a base de fusos não estiver disponível."
     ) from e
 
 # URLs do OLX usadas pelo scraper (opcionalmente sobrescreva via .env)
 _OLX_BASE_DEFAULT = "https://www.olx.com.br"
 # Base URL centralizada: as demais URLs de OLX derivam dela por padrão.
-OLX_BASE_URL = (os.getenv("OLX_BASE_URL", _OLX_BASE_DEFAULT).strip() or _OLX_BASE_DEFAULT).rstrip("/")
+OLX_BASE_URL = (os.getenv("OLX_BASE_URL", _OLX_BASE_DEFAULT).strip() or _OLX_BASE_DEFAULT).rstrip(
+    "/"
+)
 MACEIO_RENT_LISTINGS_URL = os.getenv(
     "MACEIO_RENT_LISTINGS_URL",
     f"{OLX_BASE_URL}/imoveis/aluguel/estado-al/alagoas/maceio",
