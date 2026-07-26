@@ -81,10 +81,6 @@ logs/
 # Jupyter
 .ipynb_checkpoints/
 
-# Playwright / browsers (se usar depois)
-playwright-report/
-test-results/
-
 # Arquivos gerados por scripts de debug
 debug_ad.json
 parsed_debug_ad.json
