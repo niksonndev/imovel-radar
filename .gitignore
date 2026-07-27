@@ -74,6 +74,11 @@ dmypy.json
 Thumbs.db
 Desktop.ini
 
+# Node / Turborepo
+node_modules/
+.turbo/
+.next/
+
 # Logs
 *.log
 logs/
