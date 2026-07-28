@@ -1,0 +1,74 @@
+"""
+Registra handlers no ``Application`` do python-telegram-bot.
+"""
+
+from telegram import BotCommand, Update
+from telegram.constants import ParseMode
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+)
+
+from handlers.carousel import register_handlers as register_carousel_handlers
+from handlers.create_new_alert import new_alert_conversation
+from handlers.meus_alertas import meus_alertas_actions_callback, meus_alertas_callback
+from handlers.ui import keyboards, menus
+from models import CustomContext
+
+BOT_COMMANDS = [
+    BotCommand("start", "Abre o menu principal"),
+    BotCommand("novo_alerta", "Cria um novo alerta"),
+    BotCommand("ajuda", "Mostra ajuda de uso"),
+]
+
+
+async def start_cmd(update: Update, context: CustomContext) -> None:
+    assert update.effective_message
+    await update.effective_message.reply_text(
+        menus.start_welcome(),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=keyboards.main_menu_keyboard(),
+    )
+
+
+async def help_cmd(update: Update, context: CustomContext) -> None:
+    assert update.effective_message
+    await update.effective_message.reply_text(
+        menus.ajuda_comandos_plain(),
+        reply_markup=keyboards.main_menu_keyboard(),
+    )
+
+
+async def main_menu_callback(update: Update, context: CustomContext) -> None:
+    query = update.callback_query
+    assert query
+    await query.answer()
+
+    handlers: dict[str, tuple[str, bool]] = {
+        "menu_watchlist": (menus.menu_watchlist(), True),
+        "menu_ajuda": (menus.ajuda_comandos_plain(), False),
+    }
+    text, markdown = handlers.get(
+        query.data or "",
+        (menus.menu_principal_inline(), True),
+    )
+    await query.edit_message_text(
+        text=text,
+        parse_mode=ParseMode.MARKDOWN if markdown else None,
+        reply_markup=keyboards.main_menu_keyboard(),
+    )
+
+
+def setup(app: Application) -> None:
+    app.add_handler(new_alert_conversation())
+    app.add_handler(CommandHandler("start", start_cmd))
+    app.add_handler(CommandHandler("ajuda", help_cmd))
+    app.add_handler(CallbackQueryHandler(meus_alertas_callback, pattern=r"^menu_meus_alertas$"))
+    app.add_handler(CallbackQueryHandler(meus_alertas_actions_callback, pattern=r"^mal_"))
+    app.add_handler(CallbackQueryHandler(main_menu_callback, pattern=r"^menu_"))
+    register_carousel_handlers(app)
+
+
+async def apply_bot_commands(app: Application) -> None:
+    await app.bot.set_my_commands(BOT_COMMANDS)

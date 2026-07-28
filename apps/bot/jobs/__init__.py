@@ -1,0 +1,1 @@
+"""Job de polling que verifica matches novos no scraper a cada 1 hora."""

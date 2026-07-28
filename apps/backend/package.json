@@ -1,5 +1,0 @@
-{
-  "scripts": {
-    "dev": "uv run python main.py"
-  }
-}

@@ -1,0 +1,28 @@
+[project]
+name = "imovel-radar-scraper"
+version = "0.1.0"
+description = "FastAPI service for OLX scraping — sole owner of the database"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "apscheduler>=3.10.0",
+    "cloudscraper>=1.2.71",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.0.0",
+    "python-dotenv>=1.0.0",
+    "tzdata>=2024.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"config.py" = ["E501"]
