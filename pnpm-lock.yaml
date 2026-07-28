@@ -12,7 +12,7 @@ importers:
         specifier: ^2.10.6
         version: 2.10.7
 
-  apps/backend: {}
+  apps/bot: {}
 
   apps/frontend:
     dependencies:
@@ -80,6 +80,8 @@ importers:
       typescript:
         specifier: ^5
         version: 5.9.3
+
+  apps/scraper: {}
 
 packages:
 
