@@ -21,7 +21,7 @@ export function Footer() {
         <ExternalLink className="size-4" />
         Telegram
       </a>
-      <p className="font-mono text-xs tracking-wider text-white/40">
+      <p className="font-mono text-xs tracking-wider text-white/60">
         {FOOTER_LEGAL}
       </p>
     </footer>

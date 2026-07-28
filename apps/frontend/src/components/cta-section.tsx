@@ -15,7 +15,7 @@ export function CTASection() {
           {CTA_HEADLINE}
         </h2>
 
-        <p className="max-w-lg text-lg leading-relaxed text-primary-foreground/80">
+        <p className="max-w-lg text-lg leading-relaxed text-primary-foreground">
           {CTA_SUBHEADLINE}
         </p>
 

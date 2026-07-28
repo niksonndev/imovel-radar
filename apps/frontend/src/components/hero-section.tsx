@@ -15,7 +15,7 @@ export function HeroSection() {
       <div className="flex w-full max-w-3xl flex-col items-center gap-6 text-center">
         <Badge
           variant="outline"
-          className="border-primary/30 text-primary font-mono text-xs uppercase tracking-wider"
+          className="border-primary/30 text-primary-on-surface font-mono text-xs uppercase tracking-wider"
         >
           {HERO_BADGE_TEXT}
         </Badge>

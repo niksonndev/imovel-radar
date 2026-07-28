@@ -32,6 +32,7 @@ const features = [
 export function FeatureCards() {
   return (
     <section className="px-4 py-16 sm:py-20">
+      <h2 className="sr-only">Funcionalidades</h2>
       <div className="mx-auto grid w-full max-w-5xl gap-6 sm:grid-cols-3 sm:gap-8">
         {features.map((feature) => (
           <article
