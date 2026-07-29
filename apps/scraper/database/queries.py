@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import json
 import sqlite3
 from dataclasses import asdict
 from typing import cast
 
-from shared_models import Alert, AlertWithChat, CreateAlertData, Listing
+from shared_models import Alert, AlertWithChat, CreateAlertData
 
 GET_MACEIO_NEIGHBOURHOODS_SQL = """
 SELECT neighbourhood

@@ -4,9 +4,8 @@ Teclados inline do Telegram para o menu principal e para o wizard de alerta.
 
 from __future__ import annotations
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-
 from shared_models import Alert
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 NEIGHBORHOODS_PAGE_SIZE = 12
 _INLINE_BTN_TEXT_MAX = 64

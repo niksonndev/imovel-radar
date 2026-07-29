@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
+from shared_models.api_schemas import HealthResponse
 
 from database import get_connection
-from shared_models.api_schemas import HealthResponse
 
 router = APIRouter(tags=["health"])
 

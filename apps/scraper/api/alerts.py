@@ -5,20 +5,6 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter, HTTPException
-
-from database import get_connection
-from database import ensure_user
-from database.queries import (
-    create_new_alert,
-    delete_alert_for_user,
-    get_alert_by_id,
-    get_alert_for_user,
-    get_filtered_listings,
-    list_alerts_for_user,
-    mark_listings_notified,
-    get_listings_by_ids,
-    list_active_alerts_with_chat,
-)
 from shared_models.api_schemas import (
     AlertsListResponse,
     CreateAlertRequest,
@@ -27,6 +13,17 @@ from shared_models.api_schemas import (
     MatchesResponse,
 )
 from shared_models.models import CreateAlertData, HydratedListing, Properties
+
+from database import ensure_user, get_connection
+from database.queries import (
+    create_new_alert,
+    delete_alert_for_user,
+    get_alert_by_id,
+    get_filtered_listings,
+    list_active_alerts_with_chat,
+    list_alerts_for_user,
+    mark_listings_notified,
+)
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -133,9 +130,9 @@ async def get_matches(alert_id: int) -> MatchesResponse:
     conn = get_connection()
     try:
         alert = get_alert_by_id(conn, alert_id)
-        neighbourhoods = json.loads(alert["neighbourhoods"])
+        neighbourhoods = json.loads(alert.neighbourhoods)
         filtered = get_filtered_listings(
-            conn, alert_id, alert["min_price"], alert["max_price"], neighbourhoods
+            conn, alert_id, alert.min_price, alert.max_price, neighbourhoods
         )
     finally:
         conn.close()
@@ -172,4 +169,4 @@ async def active_alerts_with_chat() -> AlertsListResponse:
     finally:
         conn.close()
 
-    return AlertsListResponse(alerts=alerts, total=len(alerts))
+    return AlertsListResponse(alerts=alerts, total=len(alerts))  # type: ignore[arg-type]

@@ -130,28 +130,44 @@ Usuário → escolhe preço → seleciona bairros → nome → confirma
 | `/novo_alerta` | Wizard para cadastrar alerta | ✅ |
 | `/ajuda` | Lista de comandos | ✅ |
 
-## Como rodar
+## Running
 
-### Setup (uma vez)
+### Setup (once)
 
 ```bash
 pnpm run setup
 ```
 
-Em seguida, configure os arquivos `.env`:
+Then configure the `.env` files:
 
-- `apps/scraper/.env` — copie de `apps/scraper/.env.example`
-- `apps/bot/.env` — configure `TELEGRAM_BOT_TOKEN` e `SCRAPER_API_URL=http://localhost:8000`
+- `apps/scraper/.env` — copy from `apps/scraper/.env.example`
+- `apps/bot/.env` — set `TELEGRAM_BOT_TOKEN` and `SCRAPER_API_URL=http://localhost:8000`
 
-### Rodar tudo
+### Run everything
 
 ```bash
 pnpm run dev
 ```
 
-### Rodar apenas um serviço
+### Run a single service
 
 ```bash
-pnpm run dev:scraper   # FastAPI na porta 8000
-pnpm run dev:bot       # Bot Telegram
-pnpm run dev:frontend  # Next.js (opcional)
+pnpm run dev:scraper   # FastAPI on port 8000
+pnpm run dev:bot       # Telegram Bot
+pnpm run dev:frontend  # Next.js (optional)
+```
+
+## Lint and type checking
+
+The project uses **Ruff** (lint) and **Pyright** (type checking) via terminal.
+VS Code Pylance is disabled — real validation is done with the commands below.
+
+```bash
+# Scraper
+cd apps/scraper && uv run ruff check . && uv run pyright
+
+# Bot
+cd apps/bot && uv run ruff check . && uv run pyright
+```
+
+See [`docs/setup.md`](docs/setup.md) for details.

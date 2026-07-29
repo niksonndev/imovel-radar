@@ -12,7 +12,6 @@ Responsabilidades:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import sys
 from pathlib import Path
@@ -21,8 +20,8 @@ from telegram.ext import Application, ContextTypes, PicklePersistence
 
 import config
 from handlers.setup import apply_bot_commands, setup
-from models import CustomContext, UserData
 from jobs.polling_job import notify_new_matches
+from models import CustomContext, UserData
 
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:

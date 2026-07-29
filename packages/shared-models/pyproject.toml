@@ -7,6 +7,17 @@ dependencies = [
     "pydantic>=2.0",
 ]
 
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["shared_models*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py313"

@@ -10,6 +10,8 @@ import json
 import logging
 import re
 
+from shared_models.api_schemas import CreateAlertRequest
+from shared_models.utils import format_brl
 from telegram import Message, Update
 from telegram.constants import ParseMode
 from telegram.ext import (
@@ -29,9 +31,6 @@ from models import (
     CreateAlertWizardState,
     CustomContext,
 )
-from shared_models import HydratedListing
-from shared_models.api_schemas import CreateAlertRequest
-from shared_models.utils import format_brl
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +140,7 @@ async def wiz_price_custom_cb(update: Update, context: CustomContext) -> int:
     assert query is not None
     await query.answer()
     _get_wizard_state(context)["awaiting"] = "price_min"
-    await query.message.reply_text("Digite o preço mínimo (só números):")
+    await query.message.reply_text("Digite o preço mínimo (só números):")  # type: ignore[union-attr]
     return PRICE
 
 
@@ -185,7 +184,7 @@ async def wiz_neighbourhoods_cb(update: Update, context: CustomContext) -> int:
     if data == "nbd_done":
         wizard_state.pop("neighbourhood_options", None)
         wizard_state.pop("neighbourhood_page", None)
-        await query.message.reply_text(
+        await query.message.reply_text(  # type: ignore[union-attr]
             "Agora envie o *nome do alerta* (ex: `Aluguel Jatiúca`).",
             parse_mode=ParseMode.MARKDOWN,
         )
@@ -284,7 +283,7 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
     draft = _get_draft(context)
 
     if query.data == "wiz_confirm_no":
-        await query.message.reply_text(
+        await query.message.reply_text(  # type: ignore[union-attr]
             "Okay — alerta não salvo.",
             reply_markup=keyboards.main_menu_keyboard(),
         )
@@ -295,22 +294,22 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
     try:
         req = CreateAlertRequest(
             user_id=user.id,
-            alert_name=draft["alert_name"],
-            min_price=draft["min_price"],
-            max_price=draft["max_price"],
-            neighbourhoods=json.dumps(draft["neighbourhoods"]),
+            alert_name=draft["alert_name"],  # type: ignore[typeddict-item]
+            min_price=draft["min_price"],  # type: ignore[typeddict-item]
+            max_price=draft["max_price"],  # type: ignore[typeddict-item]
+            neighbourhoods=json.dumps(draft["neighbourhoods"]),  # type: ignore[typeddict-item]
         )
         response = await api.create_alert(req)
         alert_id = response.id
 
-        await query.message.reply_text("⏳ Procurando imóveis que combinam com seu alerta…")
+        await query.message.reply_text("⏳ Procurando imóveis que combinam com seu alerta…")  # type: ignore[union-attr]
 
         # Fetch matches
         matches_resp = await api.get_matches(alert_id)
         matches = matches_resp.matches
 
         if not matches:
-            await query.message.reply_text(
+            await query.message.reply_text(  # type: ignore[union-attr]
                 menus.seed_nenhum_imovel(),
                 reply_markup=keyboards.main_menu_keyboard(),
             )
@@ -322,7 +321,7 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
                 str(alert_id),
                 context.application.bot_data,
             )
-            await query.message.reply_text(
+            await query.message.reply_text(  # type: ignore[union-attr]
                 menus.seed_alert_created(),
                 reply_markup=keyboards.main_menu_keyboard(),
             )
@@ -333,7 +332,7 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
 
     except Exception:
         logger.exception("Falha ao criar alerta via API")
-        await query.message.reply_text(
+        await query.message.reply_text(  # type: ignore[union-attr]
             "Não foi possível salvar o alerta. Tente novamente.",
             reply_markup=keyboards.main_menu_keyboard(),
         )

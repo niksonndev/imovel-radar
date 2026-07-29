@@ -7,10 +7,9 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
-from telegram.helpers import escape_markdown
-
 from shared_models import Alert
 from shared_models.utils import format_brl
+from telegram.helpers import escape_markdown
 
 
 def start_welcome() -> str:
@@ -31,7 +30,10 @@ def ajuda_comandos_plain() -> str:
 
 
 def meus_alertas_erro() -> str:
-    return "📋 *Meus Alertas*\n\nNão consegui carregar seus alertas agora. Tente de novo em instantes."
+    return (
+        "📋 *Meus Alertas*\n\n"
+        "Não consegui carregar seus alertas agora. Tente de novo em instantes."
+    )
 
 
 def _meus_alertas_created_display(raw: object) -> str:

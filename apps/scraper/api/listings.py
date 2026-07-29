@@ -6,16 +6,14 @@ import json
 from typing import Annotated
 
 from fastapi import APIRouter, Query
-
-from database import get_connection
-from database.queries import get_listings_by_ids, get_maceio_neighbourhoods
 from shared_models.api_schemas import (
-    ListingsByIdsRequest,
     ListingsListHydratedResponse,
-    ListingsListResponse,
     NeighbourhoodsResponse,
 )
 from shared_models.models import HydratedListing, Properties
+
+from database import get_connection
+from database.queries import get_listings_by_ids, get_maceio_neighbourhoods
 
 router = APIRouter(prefix="/listings", tags=["listings"])
 
@@ -56,7 +54,9 @@ async def list_listings(
             rows = get_listings_by_ids(conn, id_list)
         elif since:
             rows = conn.execute(
-                "SELECT * FROM listings WHERE updated_at >= ? AND active = TRUE ORDER BY updated_at DESC",
+                "SELECT * FROM listings "
+                "WHERE updated_at >= ? AND active = TRUE "
+                "ORDER BY updated_at DESC",
                 (since,),
             ).fetchall()
             rows = [dict(r) for r in rows]

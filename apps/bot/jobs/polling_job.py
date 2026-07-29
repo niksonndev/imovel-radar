@@ -17,7 +17,6 @@ from telegram.ext import Application
 
 from handlers.api_client import ScraperAPI
 from handlers.carousel import send_carousel
-from handlers.ui import keyboards, menus
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ async def notify_new_matches(app: Application) -> None:
 
     for alert in alerts:
         try:
-            await _process_alert(app.bot, alert.id, alert.chat_id, api, app.bot_data)
+            await _process_alert(app.bot, alert.id, alert.chat_id, api, app.bot_data)  # type: ignore[arg-type]
         except Exception:
             logger.exception("Polling: falha ao processar alerta %s", alert.id)
         await asyncio.sleep(2)  # evita flood no Telegram
@@ -50,7 +49,9 @@ async def notify_new_matches(app: Application) -> None:
     logger.info("Polling: %s alerta(s) processado(s)", len(alerts))
 
 
-async def _process_alert(bot: Bot, alert_id: int, chat_id: int, api: ScraperAPI, bot_data: dict) -> None:
+async def _process_alert(
+    bot: Bot, alert_id: int, chat_id: int, api: ScraperAPI, bot_data: dict
+) -> None:
     """Busca matches para um alerta, envia carrossel e marca como notificados."""
     try:
         matches_resp = await api.get_matches(alert_id)
@@ -79,6 +80,10 @@ async def _process_alert(bot: Bot, alert_id: int, chat_id: int, api: ScraperAPI,
     try:
         listing_ids = [m.list_id for m in matches]
         await api.mark_notified(alert_id, listing_ids)
-        logger.info("Polling: alerta %s — %s listings marcados como notificados", alert_id, len(listing_ids))
+        logger.info(
+            "Polling: alerta %s — %s listings marcados como notificados",
+            alert_id,
+            len(listing_ids),
+        )
     except Exception:
         logger.exception("Polling: falha ao marcar notificados para alerta %s", alert_id)

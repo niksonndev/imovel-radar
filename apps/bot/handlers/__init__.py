@@ -6,4 +6,4 @@ Pacote do bot Telegram: handlers, conversas e UI.
 falam com o usuário e com o scraper via API.
 """
 
-from . import setup
+from . import setup  # noqa: F401

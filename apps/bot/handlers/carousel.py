@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from collections.abc import MutableMapping
 
+from shared_models import HydratedListing
+from shared_models.utils import format_brl
 from telegram import (
     Bot,
     InlineKeyboardButton,
@@ -22,10 +24,7 @@ from telegram import (
 from telegram.ext import Application, CallbackQueryHandler
 
 from handlers.api_client import ScraperAPI
-from handlers.hydrator import hydrate_listing
 from models import CustomContext
-from shared_models import HydratedListing, Properties
-from shared_models.utils import format_brl
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ def _truncate(text: str, limit: int) -> str:
 
 
 def _carousel_caption(listing: HydratedListing, index: int, total: int) -> str:
-    props: Properties = {}
+    props: dict = {}
     for item in listing.properties:
         props.update(item.model_dump())
 

@@ -6,19 +6,19 @@ Todos os métodos retornam os modelos Pydantic definidos em ``shared_models``.
 
 from __future__ import annotations
 
-import json
 import logging
 
-import config
 from shared_models.api_schemas import (
     AlertsListResponse,
     CreateAlertRequest,
     CreateAlertResponse,
+    ListingsListHydratedResponse,
+    MarkNotifiedRequest,
     MatchesResponse,
     NeighbourhoodsResponse,
-    MarkNotifiedRequest,
-    ListingsListHydratedResponse,
 )
+
+import config
 
 logger = logging.getLogger(__name__)
 
