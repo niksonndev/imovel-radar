@@ -96,11 +96,7 @@ packages/shared-models/
         └── utils.py              ← utilities (format_brl, money_to_int)
 ```
 
-Each app installs `shared-models` as **editable**:
-
-```bash
-uv pip install -e ../../packages/shared-models
-```
+Each app installs `shared-models` as **editable** (declared in `pyproject.toml` via `[tool.uv.sources]`). Run `pnpm run setup` to install it automatically.
 
 This creates a symlink to the source code — any change in `shared-models` reflects immediately.
 
