@@ -40,4 +40,4 @@ scheduler → scraper → parser → SQLite → bot
 
 ## Library documentation
 
-Before writing or modifying code that uses SQLModel, consult the `get_docs` tool from the `context` MCP for the `sqlmodel` library — do not rely on training memory for the ORM's API.
+Before writing or modifying code that uses SQLModel or python-telegram-bot, consult the `get_docs` tool from the `context` MCP for the corresponding library (`sqlmodel`, `python-telegram-bot`) — do not rely on training memory for the ORM's or bot framework's API.
