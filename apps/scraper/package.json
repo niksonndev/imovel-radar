@@ -1,4 +1,7 @@
 {
+  "name": "scraper",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
     "dev": "uv run uvicorn main:app --reload --port 8000",
     "build": "uv pip install -e ../../packages/shared-models && uv pip install -e .",

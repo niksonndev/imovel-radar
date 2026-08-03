@@ -1,4 +1,7 @@
 {
+  "name": "bot",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
     "dev": "uv run python main.py",
     "build": "uv pip install -e ../../packages/shared-models && uv pip install -e .",
