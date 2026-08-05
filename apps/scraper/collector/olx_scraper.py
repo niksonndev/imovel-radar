@@ -21,7 +21,7 @@ from bs4 import BeautifulSoup
 from cloudscraper.exceptions import CloudflareChallengeError
 
 import config
-from scraper.parser import normalize_olx_listing
+from collector.parser import normalize_olx_listing
 
 logger = logging.getLogger(__name__)
 

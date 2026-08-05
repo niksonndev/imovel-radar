@@ -64,7 +64,7 @@ apps/scraper/
 ├── main.py              # FastAPI app + lifespan (cria tabelas, inicia scheduler)
 ├── config.py            # Variáveis de ambiente (OLX, scrape, delay)
 ├── database/            # SQLite (schema, queries, db, users)
-├── scraper/             # OLX scraper + parser (RSC payload extraction)
+├── collector/           # OLX scraper + parser (RSC payload extraction)
 ├── api/                 # Rotas FastAPI (health, listings, alerts)
 ├── scheduler/           # APScheduler (job_daily: scrape + upsert)
 └── data/                # SQLite database directory

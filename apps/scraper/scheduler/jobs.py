@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 
-import scraper
+import collector
 from database import get_connection
 from database.queries import upsert_listing
 
@@ -25,7 +25,7 @@ async def job_daily() -> dict[str, int]:
     result: dict[str, int] = {"success": 0, "count": 0}
     try:
         logger.info("Coleta agendada: início")
-        listings = await scraper.search_all_rent_maceio()
+        listings = await collector.search_all_rent_maceio()
         conn = get_connection()
         try:
             for listing in listings:
