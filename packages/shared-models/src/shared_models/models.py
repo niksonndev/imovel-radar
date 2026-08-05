@@ -67,19 +67,13 @@ class Alert(BaseModel):
     """Alerta salvo no banco. ``neighbourhoods`` é JSON serializado."""
 
     id: int
-    user_id: int
+    user_id: int  # Telegram chat_id — the user's identity
     alert_name: str | None = None
     min_price: int
     max_price: int
     neighbourhoods: str  # JSON array, deserializar quando usar
     active: bool = True
     created_at: datetime | None = None
-
-
-class AlertWithChat(Alert):
-    """Alerta + chat_id do Telegram (usado pelo bot para enviar notificações)."""
-
-    chat_id: int
 
 
 class CreateAlertData(BaseModel):

@@ -4,7 +4,7 @@ import sqlite3
 from dataclasses import asdict
 from typing import cast
 
-from shared_models import Alert, AlertWithChat, CreateAlertData
+from shared_models import Alert, CreateAlertData
 
 GET_MACEIO_NEIGHBOURHOODS_SQL = """
 SELECT neighbourhood
@@ -94,13 +94,12 @@ WHERE user_id = ?
 ORDER BY id DESC
 """.strip()
 
-LIST_ACTIVE_ALERTS_WITH_CHAT_SQL = """
-SELECT a.id, a.user_id, a.alert_name, a.min_price, a.max_price, a.neighbourhoods,
-       a.active, a.created_at, u.chat_id
-FROM alerts a
-JOIN users u ON u.id = a.user_id
-WHERE a.active = TRUE
-ORDER BY a.id
+LIST_ACTIVE_ALERTS_SQL = """
+SELECT id, user_id, alert_name, min_price, max_price, neighbourhoods,
+       active, created_at
+FROM alerts
+WHERE active = TRUE
+ORDER BY id
 """.strip()
 
 
@@ -180,6 +179,6 @@ def mark_listings_notified(
     conn.executemany(INSERT_ALERT_MATCH_SQL, [(alert_id, listing_id) for listing_id in listing_ids])
 
 
-def list_active_alerts_with_chat(conn: sqlite3.Connection) -> list[AlertWithChat]:
-    rows = conn.execute(LIST_ACTIVE_ALERTS_WITH_CHAT_SQL).fetchall()
-    return cast(list[AlertWithChat], [dict(r) for r in rows])
+def list_active_alerts(conn: sqlite3.Connection) -> list[Alert]:
+    rows = conn.execute(LIST_ACTIVE_ALERTS_SQL).fetchall()
+    return cast(list[Alert], [dict(r) for r in rows])

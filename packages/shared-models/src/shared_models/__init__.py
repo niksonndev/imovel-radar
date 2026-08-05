@@ -14,7 +14,6 @@ from .api_schemas import (
 )
 from .models import (
     Alert,
-    AlertWithChat,
     CreateAlertData,
     HydratedListing,
     Listing,
@@ -24,7 +23,6 @@ from .utils import format_brl, money_to_int
 
 __all__ = [
     "Alert",
-    "AlertWithChat",
     "AlertsListResponse",
     "CreateAlertData",
     "CreateAlertRequest",

@@ -105,7 +105,7 @@ APScheduler → job_daily()
 
 ```
 JobQueue do PTB → notify_new_matches()
-  → GET /alerts/active/with-chat            # todos alertas ativos + chat_id
+  → GET /alerts/active                      # todos alertas ativos
   → para cada alerta:
       GET /alerts/{id}/matches               # matches não notificados
       send_carousel()                        # envia carrossel ao usuário

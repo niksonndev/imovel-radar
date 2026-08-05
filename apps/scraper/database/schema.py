@@ -22,8 +22,7 @@ def create_tables():
             );
 
             CREATE TABLE IF NOT EXISTS users (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                chat_id     INTEGER NOT NULL UNIQUE,
+                chat_id     INTEGER PRIMARY KEY,
                 created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now'))
             );
 
@@ -36,7 +35,7 @@ def create_tables():
                 neighbourhoods TEXT,
                 active         BOOLEAN NOT NULL DEFAULT TRUE,
                 created_at     TEXT    NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES users(id)
+                FOREIGN KEY (user_id) REFERENCES users(chat_id)
             );
 
             CREATE TABLE IF NOT EXISTS alert_matches (

@@ -20,7 +20,7 @@ from database.queries import (
     delete_alert_for_user,
     get_alert_by_id,
     get_filtered_listings,
-    list_active_alerts_with_chat,
+    list_active_alerts,
     list_alerts_for_user,
     mark_listings_notified,
 )
@@ -60,9 +60,9 @@ async def create_alert(req: CreateAlertRequest) -> CreateAlertResponse:
     """Cria um novo alerta para um usuário."""
     conn = get_connection()
     try:
-        internal_user_id = ensure_user(conn, req.user_id)
+        ensure_user(conn, req.user_id)
         data = CreateAlertData(
-            user_id=internal_user_id,
+            user_id=req.user_id,
             alert_name=req.alert_name,
             min_price=req.min_price,
             max_price=req.max_price,
@@ -84,8 +84,8 @@ async def list_alerts(user_id: int) -> AlertsListResponse:
     """Lista alertas de um usuário (por chat_id do Telegram)."""
     conn = get_connection()
     try:
-        internal_user_id = ensure_user(conn, user_id)
-        alerts = list_alerts_for_user(conn, internal_user_id)
+        ensure_user(conn, user_id)
+        alerts = list_alerts_for_user(conn, user_id)
     finally:
         conn.close()
 
@@ -109,8 +109,8 @@ async def delete_alert(alert_id: int, user_id: int) -> dict:
     """Remove um alerta (e seus matches associados)."""
     conn = get_connection()
     try:
-        internal_user_id = ensure_user(conn, user_id)
-        deleted = delete_alert_for_user(conn, alert_id, internal_user_id)
+        ensure_user(conn, user_id)
+        deleted = delete_alert_for_user(conn, alert_id, user_id)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -160,13 +160,13 @@ async def mark_notified(alert_id: int, req: MarkNotifiedRequest) -> dict:
     return {"message": f"{len(req.listing_ids)} listings marcados como notificados"}
 
 
-@router.get("/active/with-chat", response_model=AlertsListResponse)
-async def active_alerts_with_chat() -> AlertsListResponse:
-    """Retorna todos os alertas ativos com chat_id (para o bot fazer polling)."""
+@router.get("/active", response_model=AlertsListResponse)
+async def active_alerts() -> AlertsListResponse:
+    """Retorna todos os alertas ativos (para o bot fazer polling)."""
     conn = get_connection()
     try:
-        alerts = list_active_alerts_with_chat(conn)
+        alerts = list_active_alerts(conn)
     finally:
         conn.close()
 
-    return AlertsListResponse(alerts=alerts, total=len(alerts))  # type: ignore[arg-type]
+    return AlertsListResponse(alerts=alerts, total=len(alerts))

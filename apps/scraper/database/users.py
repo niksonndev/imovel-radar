@@ -4,14 +4,12 @@ import sqlite3
 
 
 def ensure_user(conn: sqlite3.Connection, telegram_chat_id: int) -> int:
+    """Ensure a user exists, keyed by the Telegram chat_id (its primary key).
+
+    Returns the chat_id itself, which is the user's identity.
+    """
     conn.execute(
-        "INSERT INTO users (chat_id) VALUES (?) ON CONFLICT(chat_id) DO NOTHING",
+        "INSERT OR IGNORE INTO users (chat_id) VALUES (?)",
         (telegram_chat_id,),
     )
-    row = conn.execute(
-        "SELECT id FROM users WHERE chat_id = ?",
-        (telegram_chat_id,),
-    ).fetchone()
-    if row is None:
-        raise RuntimeError("Falha ao resolver users.id após INSERT de chat_id")
-    return int(row[0])
+    return telegram_chat_id

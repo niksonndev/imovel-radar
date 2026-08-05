@@ -33,7 +33,7 @@ Serviço FastAPI responsável por toda a lógica de negócio do Imóvel Radar:
 | DELETE | `/alerts/{id}` | Remover alerta (`?user_id=chat_id`) |
 | GET | `/alerts/{id}/matches` | Matches não notificados |
 | POST | `/alerts/{id}/matches/notify` | Marcar matches como notificados |
-| GET | `/alerts/active/with-chat` | Todos alertas ativos com chat_id (para polling) |
+| GET | `/alerts/active` | Todos alertas ativos (para polling) |
 
 ## Configuração
 

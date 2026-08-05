@@ -24,7 +24,7 @@ lógica de negócio — apenas traduz conversas do Telegram em chamadas HTTP.
 
 ## Polling de matches
 
-A cada **1 hora**, o bot consulta `GET /alerts/active/with-chat` e para cada
+A cada **1 hora**, o bot consulta `GET /alerts/active` e para cada
 alerta ativo busca `GET /alerts/{id}/matches`. Se houver matches, envia
 carrossel e marca como notificados via `POST /alerts/{id}/matches/notify`.
 

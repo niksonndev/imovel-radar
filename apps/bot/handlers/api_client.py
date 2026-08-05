@@ -109,10 +109,10 @@ class ScraperAPI:
         r.raise_for_status()
         return r.json()
 
-    # ── Active alerts with chat (polling) ─────────────────────────────────
+    # ── Active alerts (polling) ───────────────────────────────────────────
 
-    async def get_active_alerts_with_chat(self) -> AlertsListResponse:
-        """Retorna todos os alertas ativos com chat_id."""
-        r = await self._client.get("/alerts/active/with-chat")
+    async def get_active_alerts(self) -> AlertsListResponse:
+        """Retorna todos os alertas ativos."""
+        r = await self._client.get("/alerts/active")
         r.raise_for_status()
         return AlertsListResponse(**r.json())

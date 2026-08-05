@@ -2,7 +2,7 @@
 Job de polling que verifica matches novos no scraper periodicamente (padrão: 1 hora).
 
 Fluxo:
-1. Consulta ``GET /alerts/active/with-chat`` no scraper
+1. Consulta ``GET /alerts/active`` no scraper
 2. Para cada alerta ativo, consulta ``GET /alerts/{id}/matches``
 3. Se há matches, envia carrossel via bot e marca como notificados
 """
@@ -20,14 +20,12 @@ from handlers.carousel import send_carousel
 
 logger = logging.getLogger(__name__)
 
-_POLLING_INTERVAL_HOURS = 1  # verificado antes de iniciar
-
 
 async def notify_new_matches(app: Application) -> None:
     """Percorre todos os alertas ativos e notifica matches novos."""
     api = ScraperAPI()
     try:
-        alerts_resp = await api.get_active_alerts_with_chat()
+        alerts_resp = await api.get_active_alerts()
         alerts = alerts_resp.alerts
     except Exception:
         logger.exception("Polling: falha ao buscar alertas ativos")
@@ -41,7 +39,7 @@ async def notify_new_matches(app: Application) -> None:
 
     for alert in alerts:
         try:
-            await _process_alert(app.bot, alert.id, alert.chat_id, api, app.bot_data)  # type: ignore[arg-type]
+            await _process_alert(app.bot, alert.id, alert.user_id, api, app.bot_data)  # type: ignore[arg-type]
         except Exception:
             logger.exception("Polling: falha ao processar alerta %s", alert.id)
         await asyncio.sleep(2)  # evita flood no Telegram
