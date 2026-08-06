@@ -30,3 +30,7 @@ Before writing or modifying code that uses any of the libraries below, consult t
 
 - `sqlmodel`
 - `alembic`
+
+This applies to every code change involving these libraries — including small fixes, 
+type errors, and lint corrections, not just new code. If you are about to fix a typing 
+or lint error in a file using one of these libraries, call get_docs first.
