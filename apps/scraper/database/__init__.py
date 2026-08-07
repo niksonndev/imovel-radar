@@ -1,33 +1,32 @@
-from .db import get_connection
+from .db import engine, get_session
+from .models import Alert, AlertMatch, Listing, User
 from .queries import (
-    create_new_alert,
+    create_alert,
     delete_alert_for_user,
-    get_alert_by_id,
     get_alert_for_user,
-    get_filtered_listings,
-    get_listings_by_ids,
-    get_maceio_neighbourhoods,
-    list_active_alerts,
-    list_alerts_for_user,
+    get_alerts_for_user,
+    get_neighbourhoods,
+    get_unnotified_listings_for_alert,
     mark_listings_notified,
     upsert_listing,
 )
-from .schema import create_tables
-from .users import ensure_user
+from .users import create_user, get_user
 
 __all__ = [
-    "create_new_alert",
-    "create_tables",
-    "delete_alert_for_user",
-    "ensure_user",
-    "get_alert_by_id",
-    "get_alert_for_user",
-    "get_connection",
-    "get_filtered_listings",
-    "get_listings_by_ids",
-    "get_maceio_neighbourhoods",
-    "list_active_alerts",
-    "list_alerts_for_user",
-    "mark_listings_notified",
+    "Alert",
+    "AlertMatch",
+    "Listing",
+    "User",
+    "engine",
+    "get_session",
+    "create_user",
+    "get_user",
     "upsert_listing",
+    "get_neighbourhoods",
+    "create_alert",
+    "get_alert_for_user",
+    "get_alerts_for_user",
+    "delete_alert_for_user",
+    "get_unnotified_listings_for_alert",
+    "mark_listings_notified",
 ]

@@ -1,184 +1,141 @@
+"""Consultas do banco usando SQLModel (sessões e ``select``).
+
+O commit/rollback fica com o chamador (mesmo padrão do código antigo com
+``sqlite3.Connection``). As funções de escrita apenas preparam objetos na
+sessão; os endpoints/scheduler decidem quando commitar.
+
+As queries acessam as colunas diretamente pelos modelos SQLModel, evitando
+``__table__`` e mantendo type-check limpo.
+"""
+
 from __future__ import annotations
 
-import sqlite3
-from dataclasses import asdict
-from typing import cast
+from shared_models import CreateAlertData
+from sqlalchemy import delete, func
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlmodel import Session, select
 
-from shared_models import Alert, CreateAlertData
-
-GET_MACEIO_NEIGHBOURHOODS_SQL = """
-SELECT neighbourhood
-FROM listings
-WHERE municipality = 'Maceió'
-  AND neighbourhood != ''
-GROUP BY neighbourhood
-ORDER BY COUNT(*) DESC
-""".strip()
-
-GET_LISTINGS_BY_IDS_SQL = """
-SELECT listId, url, title, priceValue, oldPrice,
-       municipality, neighbourhood, category, images, properties
-FROM listings
-WHERE listId IN ({placeholders})
-  AND active = TRUE
-""".strip()
-
-GET_FILTERED_LISTINGS_SQL = """
-SELECT l.listId, l.url, l.title, l.priceValue, l.oldPrice,
-       l.municipality, l.neighbourhood, l.category, l.images, l.properties
-FROM listings l
-LEFT JOIN alert_matches am
-  ON am.listing_id = l.listId AND am.alert_id = ?
-WHERE l.active = TRUE
-  AND l.municipality = 'Maceió'
-  AND l.priceValue >= ?
-  AND l.priceValue <= ?
-  AND l.neighbourhood IN ({placeholders})
-  AND am.listing_id IS NULL
-""".strip()
-
-GET_ALERT_FOR_USER_SQL = """
-SELECT id, user_id, alert_name, min_price, max_price, neighbourhoods,
-       active, created_at
-FROM alerts
-WHERE id = ? AND user_id = ?
-""".strip()
-
-GET_ALERT_BY_ID_SQL = """
-SELECT id, user_id, alert_name, min_price, max_price, neighbourhoods,
-       active, created_at
-FROM alerts
-WHERE id = ?
-""".strip()
-
-UPSERT_LISTING_SQL = """
-INSERT INTO listings (
-    listId, url, title, priceValue, oldPrice,
-    municipality, neighbourhood, category, images, properties,
-    active, first_seen_at, updated_at
-)
-VALUES (
-    :listId, :url, :title, :priceValue, :oldPrice,
-    :municipality, :neighbourhood, :category, :images, :properties,
-    1,
-    strftime('%Y-%m-%dT%H:%M:%S', 'now'),
-    strftime('%Y-%m-%dT%H:%M:%S', 'now')
-)
-ON CONFLICT(listId) DO UPDATE SET
-    priceValue = excluded.priceValue,
-    oldPrice = excluded.oldPrice,
-    active = TRUE,
-    updated_at = strftime('%Y-%m-%dT%H:%M:%S', 'now')
-""".strip()
-
-INSERT_ALERT_SQL = """
-INSERT INTO alerts (
-    user_id, alert_name, min_price, max_price, neighbourhoods, created_at
-)
-VALUES (
-    :user_id, :alert_name, :min_price, :max_price, :neighbourhoods,
-    strftime('%Y-%m-%dT%H:%M:%S', 'now')
-)
-""".strip()
-
-INSERT_ALERT_MATCH_SQL = """
-INSERT OR IGNORE INTO alert_matches (alert_id, listing_id, notified_at)
-VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%S', 'now'))
-""".strip()
-
-LIST_ALERTS_FOR_USER_SQL = """
-SELECT id, user_id, alert_name, min_price, max_price, neighbourhoods,
-       active, created_at
-FROM alerts
-WHERE user_id = ?
-ORDER BY id DESC
-""".strip()
-
-LIST_ACTIVE_ALERTS_SQL = """
-SELECT id, user_id, alert_name, min_price, max_price, neighbourhoods,
-       active, created_at
-FROM alerts
-WHERE active = TRUE
-ORDER BY id
-""".strip()
+from .models import Alert, AlertMatch, Listing
 
 
-def upsert_listing(conn: sqlite3.Connection, listing: dict) -> None:
-    conn.execute(UPSERT_LISTING_SQL, listing)
+# ── Listings ──────────────────────────────────────────────────────────────
+def upsert_listing(session: Session, listing: dict) -> None:
+    """Faz ``INSERT ... ON CONFLICT DO UPDATE`` em ``listing`` por ``listing_id``."""
+    values = {
+        "listing_id": listing["listing_id"],
+        "url": listing.get("url"),
+        "title": listing.get("title"),
+        "price_value": listing.get("price_value"),
+        "old_price": listing.get("old_price"),
+        "municipality": listing.get("municipality"),
+        "neighbourhood": listing.get("neighbourhood"),
+        "category": listing.get("category"),
+        "images": listing.get("images") or [],
+        "properties": listing.get("properties"),
+        "active": True,
+    }
+    stmt = sqlite_insert(Listing).values(**values)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["listing_id"],
+        set_={
+            "price_value": stmt.excluded.price_value,
+            "old_price": stmt.excluded.old_price,
+            "active": True,
+            "updated_at": func.now(),
+        },
+    )
+    session.exec(stmt)
 
 
-def get_maceio_neighbourhoods(conn: sqlite3.Connection) -> list[str]:
-    rows = conn.execute(GET_MACEIO_NEIGHBOURHOODS_SQL).fetchall()
+def get_neighbourhoods(session: Session, municipality: str) -> list[str]:
+    rows = list(
+        session.exec(
+            select(Listing.neighbourhood)
+            .where(
+                Listing.municipality == municipality,
+                Listing.neighbourhood != "",
+            )
+            .group_by(Listing.neighbourhood)
+            .order_by(func.count().desc())
+        ).all()
+    )
     return [row[0] for row in rows]
 
 
-def create_new_alert(conn: sqlite3.Connection, alert_data: CreateAlertData) -> int:
-    cur = conn.execute(INSERT_ALERT_SQL, asdict(alert_data))
-    last_id = cur.lastrowid
-    if last_id is None:
-        raise RuntimeError("Falha ao obter ID do alerta inserido")
-    return last_id
-
-
-def get_alert_by_id(conn: sqlite3.Connection, alert_id: int) -> Alert:
-    row = conn.execute(GET_ALERT_BY_ID_SQL, (alert_id,)).fetchone()
-    return cast(Alert, dict(row))
-
-
-def list_alerts_for_user(conn: sqlite3.Connection, user_id: int) -> list[Alert]:
-    rows = conn.execute(LIST_ALERTS_FOR_USER_SQL, (user_id,)).fetchall()
-    return cast(list[Alert], [dict(r) for r in rows])
-
-
-def get_alert_for_user(conn: sqlite3.Connection, alert_id: int, user_id: int) -> Alert:
-    row = conn.execute(GET_ALERT_FOR_USER_SQL, (alert_id, user_id)).fetchone()
-    return cast(Alert, dict(row))
-
-
-def delete_alert_for_user(conn: sqlite3.Connection, alert_id: int, user_id: int) -> bool:
-    conn.execute("DELETE FROM alert_matches WHERE alert_id = ?", (alert_id,))
-    cur = conn.execute(
-        "DELETE FROM alerts WHERE id = ? AND user_id = ?",
-        (alert_id, user_id),
+# ── Alerts ────────────────────────────────────────────────────────────────
+def create_alert(session: Session, alert_data: CreateAlertData) -> int:
+    alert = Alert(
+        chat_id=alert_data.chat_id,
+        alert_name=alert_data.alert_name,
+        min_price=alert_data.min_price,
+        max_price=alert_data.max_price,
+        neighbourhoods=alert_data.neighbourhoods,
     )
-    return cur.rowcount > 0
+    session.add(alert)
+    session.flush()  # preenche id sem commitar (o chamador commita)
+    if alert.id is None:
+        raise RuntimeError("Falha ao obter ID do alerta inserido")
+    return alert.id
 
 
-def get_filtered_listings(
-    conn: sqlite3.Connection,
-    alert_id: int,
-    min_price: int,
-    max_price: int,
-    neighbourhoods: list[str],
-) -> list[dict]:
-    placeholders = ",".join("?" * len(neighbourhoods))
-    query = GET_FILTERED_LISTINGS_SQL.format(placeholders=placeholders)
-    params = [alert_id, min_price, max_price, *neighbourhoods]
-    rows = conn.execute(query, params).fetchall()
-    return cast(list[dict], [dict(r) for r in rows])
+def get_alert_for_user(session: Session, alert_id: int, chat_id: int) -> Alert | None:
+    stmt = select(Alert).where(Alert.id == alert_id, Alert.chat_id == chat_id)
+    return session.exec(stmt).one_or_none()
 
 
-def get_listings_by_ids(
-    conn: sqlite3.Connection,
-    listing_ids: list[int],
-) -> list[dict]:
-    if not listing_ids:
+def get_alerts_for_user(session: Session, chat_id: int) -> list[Alert]:
+    stmt = select(Alert).where(Alert.chat_id == chat_id).order_by(Alert.id.desc())
+    return list(session.exec(stmt).all())
+
+
+def delete_alert_for_user(session: Session, alert_id: int, chat_id: int) -> bool:
+    stmt = select(Alert).where(Alert.id == alert_id, Alert.chat_id == chat_id)
+    alert = session.exec(stmt).first()
+    if alert is None:
+        return False
+    session.exec(delete(AlertMatch).where(AlertMatch.alert_id == alert_id))
+    session.delete(alert)
+    return True
+
+
+# ── Alert matches ─────────────────────────────────────────────────────────
+def get_unnotified_listings_for_alert(
+    session: Session, alert_id: int, chat_id: int
+) -> list[Listing]:
+    alert = get_alert_for_user(session, alert_id, chat_id)
+    if alert is None:
         return []
-    placeholders = ",".join("?" * len(listing_ids))
-    query = GET_LISTINGS_BY_IDS_SQL.format(placeholders=placeholders)
-    rows = conn.execute(query, listing_ids).fetchall()
-    by_id = {row["listId"]: dict(row) for row in rows}
-    return cast(list[dict], [by_id[lid] for lid in listing_ids if lid in by_id])
+
+    conditions = [
+        Listing.active.is_(True),
+        AlertMatch.listing_id.is_(None),
+    ]
+    if alert.min_price is not None:
+        conditions.append(Listing.price_value >= alert.min_price)
+    if alert.max_price is not None:
+        conditions.append(Listing.price_value <= alert.max_price)
+    if alert.neighbourhoods:
+        conditions.append(Listing.neighbourhood.in_(alert.neighbourhoods))
+
+    stmt = (
+        select(Listing)
+        .outerjoin(
+            AlertMatch,
+            (AlertMatch.listing_id == Listing.listing_id) & (AlertMatch.alert_id == alert_id),
+        )
+        .where(*conditions)
+        .order_by(Listing.updated_at.desc())
+    )
+    return list(session.exec(stmt).all())
 
 
-def mark_listings_notified(
-    conn: sqlite3.Connection,
-    alert_id: int,
-    listing_ids: list[int],
-) -> None:
-    conn.executemany(INSERT_ALERT_MATCH_SQL, [(alert_id, listing_id) for listing_id in listing_ids])
-
-
-def list_active_alerts(conn: sqlite3.Connection) -> list[Alert]:
-    rows = conn.execute(LIST_ACTIVE_ALERTS_SQL).fetchall()
-    return cast(list[Alert], [dict(r) for r in rows])
+def mark_listings_notified(session: Session, alert_id: int, listing_ids: list[int]) -> None:
+    session.add_all(
+        [
+            AlertMatch(
+                alert_id=alert_id,
+                listing_id=listing_id,
+            )
+            for listing_id in listing_ids
+        ]
+    )

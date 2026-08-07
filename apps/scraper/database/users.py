@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import sqlite3
+from sqlmodel import Session
+
+from .models import User
 
 
-def ensure_user(conn: sqlite3.Connection, telegram_chat_id: int) -> int:
-    """Ensure a user exists, keyed by the Telegram chat_id (its primary key).
+def create_user(session: Session, chat_id: int) -> User:
+    user = User(chat_id=chat_id)
+    session.add(user)
+    return user
 
-    Returns the chat_id itself, which is the user's identity.
-    """
-    conn.execute(
-        "INSERT OR IGNORE INTO users (chat_id) VALUES (?)",
-        (telegram_chat_id,),
-    )
-    return telegram_chat_id
+
+def get_user(session: Session, chat_id: int) -> User | None:
+    return session.get(User, chat_id)
