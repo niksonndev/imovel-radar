@@ -85,14 +85,3 @@ class NeighbourhoodsResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     neighbourhoods: list[str]
-
-
-# ── Health ───────────────────────────────────────────────────────────────
-
-
-class HealthResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    status: str = "ok"
-    listings_count: int = 0
-    alerts_count: int = 0

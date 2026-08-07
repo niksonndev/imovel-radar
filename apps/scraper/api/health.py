@@ -2,22 +2,21 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
-from shared_models.api_schemas import HealthResponse
+from typing import Literal, TypedDict
 
-from database import get_connection
+from fastapi import APIRouter, Depends
+from sqlmodel import Session, select
+
+from database import get_session
 
 router = APIRouter(tags=["health"])
 
 
-@router.get("/health", response_model=HealthResponse)
-async def health() -> HealthResponse:
-    """Retorna status do serviço e contagens básicas do banco."""
-    conn = get_connection()
-    try:
-        listings_count = conn.execute("SELECT COUNT(*) FROM listings").fetchone()[0]
-        alerts_count = conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
-    finally:
-        conn.close()
+class HealthResponse(TypedDict):
+    status: Literal["ok"]
 
-    return HealthResponse(status="ok", listings_count=listings_count, alerts_count=alerts_count)
+
+@router.get("/health")
+async def health(session: Session = Depends(get_session)) -> HealthResponse:
+    session.exec(select(1)).one()
+    return {"status": "ok"}
