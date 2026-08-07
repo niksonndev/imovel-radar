@@ -7,7 +7,6 @@ images.
 
 from __future__ import annotations
 
-import json
 import re
 from typing import Any
 
@@ -32,13 +31,13 @@ def normalize_olx_listing(raw: dict[str, Any]) -> dict[str, Any]:
     title = str(title_raw)[:500] if title_raw else ""
     location = raw["locationDetails"]
 
-    properties_list = [
-        {name: _normalize_property_value(name.lower(), prop["value"])}
+    properties_dict = {
+        name: _normalize_property_value(name.lower(), prop["value"])
         for prop in raw["properties"]
         if isinstance(prop, dict)
         and (name := str(prop.get("name") or "").strip())
         and "value" in prop
-    ]
+    }
 
     images_list = [
         img["originalWebp"]
@@ -50,11 +49,11 @@ def normalize_olx_listing(raw: dict[str, Any]) -> dict[str, Any]:
         "listId": int(raw["listId"]),
         "url": str(raw.get("friendlyUrl") or raw.get("url") or ""),
         "title": title,
-        "priceValue": money_to_int(raw.get("priceValue") or raw.get("price")),
-        "oldPrice": money_to_int(raw.get("oldPrice")),
+        "price_value": money_to_int(raw.get("priceValue") or raw.get("price")),
+        "old_price": money_to_int(raw.get("oldPrice")),
         "municipality": str(location.get("municipality") or ""),
         "neighbourhood": str(location.get("neighbourhood") or ""),
-        "properties": json.dumps(properties_list, ensure_ascii=False),
+        "properties": properties_dict,
         "category": str(raw.get("category") or raw.get("categoryName") or ""),
-        "images": json.dumps(images_list, ensure_ascii=False),
+        "images": images_list,
     }
