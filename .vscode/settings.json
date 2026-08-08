@@ -1,10 +1,60 @@
 {
-  "python.analysis.typeCheckingMode": "off",
-  "python.analysis.diagnosticMode": "off",
-  "[python]": {
-    "editor.formatOnSave": false,
-    "editor.codeActionsOnSave": {
-      "source.organizeImports": "never"
-    }
-  }
+  // ⚠️ Este settings.json é o da RAIZ do monorepo (pasta "🏠 root").
+  // Ele NÃO deve conter python.defaultInterpreterPath nem
+  // python.analysis.* — isso agora vive em cada subprojeto:
+  //   apps/bot/.vscode/settings.json
+  //   apps/collector/.vscode/settings.json
+  //   packages/shared-models/.vscode/settings.json
+  // Colocar interpretador aqui faz ele "vazar" como fallback e volta
+  // a confundir o Pylance entre as venvs.
+  // --- Editor geral ---
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.organizeImports": "explicit"
+  },
+  "editor.rulers": [
+    88,
+    100
+  ],
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.eol": "\n",
+  // --- Arquivos/pastas escondidos do explorer e da busca ---
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.ruff_cache": true,
+    "**/.mypy_cache": true,
+    "**/node_modules": true,
+    "**/.venv": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.venv": true,
+    "**/dist": true,
+    "**/build": true,
+    "pnpm-lock.yaml": true
+  },
+  // --- JS/TS (se o monorepo usa) ---
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  // --- Extensões recomendadas ao abrir o workspace ---
+  "extensions.recommendations": [
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "charliermarsh.ruff",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint"
+  ]
 }

@@ -1,0 +1,27 @@
+{
+  "folders": [
+    {
+      "name": "🏠 root (monorepo)",
+      "path": "."
+    },
+    {
+      "name": "🤖 bot",
+      "path": "apps/bot"
+    },
+    {
+      "name": "🕷️ scraper",
+      "path": "apps/scraper"
+    },
+    {
+      "name": "📦 shared-models",
+      "path": "packages/shared-models"
+    }
+  ],
+  "settings": {
+    // Configurações globais do workspace que não são específicas de interpretador
+    // ficam aqui. Cada pasta abaixo tem seu próprio .vscode/settings.json
+    // com o defaultInterpreterPath — o Pylance escolhe sozinho com base
+    // em qual arquivo está aberto/focado.
+    "python.analysis.autoImportCompletions": true
+  }
+}
