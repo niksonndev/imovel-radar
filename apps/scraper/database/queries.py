@@ -11,6 +11,7 @@ As queries acessam as colunas diretamente pelos modelos SQLModel, evitando
 from __future__ import annotations
 
 from shared_models import CreateAlertData
+from shared_models.api_schemas import NotifiedPair
 from sqlalchemy import delete, func
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel import Session, select
@@ -141,13 +142,5 @@ def get_unnotified_listings_for_user(session: Session, chat_id: int) -> list[Lis
     return result
 
 
-def mark_listings_notified(session: Session, alert_id: int, listing_ids: list[int]) -> None:
-    session.add_all(
-        [
-            AlertMatch(
-                alert_id=alert_id,
-                listing_id=listing_id,
-            )
-            for listing_id in listing_ids
-        ]
-    )
+def mark_listings_notified_bulk(session: Session, pairs: list[NotifiedPair]) -> None:
+    session.add_all([AlertMatch(alert_id=p.alert_id, listing_id=p.listing_id) for p in pairs])
