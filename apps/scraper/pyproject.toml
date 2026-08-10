@@ -19,10 +19,18 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "poethepoet>=0.30.0",
     "pyright>=1.1.0",
     "pytest==8.4.2",
     "ruff==0.16.0",
 ]
+
+[tool.poe.tasks]
+test = "pytest -v"
+lint = "ruff check ."
+format = "ruff format ."
+typecheck = "pyright"
+check = ["lint", "typecheck", "test"]
 
 [tool.pyright]
 include = ["."]
