@@ -278,10 +278,10 @@ async def search_all_rent_maceio() -> list[RawAd]:
 
             new_listing_count = 0
             for listing in page_listings:
-                list_id = listing["listId"]
-                if list_id not in listings_by_id:
+                listing_id = listing["listing_id"]
+                if listing_id not in listings_by_id:
                     new_listing_count += 1
-                listings_by_id[list_id] = listing
+                listings_by_id[listing_id] = listing
 
             if new_listing_count == 0:
                 break

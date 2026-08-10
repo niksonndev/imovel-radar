@@ -1,8 +1,8 @@
 """
 Normaliza um dict bruto de anúncio da OLX (nó do array "ads" extraído do
-payload RSC streaming) para um formato fixo com apenas: listId, url, title,
-priceValue, oldPrice, municipality, neighbourhood, properties, category,
-images.
+payload RSC streaming) para um formato fixo com apenas: listing_id, url,
+title, price_value, old_price, municipality, neighbourhood, properties,
+category, images.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ __all__ = ["RawAd", "normalize_olx_listing"]
 class RawAd(TypedDict):
     """Payload bruto do anúncio coletado pelo scraper antes de persistir no banco."""
 
-    listId: int
+    listing_id: int
     url: str
     title: str
     price_value: int | None
@@ -61,7 +61,7 @@ def normalize_olx_listing(raw: dict[str, Any]) -> RawAd:
     ]
 
     return {
-        "listId": int(raw["listId"]),
+        "listing_id": int(raw["listId"]),
         "url": str(raw.get("friendlyUrl") or raw.get("url") or ""),
         "title": title,
         "price_value": money_to_int(raw.get("priceValue") or raw.get("price")),

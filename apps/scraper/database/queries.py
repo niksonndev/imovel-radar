@@ -24,7 +24,7 @@ from .models import Alert, AlertMatch, Listing, ListingAlertMatch
 def upsert_listing(session: Session, raw_ad: RawAd) -> None:
     """Persiste um anúncio bruto do scraper em ``listing`` usando UPSERT por ``listing_id``."""
     values = {
-        "listing_id": raw_ad["listId"],
+        "listing_id": raw_ad["listing_id"],
         "url": raw_ad["url"],
         "title": raw_ad["title"],
         "price_value": raw_ad["price_value"],
