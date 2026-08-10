@@ -10,8 +10,7 @@ As queries acessam as colunas diretamente pelos modelos SQLModel, evitando
 
 from __future__ import annotations
 
-from shared_models import CreateAlertData
-from shared_models.api_schemas import NotifiedPair
+from shared_models.api_schemas import CreateAlertRequest, NotifiedPair
 from sqlalchemy import delete, func
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel import Session, select
@@ -64,7 +63,7 @@ def get_neighbourhoods(session: Session, municipality: str) -> list[str]:
 
 
 # ── Alerts ────────────────────────────────────────────────────────────────
-def create_alert(session: Session, alert_data: CreateAlertData) -> int:
+def create_alert(session: Session, alert_data: CreateAlertRequest) -> int:
     alert = Alert(
         chat_id=alert_data.chat_id,
         alert_name=alert_data.alert_name,

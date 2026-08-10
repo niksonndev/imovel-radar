@@ -2,171 +2,98 @@
 
 from __future__ import annotations
 
-import json
-
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from shared_models.api_schemas import (
     AlertsListResponse,
     CreateAlertRequest,
     CreateAlertResponse,
-    MarkNotifiedRequest,
-    MatchesResponse,
 )
-from shared_models.models import CreateAlertData, HydratedListing, Properties
+from shared_models.models import Alert
+from sqlmodel import Session
 
-from database import ensure_user, get_connection
+from database import get_session
+from database.models import Alert as AlertModel
 from database.queries import (
-    create_new_alert,
+    create_alert,
     delete_alert_for_user,
-    get_alert_by_id,
-    get_filtered_listings,
-    list_active_alerts,
-    list_alerts_for_user,
-    mark_listings_notified,
+    get_active_alerts_for_user,
+    get_alert_for_user,
+    get_alerts_for_user,
 )
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
-def _hydrate_listings(rows: list[dict]) -> list[HydratedListing]:
-    import json as _json
-    result = []
-    for row in rows:
-        properties_list = (
-            _json.loads(row["properties"]) if row["properties"] else []
-        )
-        for item in properties_list:
-            if "real_estate_type" in item:
-                item["real_estate_type"] = item["real_estate_type"].split(" - ")[0]
-        result.append(
-            HydratedListing(
-                listId=row["listId"],
-                url=row["url"],
-                title=row["title"],
-                priceValue=row["priceValue"],
-                oldPrice=row["oldPrice"],
-                municipality=row["municipality"],
-                neighbourhood=row["neighbourhood"],
-                category=row["category"],
-                images=_json.loads(row["images"]),
-                properties=[Properties(**p) for p in properties_list],
-            )
-        )
-    return result
+def _shared_alert(alert: AlertModel) -> Alert:
+    """Converte um Alert (SQLModel) para o contrato da API."""
+    assert alert.id is not None, "alert vindo do banco deveria sempre ter id"
+    assert alert.created_at is not None, "alert vindo do banco deveria sempre ter created_at"
+    return Alert(
+        id=alert.id,
+        chat_id=alert.chat_id,
+        alert_name=alert.alert_name,
+        min_price=alert.min_price,
+        max_price=alert.max_price,
+        neighbourhoods=alert.neighbourhoods,
+        active=alert.active,
+        created_at=alert.created_at,
+    )
 
 
 @router.post("", response_model=CreateAlertResponse, status_code=201)
-async def create_alert(req: CreateAlertRequest) -> CreateAlertResponse:
+async def create_alert_endpoint(
+    alert: CreateAlertRequest,
+    session: Session = Depends(get_session),
+) -> CreateAlertResponse:
     """Cria um novo alerta para um usuário."""
-    conn = get_connection()
-    try:
-        ensure_user(conn, req.user_id)
-        data = CreateAlertData(
-            user_id=req.user_id,
-            alert_name=req.alert_name,
-            min_price=req.min_price,
-            max_price=req.max_price,
-            neighbourhoods=req.neighbourhoods,
-        )
-        alert_id = create_new_alert(conn, data)
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail="Falha ao criar alerta")
-    finally:
-        conn.close()
-
+    alert_id = create_alert(session, alert)
+    session.commit()
     return CreateAlertResponse(id=alert_id)
 
 
-@router.get("", response_model=AlertsListResponse)
-async def list_alerts(user_id: int) -> AlertsListResponse:
-    """Lista alertas de um usuário (por chat_id do Telegram)."""
-    conn = get_connection()
-    try:
-        ensure_user(conn, user_id)
-        alerts = list_alerts_for_user(conn, user_id)
-    finally:
-        conn.close()
-
+@router.get("/{chat_id}", response_model=AlertsListResponse)
+async def list_alerts(
+    chat_id: int,
+    session: Session = Depends(get_session),
+) -> AlertsListResponse:
+    """Lista todos os alertas de um usuário (ativos ou não)."""
+    alerts = [_shared_alert(a) for a in get_alerts_for_user(session, chat_id)]
     return AlertsListResponse(alerts=alerts, total=len(alerts))
 
 
-@router.get("/{alert_id}", response_model=AlertsListResponse)
-async def get_alert(alert_id: int) -> AlertsListResponse:
-    """Retorna detalhe de um alerta pelo ID."""
-    conn = get_connection()
-    try:
-        alert = get_alert_by_id(conn, alert_id)
-    finally:
-        conn.close()
-
-    return AlertsListResponse(alerts=[alert], total=1)
+@router.get("/{chat_id}/active", response_model=AlertsListResponse)
+async def list_active_alerts(
+    chat_id: int,
+    session: Session = Depends(get_session),
+) -> AlertsListResponse:
+    """Lista apenas os alertas ativos de um usuário."""
+    alerts = [_shared_alert(a) for a in get_active_alerts_for_user(session, chat_id)]
+    return AlertsListResponse(alerts=alerts, total=len(alerts))
 
 
-@router.delete("/{alert_id}")
-async def delete_alert(alert_id: int, user_id: int) -> dict:
+@router.get("/{chat_id}/{alert_id}", response_model=Alert)
+async def get_alert(
+    chat_id: int,
+    alert_id: int,
+    session: Session = Depends(get_session),
+) -> Alert:
+    """Retorna um alerta específico de um usuário."""
+    alert = get_alert_for_user(session, alert_id, chat_id)
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alerta não encontrado")
+    return _shared_alert(alert)
+
+
+@router.delete("/{chat_id}/{alert_id}")
+async def delete_alert(
+    chat_id: int,
+    alert_id: int,
+    session: Session = Depends(get_session),
+) -> dict:
     """Remove um alerta (e seus matches associados)."""
-    conn = get_connection()
-    try:
-        ensure_user(conn, user_id)
-        deleted = delete_alert_for_user(conn, alert_id, user_id)
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail="Falha ao remover alerta")
-    finally:
-        conn.close()
+    deleted = delete_alert_for_user(session, alert_id, chat_id)
+    session.commit()
 
     if not deleted:
         raise HTTPException(status_code=404, detail="Alerta não encontrado")
-
     return {"message": "Alerta removido com sucesso"}
-
-
-@router.get("/{alert_id}/matches", response_model=MatchesResponse)
-async def get_matches(alert_id: int) -> MatchesResponse:
-    """Retorna matches não notificados para um alerta (hydrated)."""
-    conn = get_connection()
-    try:
-        alert = get_alert_by_id(conn, alert_id)
-        neighbourhoods = json.loads(alert.neighbourhoods)
-        filtered = get_filtered_listings(
-            conn, alert_id, alert.min_price, alert.max_price, neighbourhoods
-        )
-    finally:
-        conn.close()
-
-    if not filtered:
-        return MatchesResponse(alert_id=alert_id, matches=[], total=0)
-
-    hydrated = _hydrate_listings(filtered)
-    return MatchesResponse(alert_id=alert_id, matches=hydrated, total=len(hydrated))
-
-
-@router.post("/{alert_id}/matches/notify")
-async def mark_notified(alert_id: int, req: MarkNotifiedRequest) -> dict:
-    """Marca listings como notificados para um alerta."""
-    conn = get_connection()
-    try:
-        mark_listings_notified(conn, alert_id, req.listing_ids)
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail="Falha ao marcar notificados")
-    finally:
-        conn.close()
-
-    return {"message": f"{len(req.listing_ids)} listings marcados como notificados"}
-
-
-@router.get("/active", response_model=AlertsListResponse)
-async def active_alerts() -> AlertsListResponse:
-    """Retorna todos os alertas ativos (para o bot fazer polling)."""
-    conn = get_connection()
-    try:
-        alerts = list_active_alerts(conn)
-    finally:
-        conn.close()
-
-    return AlertsListResponse(alerts=alerts, total=len(alerts))
