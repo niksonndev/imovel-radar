@@ -1,46 +1,46 @@
-# imovel-radar 🏠
+# Imóvel Radar 🏠
 
-Bot Telegram + Scraper para monitorar anúncios de imóveis no OLX Maceió. O scraper coleta anúncios diariamente, e o bot notifica usuários quando novos imóveis correspondem aos seus alertas cadastrados.
+Telegram bot + scraper for monitoring real-estate listings on OLX Maceió. The scraper gathers listings daily, and the bot notifies users when new properties match their registered alerts.
 
-![Demonstração: `/start`, menu principal e início do fluxo Novo Alerta](assets/demo-aluguel.gif)
+![Demo: `/start`, main menu, and beginning of the New Alert flow](assets/demo-aluguel.gif)
 
 ## Stack
 
-- **Monorepo**: Turborepo + pnpm (workspaces Node.js para o frontend)
-- **Scraper** (FastAPI, porta 8000): `cloudscraper` + `BeautifulSoup4` + `APScheduler`
-- **Bot** (python-telegram-bot, porta 3333): `httpx` (cliente HTTP para o scraper)
-- **Pacote compartilhado**: `shared-models` — schemas Pydantic do contrato entre serviços
-- **Banco**: SQLite via `sqlite3` nativo (exclusivo do scraper)
+- **Monorepo**: Turborepo + pnpm (Node.js workspaces for the frontend)
+- **Scraper** (FastAPI, port 8000): `cloudscraper` + `BeautifulSoup4` + `APScheduler`
+- **Bot** (python-telegram-bot, port 3333): `httpx` (HTTP client to the scraper)
+- **Shared package**: `shared-models` — Pydantic schemas defining the contract between services
+- **Database**: SQLite via native `sqlite3` (exclusive to the scraper)
 
-## Estrutura
+## Structure
 
-```
+```text
 imovel-radar/
 ├── packages/
-│   └── shared-models/        ← Schemas Pydantic do contrato (Listing, Alert, etc.)
+│   └── shared-models/        ← Pydantic schemas for the contract (Listing, Alert, etc.)
 │       └── src/
 │           ├── models.py
 │           ├── api_schemas.py
 │           └── utils.py
 ├── apps/
-│   ├── scraper/              ← FastAPI — dono do SQLite, scrape OLX, expõe API REST
+│   ├── scraper/              ← FastAPI — owns SQLite, scrapes OLX, exposes REST API
 │   │   ├── main.py           (FastAPI + lifespan → APScheduler)
-│   │   ├── config.py         (OLX URLs, delay, user-agents)
-│   │   ├── database/         (schema, queries, db, users)
-│   │   ├── scraper/          (olx_scraper, parser)
-│   │   ├── api/               (health, listings, alerts)
-│   │   ├── scheduler/        (APScheduler — scrape diário)
-│   │   ├── data/              (imoveis.db)
+│   │   ├── config.py         (OLX URLs, delays, user agents)
+│   │   ├── database/         (schema, queries, DB access, users)
+│   │   ├── collector/        (OLX scraper and parser)
+│   │   ├── api/              (health, users, listings, alerts)
+│   │   ├── scheduler/        (APScheduler — daily scraping)
+│   │   ├── data/             (imoveis.db)
 │   │   ├── docs/
 │   │   │   ├── README.md
 │   │   │   ├── olx-scraper.md
 │   │   │   └── parser.md
 │   │   └── README.md
-│   ├── bot/                  ← PTB — cliente "dumb" da API do scraper
-│   │   ├── main.py           (Application PTB + polling setup)
+│   ├── bot/                  ← PTB — lightweight client of the scraper API
+│   │   ├── main.py           (PTB Application + polling setup)
 │   │   ├── config.py         (TELEGRAM_BOT_TOKEN, SCRAPER_API_URL)
 │   │   ├── models.py         (CustomContext, UserData, wizard types)
-│   │   ├── handlers/         (conversação, UI, api_client)
+│   │   ├── handlers/         (conversation flow, UI, API client)
 │   │   │   ├── api_client.py (httpx → scraper)
 │   │   │   ├── carousel.py
 │   │   │   ├── create_new_alert.py
@@ -48,7 +48,7 @@ imovel-radar/
 │   │   │   ├── hydrator.py
 │   │   │   ├── setup.py
 │   │   │   └── ui/           (keyboards, menus)
-│   │   ├── jobs/              (polling_job — matches a cada 1h)
+│   │   ├── jobs/             (polling_job — checks matches every hour)
 │   │   └── README.md
 │   └── frontend/             ← Next.js (unchanged)
 ├── docs/
@@ -60,75 +60,76 @@ imovel-radar/
 └── package.json
 ```
 
-## Arquitetura / Fluxo
+## Architecture / Flow
 
-```
-                    ┌───────────────────┐
-                    │  Scraper (8000)   │
-                    │  FastAPI          │
-                    │                   │
+```text
+                   ┌───────────────────┐
+                   │  Scraper (8000)   │
+                   │  FastAPI          │
+                   │                   │
   ┌─────────┐  cron │  ┌─────────────┐  │
   │ APSched.│──────▶│  │ scrape OLX  │  │
-  │ diário  │       │  │ → upsert DB │  │
+  │ daily   │       │  │ → upsert DB │  │
   └─────────┘       │  └─────────────┘  │
-                    │                   │
-                    │  ┌─────────────┐  │
-                    │  │ API REST    │  │
-                    │  │ /listings   │  │
-                    │  │ /alerts     │  │
-                    │  │ /matches    │  │
-                    │  └─────────────┘  │
-                    └────────┬──────────┘
-                             │ HTTP (localhost)
-                    ┌────────▼──────────┐
-                    │  Bot (3333)       │
-                    │  python-telegram- │
-                    │  bot + httpx      │
-                    │                   │
+                   │                   │
+                   │  ┌─────────────┐  │
+                   │  │ REST API    │  │
+                   │  │ /users      │  │
+                   │  │ /listings   │  │
+                   │  │ /alerts     │  │
+                   │  └─────────────┘  │
+                   └────────┬──────────┘
+                            │ HTTP (localhost)
+                   ┌────────▼──────────┐
+                   │  Bot (3333)       │
+                   │  python-telegram- │
+                   │  bot + httpx      │
+                   │                   │
   ┌─────────┐       │  ┌─────────────┐  │
   │ Polling │       │  │ Handlers    │  │
-  │ 1 hora  │──────▶│  │ → Telegram  │  │
+  │ 1 hour  │──────▶│  │ → Telegram  │  │
   └─────────┘       │  └─────────────┘  │
-                    └───────────────────┘
+                   └───────────────────┘
 ```
 
-### Fluxo do scrape diário
+### Daily scrape flow
 
-```
+```text
 APScheduler → job_daily()
-  → search_all_rent_maceio()          # cloudscraper: todas as páginas da OLX
-  → extract_listings_from_search_page()  # parser RSC: descarta sem foto
-  → upsert listings no banco          # INSERT OR REPLACE em listings
+  → search_all_rent_maceio()          # cloudscraper: all OLX pages
+  → extract_listings_from_search_page()  # parser: discards empty entries
+  → upsert listings in the database     # INSERT OR REPLACE in listings
 ```
 
-### Fluxo de notificação (polling no bot, a cada 1h)
+### Notification flow (bot polling every hour)
 
-```
-JobQueue do PTB → notify_new_matches()
-  → GET /alerts/active                      # todos alertas ativos
-  → para cada alerta:
-      GET /alerts/{id}/matches               # matches não notificados
-      send_carousel()                        # envia carrossel ao usuário
-      POST /alerts/{id}/matches/notify       # marca como notificados
-```
-
-### Fluxo do wizard `/novo_alerta`
-
-```
-Usuário → escolhe preço → seleciona bairros → nome → confirma
-  → POST /alerts                  # cria alerta no scraper
-  → GET /alerts/{id}/matches      # busca matches atuais
-  → send_carousel()               # envia resultados
-  → POST /alerts/{id}/matches/notify  # marca como notificados
+```text
+PTB JobQueue → notify_new_matches()
+  → GET /alerts/{chat_id}/active          # all active alerts
+  → for each alert:
+      GET /alerts/{chat_id}/{alert_id}    # alert details
+      GET /listings/{chat_id}/unnotified  # unnotified listings
+      send_carousel()                     # sends a carousel to the user
+      POST /listings/{chat_id}/mark-notified  # marks as notified
 ```
 
-## Comandos do bot
+### `/novo_alerta` wizard flow
 
-| Comando | Descrição | Status |
+```text
+User → chooses price → selects neighbourhoods → names alert → confirms
+  → POST /alerts                       # creates the alert in the scraper
+  → GET /alerts/{chat_id}              # reads the user's alerts
+  → send_carousel()                    # sends result cards
+  → POST /listings/{chat_id}/mark-notified  # marks matches as notified
+```
+
+## Bot commands
+
+| Command | Description | Status |
 |---|---|---|
-| `/start` | Boas-vindas e menu principal | ✅ |
-| `/novo_alerta` | Wizard para cadastrar alerta | ✅ |
-| `/ajuda` | Lista de comandos | ✅ |
+| `/start` | Welcome screen and main menu | ✅ |
+| `/novo_alerta` | Wizard to create a new alert | ✅ |
+| `/ajuda` | Lists available commands | ✅ |
 
 ## Running
 
@@ -159,8 +160,8 @@ pnpm run dev:frontend  # Next.js (optional)
 
 ## Lint and type checking
 
-The project uses **Ruff** (lint) and **Pyright** (type checking) via terminal.
-VS Code Pylance is disabled — real validation is done with the commands below.
+The project uses **Ruff** for linting and **Pyright** for type checking via the terminal.
+VS Code Pylance is disabled; the actual validation is done through the commands below.
 
 ```bash
 # Scraper

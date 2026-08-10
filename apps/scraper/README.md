@@ -1,45 +1,50 @@
 # Scraper — Imóvel Radar
 
-Serviço FastAPI responsável por toda a lógica de negócio do Imóvel Radar:
+FastAPI service responsible for the core business logic of Imóvel Radar:
 
-- **Proprietário exclusivo do banco SQLite** (`data/imoveis.db`)
-- Realiza scraping diário do OLX (aluguel em Maceió)
-- Expõe API REST para consulta de listings, alertas e matches
-- Scheduler interno (APScheduler) roda o scrape diário no mesmo processo
+- Exclusive owner of the SQLite database (`data/imoveis.db`)
+- Runs daily OLX scraping for rental listings in Maceió
+- Exposes a REST API for listings, alerts, users, and match tracking
+- Uses an internal APScheduler job to run the scraping cycle in the same process
 
 ## Endpoints
 
 ### Health
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/health` | Status + contagens do banco |
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/health` | Service health check and database connectivity validation |
+
+### Users
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| POST | `/users/{chat_id}` | Creates a user based on the Telegram `chat_id` |
+| GET | `/users/{chat_id}` | Returns the user for the given `chat_id` |
 
 ### Listings
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/listings` | Lista listings (filtro opcional: `?ids=1,2,3` ou `?since=timestamp`) |
-| GET | `/listings/{list_id}` | Listing por ID |
-| GET | `/listings/neighbourhoods` | Bairros de Maceió |
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/listings/{chat_id}/unnotified` | Returns unnotified listings for all active alerts of a user |
+| POST | `/listings/{chat_id}/mark-notified` | Marks a list of `(alert_id, listing_id)` pairs as notified |
+| GET | `/listings/neighbourhoods` | Returns available neighbourhoods for the configured municipality |
 
 ### Alerts
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| POST | `/alerts` | Criar alerta (body: `CreateAlertRequest`) |
-| GET | `/alerts` | Listar alertas (`?user_id=chat_id`) |
-| GET | `/alerts/{id}` | Detalhe do alerta |
-| DELETE | `/alerts/{id}` | Remover alerta (`?user_id=chat_id`) |
-| GET | `/alerts/{id}/matches` | Matches não notificados |
-| POST | `/alerts/{id}/matches/notify` | Marcar matches como notificados |
-| GET | `/alerts/active` | Todos alertas ativos (para polling) |
+| Method | Route | Description |
+|--------|-------|-------------|
+| POST | `/alerts` | Creates a new alert (`CreateAlertRequest`) |
+| GET | `/alerts/{chat_id}` | Lists all alerts for a user |
+| GET | `/alerts/{chat_id}/active` | Lists only active alerts for a user |
+| GET | `/alerts/{chat_id}/{alert_id}` | Returns a specific alert for a user |
+| DELETE | `/alerts/{chat_id}/{alert_id}` | Deletes a specific alert for a user |
 
-## Configuração
+## Configuration
 
-Variáveis de ambiente (`.env`):
+Environment variables (`.env`):
 
-```
+```bash
 LOG_LEVEL=INFO
 API_PORT=8000
 SCRAPE_CRON_HOUR=8
@@ -48,7 +53,7 @@ SCRAPE_TIMEZONE=America/Maceio
 MACEIO_RENT_LISTINGS_URL=https://www.olx.com.br/imoveis/aluguel/estado-al/alagoas/maceio
 ```
 
-## Como rodar
+## How to run
 
 ```bash
 cd apps/scraper
@@ -57,14 +62,17 @@ uv sync
 uv run uvicorn main:app --reload --port 8000
 ```
 
-## Arquitetura
+## Architecture
 
-```
+```text
 apps/scraper/
-├── main.py              # FastAPI app + lifespan (cria tabelas, inicia scheduler)
-├── config.py            # Variáveis de ambiente (OLX, scrape, delay)
-├── database/            # SQLite (schema, queries, db, users)
+├── main.py              # FastAPI app + lifespan (applies migrations, starts scheduler)
+├── config.py            # Environment variables (OLX, scraping, delay, app settings)
+├── database/            # SQLite schema, queries, DB access, users
 ├── collector/           # OLX scraper + parser (RSC payload extraction)
-├── api/                 # Rotas FastAPI (health, listings, alerts)
-├── scheduler/           # APScheduler (job_daily: scrape + upsert)
-└── data/                # SQLite database directory
+├── api/                 # FastAPI routes (health, users, listings, alerts)
+├── scheduler/           # APScheduler jobs for regular scraping and updates
+├── alembic/             # Database migrations
+├── data/                # SQLite database directory
+└── docs/                # Project documentation
+```
