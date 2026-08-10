@@ -1,46 +1,41 @@
-"""
-Jobs agendados via APScheduler.
+"""Jobs scheduled via APScheduler.
 
-``job_daily`` é o job composto que roda 1x/dia: faz o full scrape e persiste
-no banco. Não precisa enviar notificações — o bot faz polling dos matches.
+``job_daily`` is the composed job that runs 1x/day: performs the full scrape and
+persists to the database. Does not need to send notifications — the bot polls for matches.
 """
 
 from __future__ import annotations
 
 import logging
 
+from sqlmodel import Session
+
 import collector
-from database import get_connection
+from database import engine
 from database.queries import upsert_listing
 
 logger = logging.getLogger(__name__)
 
 
 async def job_daily() -> dict[str, int]:
-    """Coleta anúncios OLX e persiste no SQLite.
+    """Collect OLX listings and persist to SQLite.
 
-    Retorna um dict com ``success`` (bool) e ``count`` (int) para
-    exposição via healthcheck, se desejado.
+    Returns a dict with ``success`` (bool) and ``count`` (int) for
+    exposure via healthcheck, if desired.
     """
     result: dict[str, int] = {"success": 0, "count": 0}
     try:
-        logger.info("Coleta agendada: início")
+        logger.info("Scheduled collection: start")
         listings = await collector.search_all_rent_maceio()
-        conn = get_connection()
-        try:
+        with Session(engine) as session:
             for listing in listings:
-                upsert_listing(conn, listing)
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
+                upsert_listing(session, listing)
+            session.commit()
 
-        logger.info("Coleta agendada: fim (%s anúncios)", len(listings))
+        logger.info("Scheduled collection: end (%s listings)", len(listings))
         result["success"] = 1
         result["count"] = len(listings)
         return result
     except Exception:
-        logger.exception("Coleta agendada falhou")
+        logger.exception("Scheduled collection failed")
         return result

@@ -21,7 +21,7 @@ from bs4 import BeautifulSoup
 from cloudscraper.exceptions import CloudflareChallengeError
 
 import config
-from collector.parser import normalize_olx_listing
+from collector.parser import RawAd, normalize_olx_listing
 
 logger = logging.getLogger(__name__)
 
@@ -163,18 +163,21 @@ def _extract_ads_payload(ads_container: dict[str, Any]) -> list[dict[str, Any]]:
     return [item for item in ads if isinstance(item, dict)]
 
 
-def extract_listings_from_search_page(html: str) -> list[dict]:
+def extract_listings_from_search_page(html: str) -> list[RawAd]:
     ads_container = _extract_ads_container_from_rsc(html)
     ads = _extract_ads_payload(ads_container)
 
-    listings: list[dict] = []
+    listings: list[RawAd] = []
     for ad in ads:
         if ad.get("listId") is None:
             continue
+
         listing = normalize_olx_listing(ad)
-        if not json.loads(listing["images"]):
+        if not listing["images"]:
             continue
+
         listings.append(listing)
+
     return listings
 
 
@@ -248,9 +251,9 @@ async def fetch(url: str, headers: dict[str, str] | None = None) -> str:
     return text
 
 
-async def search_all_rent_maceio() -> list[dict]:
+async def search_all_rent_maceio() -> list[RawAd]:
     global _cycle_headers
-    listings_by_id: dict[int, dict] = {}
+    listings_by_id: dict[int, RawAd] = {}
     _cycle_headers = _build_headers()
     try:
         page = 1
@@ -292,5 +295,5 @@ async def search_all_rent_maceio() -> list[dict]:
     return listings
 
 
-def coletar() -> list[dict]:
+def coletar() -> list[RawAd]:
     return asyncio.run(search_all_rent_maceio())

@@ -8,11 +8,26 @@ images.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, TypedDict
 
 from shared_models.utils import money_to_int
 
-__all__ = ["normalize_olx_listing"]
+__all__ = ["RawAd", "normalize_olx_listing"]
+
+
+class RawAd(TypedDict):
+    """Payload bruto do anúncio coletado pelo scraper antes de persistir no banco."""
+
+    listId: int
+    url: str
+    title: str
+    price_value: int | None
+    old_price: int | None
+    municipality: str
+    neighbourhood: str
+    properties: dict[str, Any]
+    category: str
+    images: list[str]
 
 
 def _normalize_property_value(name: str, value: Any) -> Any:
@@ -26,7 +41,7 @@ def _normalize_property_value(name: str, value: Any) -> Any:
     return value
 
 
-def normalize_olx_listing(raw: dict[str, Any]) -> dict[str, Any]:
+def normalize_olx_listing(raw: dict[str, Any]) -> RawAd:
     title_raw = raw.get("title") or raw.get("subject") or ""
     title = str(title_raw)[:500] if title_raw else ""
     location = raw["locationDetails"]

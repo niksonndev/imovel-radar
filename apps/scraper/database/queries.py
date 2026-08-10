@@ -15,23 +15,25 @@ from sqlalchemy import delete, func
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel import Session, select
 
+from collector.parser import RawAd
+
 from .models import Alert, AlertMatch, Listing, ListingAlertMatch
 
 
 # ── Listings ──────────────────────────────────────────────────────────────
-def upsert_listing(session: Session, listing: dict) -> None:
-    """Faz ``INSERT ... ON CONFLICT DO UPDATE`` em ``listing`` por ``listing_id``."""
+def upsert_listing(session: Session, raw_ad: RawAd) -> None:
+    """Persiste um anúncio bruto do scraper em ``listing`` usando UPSERT por ``listing_id``."""
     values = {
-        "listing_id": listing["listing_id"],
-        "url": listing.get("url"),
-        "title": listing.get("title"),
-        "price_value": listing.get("price_value"),
-        "old_price": listing.get("old_price"),
-        "municipality": listing.get("municipality"),
-        "neighbourhood": listing.get("neighbourhood"),
-        "category": listing.get("category"),
-        "images": listing.get("images") or [],
-        "properties": listing.get("properties"),
+        "listing_id": raw_ad["listId"],
+        "url": raw_ad["url"],
+        "title": raw_ad["title"],
+        "price_value": raw_ad["price_value"],
+        "old_price": raw_ad["old_price"],
+        "municipality": raw_ad["municipality"],
+        "neighbourhood": raw_ad["neighbourhood"],
+        "category": raw_ad["category"],
+        "images": raw_ad["images"] or [],
+        "properties": raw_ad["properties"],
         "active": True,
     }
     stmt = sqlite_insert(Listing).values(**values)
