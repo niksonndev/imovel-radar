@@ -1,0 +1,115 @@
+{
+  "subject": "Casa para alugar condomínio ",
+  "priceValue": "R$ 2.000",
+  "oldPrice": null,
+  "professionalAd": false,
+  "listId": 1525220692,
+  "lastBumpAgeSecs": "0",
+  "categoryName": "Casas",
+  "fixedOnTop": false,
+  "isFavorited": false,
+  "hasRealEstateHighlight": false,
+  "priceReductionBadge": false,
+  "view360": {
+    "url": null
+  },
+  "images": [
+    {
+      "original": "https://img.olx.com.br/images/13/135644072067158.jpg",
+      "originalWebp": "https://img.olx.com.br/images/13/135644072067158.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/15/151601077048686.jpg",
+      "originalWebp": "https://img.olx.com.br/images/15/151601077048686.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/16/167670438321879.jpg",
+      "originalWebp": "https://img.olx.com.br/images/16/167670438321879.webp"
+    }
+  ],
+  "videoCount": 0,
+  "location": "Maceió, Prado",
+  "properties": [
+    {
+      "name": "category",
+      "value": "Casas",
+      "label": "Categoria"
+    },
+    {
+      "name": "real_estate_type",
+      "value": "Aluguel - casa em condominio fechado",
+      "label": "Tipo"
+    },
+    {
+      "name": "condominio",
+      "value": "R$ 450",
+      "label": "Condomínio"
+    },
+    {
+      "name": "rooms",
+      "value": "2",
+      "label": "Quartos"
+    },
+    {
+      "name": "bathrooms",
+      "value": "2",
+      "label": "Banheiros"
+    },
+    {
+      "name": "re_features",
+      "value": "Área de serviço, Churrasqueira",
+      "label": "Detalhes do imóvel"
+    },
+    {
+      "name": "re_complex_features",
+      "value": "Área murada, Condomínio fechado, Permitido animais, Piscina, Portão eletrônico, Segurança 24h",
+      "label": "Detalhes do condomínio"
+    },
+    {
+      "name": "re_types",
+      "value": "Casa de condomínio",
+      "label": "Tipo"
+    }
+  ],
+  "searchCategoryLevelZero": 1000,
+  "searchCategoryLevelOne": 1002,
+  "olxPay": {
+    "enabled": false,
+    "dynamicBadgeProps": [],
+    "transactionalBadges": [],
+    "installments": [],
+    "transactionalSellerRating": null,
+    "transactionalSellerName": "Yris"
+  },
+  "zapDetails": null,
+  "matchingAds": null,
+  "olxDelivery": {
+    "enabled": false
+  },
+  "vehicleTags": [],
+  "carSpecificData": null,
+  "price": "R$ 2.000",
+  "userGoogleReviewsVisible": false,
+  "userGoogleRating": null,
+  "isFeatured": false,
+  "listingCategoryId": "1002",
+  "isChatEnabled": true,
+  "url": "https://al.olx.com.br/alagoas/imoveis/casa-para-alugar-condominio-1525220692",
+  "date": 1786386633,
+  "imageCount": 3,
+  "category": "Casas",
+  "position": 0,
+  "isOnline": true,
+  "olxPayBadgeEnabled": false,
+  "olxDeliveryBadgeEnabled": false,
+  "installments": false,
+  "vehicleReportEnabled": false,
+  "vehicleHasInspectionReport": false,
+  "vehiclePills": null,
+  "locationDetails": {
+    "municipality": "Maceió",
+    "ddd": "82",
+    "neighbourhood": "Prado",
+    "uf": "AL"
+  }
+}

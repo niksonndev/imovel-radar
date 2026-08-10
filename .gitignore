@@ -83,9 +83,3 @@ logs/
 
 # Jupyter
 .ipynb_checkpoints/
-
-# Arquivos gerados por scripts de debug
-debug_ad.json
-parsed_debug_ad.json
-scripts/*.html
-scripts/*.json

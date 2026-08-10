@@ -1,0 +1,25 @@
+{
+  "listId": 1525220692,
+  "url": "https://al.olx.com.br/alagoas/imoveis/casa-para-alugar-condominio-1525220692",
+  "title": "Casa para alugar condomínio ",
+  "price_value": 2000,
+  "old_price": null,
+  "municipality": "Maceió",
+  "neighbourhood": "Prado",
+  "properties": {
+    "category": "Casas",
+    "real_estate_type": "Aluguel - casa em condominio fechado",
+    "condominio": 450,
+    "rooms": 2,
+    "bathrooms": 2,
+    "re_features": "Área de serviço, Churrasqueira",
+    "re_complex_features": "Área murada, Condomínio fechado, Permitido animais, Piscina, Portão eletrônico, Segurança 24h",
+    "re_types": "Casa de condomínio"
+  },
+  "category": "Casas",
+  "images": [
+    "https://img.olx.com.br/images/13/135644072067158.webp",
+    "https://img.olx.com.br/images/15/151601077048686.webp",
+    "https://img.olx.com.br/images/16/167670438321879.webp"
+  ]
+}
