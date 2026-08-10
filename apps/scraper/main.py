@@ -21,6 +21,7 @@ from alembic import command
 from api.alerts import router as alerts_router
 from api.health import router as health_router
 from api.listings import router as listings_router
+from api.users import router as users_router
 from scheduler.setup import start_scheduler, stop_scheduler
 
 # Garante que o diretório raiz do scraper está no sys.path
@@ -71,3 +72,4 @@ app = FastAPI(
 app.include_router(health_router)
 app.include_router(listings_router)
 app.include_router(alerts_router)
+app.include_router(users_router)

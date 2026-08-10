@@ -16,6 +16,7 @@ from shared_models.api_schemas import (
     MarkNotifiedRequest,
     NotifiedPair,
     UnnotifiedListingsResponse,
+    UserResponse,
 )
 from shared_models.models import Alert
 
@@ -73,6 +74,23 @@ async def get_neighbourhoods() -> list[str]:
     res = await _get_client().get("/listings/neighbourhoods")
     res.raise_for_status()
     return res.json()
+
+
+# ── Users ────────────────────────────────────────────────────────────────
+
+
+async def create_user(chat_id: int) -> UserResponse:
+    """Cria um usuário para o chat informado."""
+    res = await _get_client().post(f"/users/{chat_id}")
+    res.raise_for_status()
+    return UserResponse(**res.json())
+
+
+async def get_user(chat_id: int) -> UserResponse:
+    """Retorna um usuário pelo chat_id."""
+    res = await _get_client().get(f"/users/{chat_id}")
+    res.raise_for_status()
+    return UserResponse(**res.json())
 
 
 # ── Alerts ───────────────────────────────────────────────────────────────

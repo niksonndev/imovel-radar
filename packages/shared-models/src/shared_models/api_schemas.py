@@ -5,6 +5,8 @@ Todos os modelos usam ``extra="forbid"`` para rejeitar campos desconhecidos.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from .models import Alert, Listing
@@ -49,6 +51,14 @@ class CreateAlertResponse(BaseModel):
 
     id: int
     message: str = "Alerta criado com sucesso"
+
+
+class UserResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    chat_id: int
+    created_at: datetime | None = None
+
 
 class AlertsListResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
