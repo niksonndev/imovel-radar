@@ -5,7 +5,7 @@ are the shared contract between services and live in `packages/shared-models`.
 """
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, NamedTuple
 
 from sqlalchemy import (
     JSON,
@@ -113,3 +113,7 @@ class AlertMatch(SQLModel, table=True):
         default=None,
         sa_column=Column("notified_at", DateTime(timezone=True), server_default=func.now()),
     )
+
+class ListingAlertMatch(NamedTuple):
+    listing: Listing
+    alert_id: int

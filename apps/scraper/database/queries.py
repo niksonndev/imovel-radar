@@ -15,7 +15,7 @@ from sqlalchemy import delete, func
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel import Session, select
 
-from .models import Alert, AlertMatch, Listing
+from .models import Alert, AlertMatch, Listing, ListingAlertMatch
 
 
 # ── Listings ──────────────────────────────────────────────────────────────
@@ -88,6 +88,15 @@ def get_alerts_for_user(session: Session, chat_id: int) -> list[Alert]:
     return list(session.exec(stmt).all())
 
 
+def get_active_alerts_for_user(session: Session, chat_id: int) -> list[Alert]:
+    stmt = (
+        select(Alert)
+        .where(Alert.chat_id == chat_id, Alert.active.is_(True))
+        .order_by(Alert.id.desc())
+    )
+    return list(session.exec(stmt).all())
+
+
 def delete_alert_for_user(session: Session, alert_id: int, chat_id: int) -> bool:
     stmt = select(Alert).where(Alert.id == alert_id, Alert.chat_id == chat_id)
     alert = session.exec(stmt).first()
@@ -99,13 +108,7 @@ def delete_alert_for_user(session: Session, alert_id: int, chat_id: int) -> bool
 
 
 # ── Alert matches ─────────────────────────────────────────────────────────
-def get_unnotified_listings_for_alert(
-    session: Session, alert_id: int, chat_id: int
-) -> list[Listing]:
-    alert = get_alert_for_user(session, alert_id, chat_id)
-    if alert is None:
-        return []
-
+def get_unnotified_listings_for_alert(session: Session, alert: Alert) -> list[Listing]:
     conditions = [
         Listing.active.is_(True),
         AlertMatch.listing_id.is_(None),
@@ -121,12 +124,21 @@ def get_unnotified_listings_for_alert(
         select(Listing)
         .outerjoin(
             AlertMatch,
-            (AlertMatch.listing_id == Listing.listing_id) & (AlertMatch.alert_id == alert_id),
+            (AlertMatch.listing_id == Listing.listing_id) & (AlertMatch.alert_id == alert.id),
         )
         .where(*conditions)
         .order_by(Listing.updated_at.desc())
     )
     return list(session.exec(stmt).all())
+
+
+def get_unnotified_listings_for_user(session: Session, chat_id: int) -> list[ListingAlertMatch]:
+    alerts = get_active_alerts_for_user(session, chat_id)
+    result: list[ListingAlertMatch] = []
+    for alert in alerts:
+        listings = get_unnotified_listings_for_alert(session, alert)
+        result.extend(ListingAlertMatch(listing=listing, alert_id=alert.id) for listing in listings)
+    return result
 
 
 def mark_listings_notified(session: Session, alert_id: int, listing_ids: list[int]) -> None:
