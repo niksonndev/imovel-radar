@@ -7,7 +7,7 @@ from .queries import (
     get_alerts_for_user,
     get_neighbourhoods,
     get_unnotified_listings_for_alert,
-    mark_listings_notified,
+    mark_listings_notified_bulk,
     upsert_listing,
 )
 from .users import create_user, get_user
@@ -28,5 +28,5 @@ __all__ = [
     "get_alerts_for_user",
     "delete_alert_for_user",
     "get_unnotified_listings_for_alert",
-    "mark_listings_notified",
+    "mark_listings_notified_bulk",
 ]
