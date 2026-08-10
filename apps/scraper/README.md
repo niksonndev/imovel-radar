@@ -62,6 +62,16 @@ uv sync
 uv run uvicorn main:app --reload --port 8000
 ```
 
+## CI / tests
+
+This project includes a GitHub Actions workflow at [.github/workflows/scraper-tests.yml](../../.github/workflows/scraper-tests.yml) that runs the scraper test suite on pushes to `main` and on pull requests affecting the scraper code.
+
+The workflow installs dependencies with `uv` and runs:
+
+```bash
+cd apps/scraper && uv run pytest -v
+```
+
 ## Architecture
 
 ```text

@@ -171,4 +171,14 @@ cd apps/scraper && uv run ruff check . && uv run pyright
 cd apps/bot && uv run ruff check . && uv run pyright
 ```
 
+## CI: Scraper tests
+
+The repository includes a GitHub Actions workflow in [.github/workflows/scraper-tests.yml](.github/workflows/scraper-tests.yml) that runs the scraper test suite automatically on pushes to `main` and on pull requests that touch [apps/scraper](apps/scraper) or the workflow file itself.
+
+It installs dependencies with `uv`, sets up Python, and executes:
+
+```bash
+cd apps/scraper && uv run pytest -v
+```
+
 See [`docs/setup.md`](docs/setup.md) for details.
