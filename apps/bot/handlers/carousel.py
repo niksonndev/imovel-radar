@@ -1,7 +1,7 @@
 """
 Carrossel de anuncios: camada de apresentacao pura.
 
-Recebe uma ``list[HydratedListing]`` e renderiza no Telegram como uma sequência
+Recebe uma ``list[Listing]`` e renderiza no Telegram como uma sequência
 paginada de mensagens com foto (quando disponível) e teclado inline.
 
 Este módulo não acessa o banco de dados — usa a API do scraper via ``bot.api_client``.
@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from collections.abc import MutableMapping
 
-from shared_models import HydratedListing
+from shared_models import Listing
 from shared_models.utils import format_brl
 from telegram import (
     Bot,
@@ -23,7 +23,7 @@ from telegram import (
 )
 from telegram.ext import Application, CallbackQueryHandler
 
-from handlers.api_client import ScraperAPI
+from handlers.api_client import get_unnotified_listings
 from models import CustomContext
 
 logger = logging.getLogger(__name__)
@@ -47,10 +47,8 @@ def _truncate(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def _carousel_caption(listing: HydratedListing, index: int, total: int) -> str:
-    props: dict = {}
-    for item in listing.properties:
-        props.update(item.model_dump())
+def _carousel_caption(listing: Listing, index: int, total: int) -> str:
+    props = listing.properties.model_dump()
 
     title = _truncate(listing.title, MAX_TITLE_LEN)
     price = format_brl(listing.price_value)
@@ -93,7 +91,7 @@ def _carousel_keyboard(
 def _parse_nav_callback(data: str) -> tuple[str, str] | None:
     if not data.startswith(CAROUSEL_CALLBACK_PREFIX):
         return None
-    rest = data[len(CAROUSEL_CALLBACK_PREFIX):]
+    rest = data[len(CAROUSEL_CALLBACK_PREFIX) :]
     carousel_id, sep, action = rest.rpartition("_")
     if not sep or not carousel_id or action not in _NAV_ACTIONS:
         return None
@@ -107,7 +105,7 @@ def _state_key(carousel_id: str) -> str:
 async def send_carousel(
     bot: Bot,
     chat_id: int,
-    listings: list[HydratedListing],
+    listings: list[Listing],
     carousel_id: str,
     state_store: MutableMapping[str, object],
 ) -> None:
@@ -125,7 +123,7 @@ async def send_carousel(
 
     state_store[_state_key(carousel_id)] = {
         "chat_id": chat_id,
-        "listing_ids": [item.list_id for item in listings],
+        "listing_ids": [item.listing_id for item in listings],
         "index": 0,
     }
 
@@ -150,17 +148,19 @@ async def carousel_nav_cb(update: Update, context: CustomContext) -> None:
         )
         return
 
-    # Fetch listings from the scraper API
-    api = ScraperAPI()
+    # Reutiliza listings não notificados do usuário e filtra pelos IDs do carrossel.
     try:
-        response = await api.get_listings(ids=state["listing_ids"])
+        chat_id = state.get("chat_id")
+        if not isinstance(chat_id, int):
+            raise TypeError("chat_id inválido no estado do carrossel")
+        unnotified_resp = await get_unnotified_listings(chat_id)
+        listings = [
+            item for item in unnotified_resp.listings if item.listing_id in state["listing_ids"]
+        ]
     except Exception:
         await query.answer("Erro ao carregar anúncios. Tente novamente.")
         return
-    finally:
-        await api.close()
 
-    listings = response.listings
     total = len(listings)
     if total == 0:
         await query.answer("Todos os anúncios deste carrossel foram removidos.")
@@ -174,7 +174,7 @@ async def carousel_nav_cb(update: Update, context: CustomContext) -> None:
 
     listing = listings[new_index]
     state["index"] = new_index
-    state["listing_ids"] = [item.list_id for item in listings]
+    state["listing_ids"] = [item.listing_id for item in listings]
     bot_data[_state_key(carousel_id)] = state
 
     await query.answer()

@@ -33,7 +33,7 @@ def _hydrate_listing(listing: ListingModel) -> Listing:
         municipality=listing.municipality or "",
         neighbourhood=listing.neighbourhood,
         category=listing.category or "",
-        images=listing.images or [],
+        images=listing.images,
         properties=Properties(**listing.properties) if listing.properties else Properties(),
         active=listing.active,
     )
