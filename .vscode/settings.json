@@ -3,7 +3,7 @@
   // Ele NÃO deve conter python.defaultInterpreterPath nem
   // python.analysis.* — isso agora vive em cada subprojeto:
   //   apps/bot/.vscode/settings.json
-  //   apps/collector/.vscode/settings.json
+  //   apps/scraper/.vscode/settings.json
   //   packages/shared-models/.vscode/settings.json
   // Colocar interpretador aqui faz ele "vazar" como fallback e volta
   // a confundir o Pylance entre as venvs.
@@ -13,10 +13,7 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit"
   },
-  "editor.rulers": [
-    88,
-    100
-  ],
+  "editor.rulers": [88, 100],
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
   "files.eol": "\n",

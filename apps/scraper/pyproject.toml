@@ -34,7 +34,7 @@ check = ["lint", "typecheck", "test"]
 
 [tool.pyright]
 include = ["."]
-exclude = ["**/__pycache__", ".venv", "data", "**/node_modules", "**/.*"]
+exclude = ["**/__pycache__", ".venv", "data", "**/node_modules", "**/.*", "alembic/versions/**"]
 extraPaths = ["../../packages/shared-models/src"]
 pythonVersion = "3.13"
 typeCheckingMode = "basic"

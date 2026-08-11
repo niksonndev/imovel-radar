@@ -1,9 +1,0 @@
-{
-  "include": ["."],
-  "exclude": ["**/__pycache__", ".venv", "data", "**/node_modules", "**/.*"],
-  "extraPaths": [
-    "../../packages/shared-models/src"
-  ],
-  "pythonVersion": "3.13",
-  "typeCheckingMode": "basic"
-}
