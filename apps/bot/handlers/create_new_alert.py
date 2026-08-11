@@ -6,11 +6,10 @@ Ao confirmar, chama a API do scraper para criar o alerta e buscar matches.
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 
-from shared_models.api_schemas import CreateAlertRequest
+from shared_models.api_schemas import CreateAlertRequest, NotifiedPair
 from shared_models.utils import format_brl
 from telegram import Message, Update
 from telegram.constants import ParseMode
@@ -23,8 +22,12 @@ from telegram.ext import (
 )
 from telegram.helpers import escape_markdown
 
-from handlers.api_client import ScraperAPI
-from handlers.carousel import send_carousel
+from handlers.api_client import (
+    create_alert,
+    get_neighbourhoods,
+    get_unnotified_listings,
+    mark_listings_notified,
+)
 from handlers.ui import keyboards, menus
 from models import (
     CreateAlertDraft,
@@ -59,17 +62,13 @@ async def _enter_neighbourhoods(msg: Message, context: CustomContext) -> None:
     wizard_state = _get_wizard_state(context)
     sel = draft.get("neighbourhoods", [])
 
-    api = ScraperAPI()
     try:
-        response = await api.get_neighbourhoods()
-        nb_options = response.neighbourhoods
+        nb_options = await get_neighbourhoods()
         wizard_state["neighbourhood_options"] = nb_options
     except Exception:
         logger.exception("Falha ao buscar bairros do scraper")
         await msg.reply_text("Erro ao carregar bairros. Tente novamente.")
         return
-    finally:
-        await api.close()
 
     wizard_state["neighbourhood_page"] = 0
     await msg.reply_text(
@@ -290,23 +289,22 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
         return ConversationHandler.END
 
     user = update.effective_user
-    api = ScraperAPI()
     try:
         req = CreateAlertRequest(
-            user_id=user.id,
+            chat_id=user.id,
             alert_name=draft["alert_name"],  # type: ignore[typeddict-item]
             min_price=draft["min_price"],  # type: ignore[typeddict-item]
             max_price=draft["max_price"],  # type: ignore[typeddict-item]
-            neighbourhoods=json.dumps(draft["neighbourhoods"]),  # type: ignore[typeddict-item]
+            neighbourhoods=draft["neighbourhoods"],  # type: ignore[typeddict-item]
         )
-        response = await api.create_alert(req)
+        response = await create_alert(req)
         alert_id = response.id
 
         await query.message.reply_text("⏳ Procurando imóveis que combinam com seu alerta…")  # type: ignore[union-attr]
 
-        # Fetch matches
-        matches_resp = await api.get_matches(alert_id)
-        matches = matches_resp.matches
+        # Reutiliza listings não notificados do usuário e filtra por este alerta.
+        unnotified_resp = await get_unnotified_listings(user.id)
+        matches = [item for item in unnotified_resp.listings if item.alert_id == alert_id]
 
         if not matches:
             await query.message.reply_text(  # type: ignore[union-attr]
@@ -314,21 +312,27 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
                 reply_markup=keyboards.main_menu_keyboard(),
             )
         else:
-            await send_carousel(
-                context.application.bot,
-                user.id,
-                matches,
-                str(alert_id),
-                context.application.bot_data,
-            )
+            # TODO: send_carousel está desatualizado (usa ScraperAPI) — fora deste escopo
+            # await send_carousel(
+            #     context.application.bot,
+            #     user.id,
+            #     matches,
+            #     str(alert_id),
+            #     context.application.bot_data,
+            # )
+
             await query.message.reply_text(  # type: ignore[union-attr]
                 menus.seed_alert_created(),
                 reply_markup=keyboards.main_menu_keyboard(),
             )
 
-        # Mark matches as notified
+        # Marcar matches como notificados
         if matches:
-            await api.mark_notified(alert_id, [m.list_id for m in matches])
+            pairs = [
+                NotifiedPair(alert_id=alert_id, listing_id=item.listing_id)
+                for item in matches
+            ]
+            await mark_listings_notified(user.id, pairs)
 
     except Exception:
         logger.exception("Falha ao criar alerta via API")
@@ -337,8 +341,6 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
             reply_markup=keyboards.main_menu_keyboard(),
         )
         return ConversationHandler.END
-    finally:
-        await api.close()
 
     return ConversationHandler.END
 
