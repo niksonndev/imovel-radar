@@ -10,6 +10,7 @@ import logging
 import re
 
 from shared_models.api_schemas import CreateAlertRequest, NotifiedPair
+from shared_models.models import Listing
 from shared_models.utils import format_brl
 from telegram import Message, Update
 from telegram.constants import ParseMode
@@ -28,6 +29,7 @@ from handlers.api_client import (
     get_unnotified_listings,
     mark_listings_notified,
 )
+from handlers.carousel import send_carousel
 from handlers.ui import keyboards, menus
 from models import (
     CreateAlertDraft,
@@ -304,33 +306,33 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
 
         # Reutiliza listings não notificados do usuário e filtra por este alerta.
         unnotified_resp = await get_unnotified_listings(user.id)
-        matches = [item for item in unnotified_resp.listings if item.alert_id == alert_id]
+        listings: list[Listing] = [
+            item for item in unnotified_resp.listings if item.alert_id == alert_id
+        ]
 
-        if not matches:
+        if not listings:
             await query.message.reply_text(  # type: ignore[union-attr]
                 menus.seed_nenhum_imovel(),
                 reply_markup=keyboards.main_menu_keyboard(),
             )
         else:
-            # TODO: send_carousel está desatualizado (usa ScraperAPI) — fora deste escopo
-            # await send_carousel(
-            #     context.application.bot,
-            #     user.id,
-            #     matches,
-            #     str(alert_id),
-            #     context.application.bot_data,
-            # )
+            await send_carousel(
+                context.application.bot,
+                user.id,
+                listings,
+                str(alert_id),
+                context.application.bot_data,
+            )
 
             await query.message.reply_text(  # type: ignore[union-attr]
                 menus.seed_alert_created(),
                 reply_markup=keyboards.main_menu_keyboard(),
             )
 
-        # Marcar matches como notificados
-        if matches:
+        # Marcar listings como notificados
+        if listings:
             pairs = [
-                NotifiedPair(alert_id=alert_id, listing_id=item.listing_id)
-                for item in matches
+                NotifiedPair(alert_id=alert_id, listing_id=item.listing_id) for item in listings
             ]
             await mark_listings_notified(user.id, pairs)
 

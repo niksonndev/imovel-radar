@@ -2,9 +2,11 @@
 Carrossel de anuncios: camada de apresentacao pura.
 
 Recebe uma ``list[Listing]`` e renderiza no Telegram como uma sequência
-paginada de mensagens com foto (quando disponível) e teclado inline.
+navegável de mensagens com foto e teclado inline.
 
-Este módulo não acessa o banco de dados — usa a API do scraper via ``bot.api_client``.
+Assumimos que ``listing.images[0]`` está sempre disponível.
+Este módulo não acessa o banco de dados nem faz requisições HTTP — todo
+dado necessário é recebido como prop e armazenado no estado volátil do bot.
 """
 
 from __future__ import annotations
@@ -23,12 +25,10 @@ from telegram import (
 )
 from telegram.ext import Application, CallbackQueryHandler
 
-from handlers.api_client import get_unnotified_listings
 from models import CustomContext
 
 logger = logging.getLogger(__name__)
 
-PAGE_SIZE = 10
 MAX_TITLE_LEN = 80
 CAROUSEL_CALLBACK_PREFIX = "crs_"
 
@@ -123,7 +123,7 @@ async def send_carousel(
 
     state_store[_state_key(carousel_id)] = {
         "chat_id": chat_id,
-        "listing_ids": [item.listing_id for item in listings],
+        "listings": [item.model_dump() for item in listings],
         "index": 0,
     }
 
@@ -141,26 +141,14 @@ async def carousel_nav_cb(update: Update, context: CustomContext) -> None:
     carousel_id, action = parsed
     bot_data = context.application.bot_data
     state = bot_data.get(_state_key(carousel_id)) if bot_data is not None else None
-    if not isinstance(state, dict) or not state.get("listing_ids"):
+    if not isinstance(state, dict) or not state.get("listings"):
         await query.answer(
             "Carrossel expirado. Crie um novo alerta para ver os imoveis.",
             show_alert=False,
         )
         return
 
-    # Reutiliza listings não notificados do usuário e filtra pelos IDs do carrossel.
-    try:
-        chat_id = state.get("chat_id")
-        if not isinstance(chat_id, int):
-            raise TypeError("chat_id inválido no estado do carrossel")
-        unnotified_resp = await get_unnotified_listings(chat_id)
-        listings = [
-            item for item in unnotified_resp.listings if item.listing_id in state["listing_ids"]
-        ]
-    except Exception:
-        await query.answer("Erro ao carregar anúncios. Tente novamente.")
-        return
-
+    listings = [Listing(**item) for item in state["listings"]]
     total = len(listings)
     if total == 0:
         await query.answer("Todos os anúncios deste carrossel foram removidos.")
@@ -174,7 +162,6 @@ async def carousel_nav_cb(update: Update, context: CustomContext) -> None:
 
     listing = listings[new_index]
     state["index"] = new_index
-    state["listing_ids"] = [item.listing_id for item in listings]
     bot_data[_state_key(carousel_id)] = state
 
     await query.answer()
@@ -191,6 +178,6 @@ def register_handlers(app: Application) -> None:
     app.add_handler(
         CallbackQueryHandler(
             carousel_nav_cb,
-            pattern=r"^crs_.+_(?:next|prev|pgn|pgp)$",
+            pattern=r"^crs_.+_(?:next|prev)$",
         )
     )
