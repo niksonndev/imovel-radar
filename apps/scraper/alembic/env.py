@@ -30,7 +30,7 @@ yaml_config = context.config
 # non-existent alembic.ini by default).
 _cfg_file = yaml_config.config_file_name
 if _cfg_file and Path(_cfg_file).exists() and Path(_cfg_file).suffix == ".ini":
-    fileConfig(_cfg_file)
+    fileConfig(_cfg_file, disable_existing_loggers=False)
 
 target_metadata = SQLModel.metadata
 
