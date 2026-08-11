@@ -55,7 +55,7 @@ async def _process_chat(chat_id: int, app: Application) -> None:
         app.bot_data,
     )
 
-    pairs: list[NotifiedPair] = [
+    pairs = [
         NotifiedPair(alert_id=item.alert_id, listing_id=item.listing_id)
         for item in resp.listings
     ]
