@@ -2,6 +2,8 @@
 Registra handlers no ``Application`` do python-telegram-bot.
 """
 
+import logging
+
 from telegram import BotCommand, Update
 from telegram.constants import ParseMode
 from telegram.ext import (
@@ -18,6 +20,8 @@ from handlers.meus_alertas import meus_alertas_actions_callback, meus_alertas_ca
 from handlers.ui import keyboards, menus
 from handlers.user_guard import ensure_user_callback, ensure_user_message
 from models import CustomContext
+
+logger = logging.getLogger(__name__)
 
 BOT_COMMANDS = [
     BotCommand("start", "Abre o menu principal"),
@@ -56,6 +60,8 @@ async def main_menu_callback(update: Update, context: CustomContext) -> None:
         query.data or "",
         (menus.menu_principal_inline(), True),
     )
+    if query.data not in handlers:
+        logger.warning("Callback de menu não mapeado: %s", query.data)
     await query.edit_message_text(
         text=text,
         parse_mode=ParseMode.MARKDOWN if markdown else None,
@@ -68,12 +74,15 @@ def setup(app: Application) -> None:
     app.add_handler(CallbackQueryHandler(ensure_user_callback, pattern=r".*"))
     app.add_handler(MessageHandler(filters.ALL, ensure_user_message))
 
+    # Fluxos de conversa devem ter prioridade sobre handlers genéricos
     app.add_handler(new_alert_conversation())
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("ajuda", help_cmd))
     app.add_handler(CallbackQueryHandler(meus_alertas_callback, pattern=r"^menu_meus_alertas$"))
     app.add_handler(CallbackQueryHandler(meus_alertas_actions_callback, pattern=r"^mal_"))
-    app.add_handler(CallbackQueryHandler(main_menu_callback, pattern=r"^menu_"))
+    app.add_handler(
+        CallbackQueryHandler(main_menu_callback, pattern=r"^(menu_watchlist|menu_ajuda)$")
+    )
     register_carousel_handlers(app)
 
 
