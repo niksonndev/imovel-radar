@@ -86,15 +86,15 @@ def get_alert_for_user(session: Session, alert_id: int, chat_id: int) -> Alert |
 
 
 def get_alerts_for_user(session: Session, chat_id: int) -> list[Alert]:
-    stmt = select(Alert).where(Alert.chat_id == chat_id).order_by(Alert.id.desc())
+    stmt = select(Alert).where(Alert.chat_id == chat_id).order_by(Alert.id.desc())  # type: ignore[union-attr]  # pyright limitação: SQLModel column typing
     return list(session.exec(stmt).all())
 
 
 def get_active_alerts_for_user(session: Session, chat_id: int) -> list[Alert]:
     stmt = (
         select(Alert)
-        .where(Alert.chat_id == chat_id, Alert.active.is_(True))
-        .order_by(Alert.id.desc())
+        .where(Alert.chat_id == chat_id, Alert.active.is_(True))  # type: ignore[union-attr]  # pyright limitação: SQLModel column typing
+        .order_by(Alert.id.desc())  # type: ignore[union-attr]  # pyright limitação: SQLModel column typing
     )
     return list(session.exec(stmt).all())
 
@@ -104,7 +104,7 @@ def delete_alert_for_user(session: Session, alert_id: int, chat_id: int) -> bool
     alert = session.exec(stmt).first()
     if alert is None:
         return False
-    session.exec(delete(AlertMatch).where(AlertMatch.alert_id == alert_id))
+    session.exec(delete(AlertMatch).where(AlertMatch.alert_id == alert_id))  # type: ignore[union-attr]  # pyright limitação: SQLModel column typing
     session.delete(alert)
     return True
 
@@ -112,24 +112,24 @@ def delete_alert_for_user(session: Session, alert_id: int, chat_id: int) -> bool
 # ── Alert matches ─────────────────────────────────────────────────────────
 def get_unnotified_listings_for_alert(session: Session, alert: Alert) -> list[Listing]:
     conditions = [
-        Listing.active.is_(True),
-        AlertMatch.listing_id.is_(None),
+        Listing.active.is_(True),  # type: ignore[union-attr]
+        AlertMatch.listing_id.is_(None),  # type: ignore[union-attr]
     ]
-    if alert.min_price is not None:
-        conditions.append(Listing.price_value >= alert.min_price)
-    if alert.max_price is not None:
-        conditions.append(Listing.price_value <= alert.max_price)
+    if (min_price := alert.min_price) is not None:
+        conditions.append(Listing.price_value >= min_price)  # type: ignore[union-attr]
+    if (max_price := alert.max_price) is not None:
+        conditions.append(Listing.price_value <= max_price)  # type: ignore[union-attr]
     if alert.neighbourhoods:
-        conditions.append(Listing.neighbourhood.in_(alert.neighbourhoods))
+        conditions.append(Listing.neighbourhood.in_(alert.neighbourhoods))  # type: ignore[union-attr]
 
     stmt = (
         select(Listing)
         .outerjoin(
             AlertMatch,
-            (AlertMatch.listing_id == Listing.listing_id) & (AlertMatch.alert_id == alert.id),
+            (AlertMatch.listing_id == Listing.listing_id) & (AlertMatch.alert_id == alert.id),  # type: ignore[union-attr]  # pyright limitação: SQLModel column typing
         )
         .where(*conditions)
-        .order_by(Listing.updated_at.desc())
+        .order_by(Listing.updated_at.desc())  # type: ignore[union-attr]  # pyright limitação: SQLModel column typing
     )
     return list(session.exec(stmt).all())
 
@@ -138,6 +138,8 @@ def get_unnotified_listings_for_user(session: Session, chat_id: int) -> list[Lis
     alerts = get_active_alerts_for_user(session, chat_id)
     result: list[ListingAlertMatch] = []
     for alert in alerts:
+        if alert.id is None:
+            continue  # alerta ainda não persistido; não deveria ocorrer, não quebra silenciosamente
         listings = get_unnotified_listings_for_alert(session, alert)
         result.extend(ListingAlertMatch(listing=listing, alert_id=alert.id) for listing in listings)
     return result
