@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -24,7 +23,7 @@ def start_scheduler() -> AsyncIOScheduler:
         logger.warning("Scheduler já iniciado, ignorando.")
         return _scheduler
 
-    tz = ZoneInfo(config.SCRAPE_TIMEZONE_NAME)
+    tz = config.SCRAPE_TIMEZONE
     _scheduler = AsyncIOScheduler()
 
     _scheduler.add_job(
