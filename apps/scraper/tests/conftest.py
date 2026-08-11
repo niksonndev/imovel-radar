@@ -1,10 +1,17 @@
+from __future__ import annotations
+
+import sys
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from sqlmodel import Session, SQLModel
 
-from database.db import make_engine
-from database.models import Alert, Listing, User  # noqa: E402, F401
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from database import Alert, Listing, User, make_engine  # noqa: E402, F401
 
 
 @pytest.fixture()

@@ -1,4 +1,4 @@
-from .db import engine, get_session
+from .db import engine, get_session, make_engine
 from .models import Alert, AlertMatch, Listing, User
 from .queries import (
     create_alert,
@@ -19,6 +19,7 @@ __all__ = [
     "User",
     "engine",
     "get_session",
+    "make_engine",
     "create_user",
     "get_user",
     "upsert_listing",
