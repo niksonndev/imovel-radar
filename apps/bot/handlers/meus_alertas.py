@@ -11,7 +11,11 @@ import re
 from telegram import CallbackQuery, Update
 from telegram.constants import ParseMode
 
-from handlers.api_client import ScraperAPI
+from handlers.api_client import (
+    delete_alert,
+    get_alert_for_user,
+    get_alerts_for_user,
+)
 from handlers.ui import keyboards, menus
 from models import CustomContext
 
@@ -22,10 +26,9 @@ MAL_ED_RE = re.compile(r"^mal_ed_(\d+)$")
 MAL_RM_RE = re.compile(r"^mal_rm_(\d+)$")
 
 
-async def _render_alert_list_message(query: CallbackQuery, telegram_user_id: int) -> None:
-    api = ScraperAPI()
+async def _render_alert_list_message(query: CallbackQuery, user_id: int) -> None:
     try:
-        response = await api.list_alerts(telegram_user_id)
+        response = await get_alerts_for_user(user_id)
         alerts = response.alerts
     except Exception:
         logger.exception("Falha ao listar alertas via API")
@@ -35,8 +38,6 @@ async def _render_alert_list_message(query: CallbackQuery, telegram_user_id: int
             reply_markup=keyboards.main_menu_keyboard(),
         )
         return
-    finally:
-        await api.close()
 
     text, visible = menus.meus_alertas_list_message(alerts)
     markup = (
@@ -73,7 +74,7 @@ async def meus_alertas_actions_callback(update: Update, context: CustomContext) 
         return
 
     data = query.data or ""
-    telegram_user_id = user.id
+    user_id = user.id
 
     if data == "mal_m":
         await query.answer()
@@ -86,7 +87,7 @@ async def meus_alertas_actions_callback(update: Update, context: CustomContext) 
 
     if data == "mal_b":
         await query.answer()
-        await _render_alert_list_message(query, telegram_user_id)
+        await _render_alert_list_message(query, user_id)
         return
 
     m_pick = MAL_PICK_RE.match(data)
@@ -94,21 +95,16 @@ async def meus_alertas_actions_callback(update: Update, context: CustomContext) 
         alert_id = int(m_pick.group(1))
         await query.answer()
 
-        api = ScraperAPI()
         try:
-            response = await api.get_alert(alert_id)
-            alerts = response.alerts
-            alert = alerts[0] if alerts else None
+            alert = await get_alert_for_user(alert_id, user_id)
         except Exception:
             logger.exception("Falha ao carregar alerta (detalhe)")
             await query.answer("Não foi possível abrir o alerta.", show_alert=True)
             return
-        finally:
-            await api.close()
 
         if alert is None:
             await query.answer("Alerta não encontrado.", show_alert=True)
-            await _render_alert_list_message(query, telegram_user_id)
+            await _render_alert_list_message(query, user_id)
             return
 
         await query.edit_message_text(
@@ -123,21 +119,16 @@ async def meus_alertas_actions_callback(update: Update, context: CustomContext) 
         alert_id = int(m_ed.group(1))
         await query.answer()
 
-        api = ScraperAPI()
         try:
-            response = await api.get_alert(alert_id)
-            alerts = response.alerts
-            alert = alerts[0] if alerts else None
+            alert = await get_alert_for_user(alert_id, user_id)
         except Exception:
             logger.exception("Falha ao carregar alerta (edição)")
             await query.answer("Não foi possível abrir o alerta.", show_alert=True)
             return
-        finally:
-            await api.close()
 
         if alert is None:
             await query.answer("Alerta não encontrado.", show_alert=True)
-            await _render_alert_list_message(query, telegram_user_id)
+            await _render_alert_list_message(query, user_id)
             return
 
         await query.edit_message_text(
@@ -151,18 +142,15 @@ async def meus_alertas_actions_callback(update: Update, context: CustomContext) 
     if m_rm is not None:
         alert_id = int(m_rm.group(1))
 
-        api = ScraperAPI()
         try:
-            await api.delete_alert(alert_id, telegram_user_id)
+            await delete_alert(alert_id, user_id)
         except Exception:
             logger.exception("Falha ao remover alerta via API")
             await query.answer("Não foi possível remover o alerta.", show_alert=True)
             return
-        finally:
-            await api.close()
 
         await query.answer("Alerta removido.")
-        await _render_alert_list_message(query, telegram_user_id)
+        await _render_alert_list_message(query, user_id)
         return
 
     logger.warning("Callback mal_* não reconhecido: %s", data)

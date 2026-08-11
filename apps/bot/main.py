@@ -19,6 +19,7 @@ from pathlib import Path
 from telegram.ext import Application, ContextTypes, PicklePersistence
 
 import config
+from handlers.api_client import close_client, init_client
 from handlers.setup import apply_bot_commands, setup
 from jobs.polling_job import notify_new_matches
 from models import CustomContext, UserData
@@ -38,11 +39,14 @@ logger = logging.getLogger(__name__)
 
 async def post_init(app: Application) -> None:
     await apply_bot_commands(app)
+    init_client()
     start_polling(app)
     logger.info("Bot iniciado.")
 
 
 async def post_shutdown(app: Application) -> None:
+    await close_client()
+    _ = app  # silencia hint de parâmetro não usado
     logger.info("Bot finalizado")
 
 
