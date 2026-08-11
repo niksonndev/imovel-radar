@@ -11,7 +11,8 @@
     "setup": "pnpm run setup:shared-models && pnpm run setup:scraper && pnpm run setup:bot && pnpm install",
     "setup:shared-models": "cd packages/shared-models && uv sync",
     "setup:scraper": "cd apps/scraper && uv venv && uv pip install -e ../../packages/shared-models && uv sync",
-    "setup:bot": "cd apps/bot && uv venv && uv pip install -e ../../packages/shared-models && uv sync"
+    "setup:bot": "cd apps/bot && uv venv && uv pip install -e ../../packages/shared-models && uv sync",
+    "test": "turbo run test"
   },
   "packageManager": "pnpm@10.33.2",
   "devDependencies": {

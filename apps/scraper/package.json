@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "uv run uvicorn main:app --reload --port 8000",
     "build": "uv pip install -e ../../packages/shared-models && uv pip install -e .",
-    "lint": "uv run ruff check ."
+    "lint": "uv run ruff check .",
+    "test": "uv run pytest -v"
   }
 }

@@ -171,6 +171,20 @@ cd apps/scraper && uv run ruff check . && uv run pyright
 cd apps/bot && uv run ruff check . && uv run pyright
 ```
 
+## Tests
+
+Run the full test suite from the repository root:
+
+```bash
+pnpm run test
+```
+
+To run only the scraper tests:
+
+```bash
+pnpm run test --filter scraper
+```
+
 ## CI: Scraper tests
 
 The repository includes a GitHub Actions workflow in [.github/workflows/scraper-tests.yml](.github/workflows/scraper-tests.yml) that runs the scraper test suite automatically on pushes to `main` and on pull requests that touch [apps/scraper](apps/scraper) or the workflow file itself.

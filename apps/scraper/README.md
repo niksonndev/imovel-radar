@@ -69,7 +69,13 @@ This project includes a GitHub Actions workflow at [.github/workflows/scraper-te
 The workflow installs dependencies with `uv` and runs:
 
 ```bash
-cd apps/scraper && uv run pytest -v
+pnpm run test --filter scraper
+```
+
+To run the tests locally:
+
+```bash
+pnpm run test --filter scraper
 ```
 
 ## Architecture
