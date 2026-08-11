@@ -8,12 +8,15 @@ from telegram.ext import (
     Application,
     CallbackQueryHandler,
     CommandHandler,
+    MessageHandler,
+    filters,
 )
 
 from handlers.carousel import register_handlers as register_carousel_handlers
 from handlers.create_new_alert import new_alert_conversation
 from handlers.meus_alertas import meus_alertas_actions_callback, meus_alertas_callback
 from handlers.ui import keyboards, menus
+from handlers.user_guard import ensure_user_callback, ensure_user_message
 from models import CustomContext
 
 BOT_COMMANDS = [
@@ -61,6 +64,10 @@ async def main_menu_callback(update: Update, context: CustomContext) -> None:
 
 
 def setup(app: Application) -> None:
+    # Verificação de usuário (genérica, executa primeiro)
+    app.add_handler(CallbackQueryHandler(ensure_user_callback, pattern=r".*"))
+    app.add_handler(MessageHandler(filters.ALL, ensure_user_message))
+
     app.add_handler(new_alert_conversation())
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("ajuda", help_cmd))
