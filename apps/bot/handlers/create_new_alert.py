@@ -21,7 +21,6 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
-from telegram.helpers import escape_markdown
 
 from handlers.api_client import (
     create_alert,
@@ -80,19 +79,6 @@ async def _enter_neighbourhoods(msg: Message, context: CustomContext) -> None:
     )
 
 
-def _confirm_summary(*, price_s: str, nb_s: str, name: str) -> str:
-    esc_price = escape_markdown(price_s, version=1)
-    esc_nb = escape_markdown(nb_s, version=1)
-    esc_name = escape_markdown(name, version=1)
-    return (
-        "🧾 *Configuração do alerta*\n\n"
-        f"💰 *Preço:* {esc_price}\n"
-        f"📍 *Bairros:* {esc_nb}\n"
-        f"📝 *Nome:* `{esc_name}`\n\n"
-        "Confirme abaixo:"
-    )
-
-
 async def new_alert_cmd(update: Update, context: CustomContext) -> int:
     assert context.user_data is not None
     assert update.effective_message is not None
@@ -132,6 +118,8 @@ async def wiz_price_preset_cb(update: Update, context: CustomContext) -> int:
     draft["min_price"] = pmin
     draft["max_price"] = pmax
 
+    # Desativa os botões de preço antes de avançar para evitar teclados órfãos.
+    await query.edit_message_reply_markup(reply_markup=None)
     await _enter_neighbourhoods(update.effective_message, context)
     return NEIGHBOURHOODS
 
@@ -140,6 +128,8 @@ async def wiz_price_custom_cb(update: Update, context: CustomContext) -> int:
     query = update.callback_query
     assert query is not None
     await query.answer()
+    # Desativa os botões de preço antes de pedir o valor personalizado.
+    await query.edit_message_reply_markup(reply_markup=None)
     _get_wizard_state(context)["awaiting"] = "price_min"
     await query.message.reply_text("Digite o preço mínimo (só números):")  # type: ignore[union-attr]
     return PRICE
@@ -182,7 +172,18 @@ async def wiz_neighbourhoods_cb(update: Update, context: CustomContext) -> int:
     wizard_state = _get_wizard_state(context)
     sel: list[str] = draft.setdefault("neighbourhoods", [])
 
+    if "neighbourhood_options" not in wizard_state:
+        # Callback órfão (ex.: botão de bairro tocado após "Concluir"/estado expirado):
+        # não reentra no estado de bairros para não travar o wizard.
+        await query.message.reply_text(  # type: ignore[union-attr]
+            "Sessão expirada. Use /novo_alerta novamente.",
+            reply_markup=keyboards.main_menu_keyboard(),
+        )
+        return ConversationHandler.END
+
     if data == "nbd_done":
+        # Desativa o teclado de bairros antes de pedir o nome do alerta.
+        await query.edit_message_reply_markup(reply_markup=None)
         wizard_state.pop("neighbourhood_options", None)
         wizard_state.pop("neighbourhood_page", None)
         await query.message.reply_text(  # type: ignore[union-attr]
@@ -269,7 +270,7 @@ async def wiz_name(update: Update, context: CustomContext) -> int:
         price_s = f"{format_brl(pmin)} – {format_brl(pmax)}"
 
     await update.effective_message.reply_text(
-        _confirm_summary(price_s=price_s, nb_s=nb_s, name=name),
+        menus.confirmacao_resumo(price_s=price_s, nb_s=nb_s, name=name),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.alert_confirmation_keyboard(),
     )

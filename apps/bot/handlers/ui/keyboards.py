@@ -12,19 +12,17 @@ _INLINE_BTN_TEXT_MAX = 64
 
 
 def _neighbourhood_button_caption(name: str, *, selected: bool) -> str:
-    if selected:
-        prefix, suffix = " ✅ ", ""
-    else:
-        prefix, suffix = " ", " "
-    room = _INLINE_BTN_TEXT_MAX - len(prefix) - len(suffix)
+    # Marcador de largura fixa (2 caracteres) para alinhar nomes selecionados
+    # e não-selecionados; sem espaço à direita (o Telegram apararia de qualquer forma).
+    marker = "✅ " if selected else "  "
+    room = _INLINE_BTN_TEXT_MAX - len(marker)
     if room < 2:
         short = "…"
     elif len(name) <= room:
         short = name
     else:
         short = name[: max(1, room - 1)] + "…"
-    text = prefix + short + suffix
-    return text[:_INLINE_BTN_TEXT_MAX]
+    return marker + short
 
 
 def _neighbourhoods_done_caption(n_selected: int) -> str:
