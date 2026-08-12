@@ -50,7 +50,7 @@ def upsert_listing(session: Session, raw_ad: RawAd) -> None:
 
 
 def get_neighbourhoods(session: Session, municipality: str) -> list[str]:
-    rows = list(
+    return list(
         session.exec(
             select(Listing.neighbourhood)
             .where(
@@ -61,7 +61,6 @@ def get_neighbourhoods(session: Session, municipality: str) -> list[str]:
             .order_by(func.count().desc())
         ).all()
     )
-    return [row[0] for row in rows]
 
 
 # ── Alerts ────────────────────────────────────────────────────────────────

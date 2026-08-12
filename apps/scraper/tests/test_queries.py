@@ -6,7 +6,7 @@ from sqlmodel import Session
 
 from collector.parser import RawAd
 from database.models import Alert, Listing, User
-from database.queries import create_alert, upsert_listing
+from database.queries import create_alert, get_neighbourhoods, upsert_listing
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -73,3 +73,32 @@ def test_create_alert_persists_fields(session: Session) -> None:
         assert stored.min_price == alert_data.min_price
         assert stored.max_price == alert_data.max_price
         assert stored.neighbourhoods == alert_data.neighbourhoods
+
+
+def test_get_neighbourhoods_returns_full_names(session: Session) -> None:
+    """Garante que `get_neighbourhoods` devolve os bairros por extenso.
+
+    Regressão do bug em que `row[0]` sobre valores escalares do SQLModel
+    retornava apenas a primeira letra de cada bairro.
+    """
+    names = ["Ponta Verde", "Jatiúca", "Centro", "Prado"]
+    for i, name in enumerate(names, start=1):
+        session.add(
+            Listing(
+                listing_id=i,
+                url=f"https://exemplo.com/{i}",
+                title=f"Imóvel {i}",
+                municipality="Maceió",
+                neighbourhood=name,
+                category="Apartamento",
+                images=[],
+                properties={},
+            )
+        )
+    session.commit()
+
+    result = get_neighbourhoods(session, "Maceió")
+
+    # Retorna os nomes completos (e não apenas a inicial).
+    assert set(result) == set(names)
+    assert all(len(name) > 1 for name in result)
