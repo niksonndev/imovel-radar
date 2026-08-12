@@ -10,15 +10,12 @@ from telegram.ext import (
     Application,
     CallbackQueryHandler,
     CommandHandler,
-    MessageHandler,
-    filters,
 )
 
 from handlers.carousel import register_handlers as register_carousel_handlers
 from handlers.create_new_alert import new_alert_conversation
 from handlers.meus_alertas import meus_alertas_actions_callback, meus_alertas_callback
 from handlers.ui import keyboards, menus
-from handlers.user_guard import ensure_user_callback, ensure_user_message
 from models import CustomContext
 
 logger = logging.getLogger(__name__)
@@ -31,7 +28,7 @@ BOT_COMMANDS = [
 
 
 async def start_cmd(update: Update, context: CustomContext) -> None:
-    assert update.effective_message
+    assert update.effective_message is not None
     await update.effective_message.reply_text(
         menus.start_welcome(),
         parse_mode=ParseMode.MARKDOWN,
@@ -40,7 +37,7 @@ async def start_cmd(update: Update, context: CustomContext) -> None:
 
 
 async def help_cmd(update: Update, context: CustomContext) -> None:
-    assert update.effective_message
+    assert update.effective_message is not None
     await update.effective_message.reply_text(
         menus.ajuda_comandos_plain(),
         reply_markup=keyboards.main_menu_keyboard(),
@@ -49,7 +46,8 @@ async def help_cmd(update: Update, context: CustomContext) -> None:
 
 async def main_menu_callback(update: Update, context: CustomContext) -> None:
     query = update.callback_query
-    assert query
+    if query is None:
+        return
     await query.answer()
 
     handlers: dict[str, tuple[str, bool]] = {
@@ -70,20 +68,23 @@ async def main_menu_callback(update: Update, context: CustomContext) -> None:
 
 
 def setup(app: Application) -> None:
-    # Verificação de usuário (genérica, executa primeiro)
-    app.add_handler(CallbackQueryHandler(ensure_user_callback, pattern=r".*"))
-    app.add_handler(MessageHandler(filters.ALL, ensure_user_message))
-
-    # Fluxos de conversa devem ter prioridade sobre handlers genéricos
-    app.add_handler(new_alert_conversation())
+    # Handlers específicos de comando (devem estar antes de qualquer MessageHandler)
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("ajuda", help_cmd))
+    app.add_handler(new_alert_conversation())
+
+    # Handlers de callback específicos
     app.add_handler(CallbackQueryHandler(meus_alertas_callback, pattern=r"^menu_meus_alertas$"))
     app.add_handler(CallbackQueryHandler(meus_alertas_actions_callback, pattern=r"^mal_"))
     app.add_handler(
         CallbackQueryHandler(main_menu_callback, pattern=r"^(menu_watchlist|menu_ajuda)$")
     )
     register_carousel_handlers(app)
+
+    # Nota: a garantia de que o usuário existe no scraper é feita de forma
+    # global, antes de qualquer handler, via RadarApplication.process_update
+    # (ver apps/bot/application.py). Não usamos um MessageHandler global para
+    # isso, pois no PTB ele interromperia o grupo após o primeiro match.
 
 
 async def apply_bot_commands(app: Application) -> None:

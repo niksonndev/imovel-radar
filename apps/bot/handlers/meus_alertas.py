@@ -56,12 +56,10 @@ async def meus_alertas_callback(update: Update, context: CustomContext) -> None:
     query = update.callback_query
     if query is None:
         return
-    await query.answer()
-
     user = update.effective_user
     if user is None:
         return
-
+    await query.answer()
     await _render_alert_list_message(query, user.id)
 
 

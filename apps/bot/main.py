@@ -19,6 +19,7 @@ from pathlib import Path
 from telegram.ext import Application, ContextTypes, PicklePersistence
 
 import config
+from application import RadarApplication
 from handlers.api_client import close_client, init_client
 from handlers.setup import apply_bot_commands, setup
 from jobs.polling_job import notify_new_matches
@@ -72,6 +73,7 @@ def main() -> None:
 
     app = (
         Application.builder()
+        .application_class(RadarApplication)
         .token(config.TELEGRAM_BOT_TOKEN)
         .context_types(ContextTypes(context=CustomContext, user_data=UserData))
         .persistence(persistence)
