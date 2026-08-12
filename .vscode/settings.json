@@ -7,6 +7,12 @@
   //   packages/shared-models/.vscode/settings.json
   // Colocar interpretador aqui faz ele "vazar" como fallback e volta
   // a confundir o Pylance entre as venvs.
+  //
+  // Não auto-ativar venv no terminal integrado: como cada subprojeto usa
+  // `uv run` (que gerencia o próprio `.venv`), a ativação automática apenas
+  // injeta um `VIRTUAL_ENV` residual que vaza para os demais apps (ex.:
+  // `uv run` do scraper reclamava de `VIRTUAL_ENV=.../apps/bot/.venv`).
+  "python.terminal.activateEnvironment": false,
   // --- Editor geral ---
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {
