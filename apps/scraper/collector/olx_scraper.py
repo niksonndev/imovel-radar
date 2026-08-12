@@ -119,6 +119,18 @@ def _extract_ads_candidates(payload: str) -> list[list[dict[str, Any]]]:
     return candidates
 
 
+def _is_empty_results_page(html: str) -> bool:
+    """True quando o OLX retorna uma página HTTP 200 sem resultados (fim da listagem)."""
+    soup = BeautifulSoup(html, "lxml")
+    if config.OLX_EMPTY_RESULTS_TEXT in soup.get_text(" ", strip=True):
+        return True
+
+    # Fallback estrutural: um array "ads" presente, porém vazio (ex.: "ads":[]).
+    payload = _extract_rsc_payload(html)
+    candidates = _extract_ads_candidates(payload)
+    return bool(candidates) and all(len(candidate) == 0 for candidate in candidates)
+
+
 def _extract_ads_container_from_rsc(html: str) -> dict[str, Any]:
     soup = BeautifulSoup(html, "lxml")
     payload = _extract_rsc_payload(html)
@@ -130,6 +142,11 @@ def _extract_ads_container_from_rsc(html: str) -> dict[str, Any]:
     ]
 
     if not candidates_with_list_id:
+        if _is_empty_results_page(html):
+            raise EmptyResultsError(
+                "Página sem resultados (fim da listagem) — nenhum anúncio no payload RSC"
+            )
+
         debug_path = Path("debug_last_response.html")
         debug_path.write_text(html, encoding="utf-8")
 
@@ -199,6 +216,10 @@ class ParseError(Exception):
     pass
 
 
+class EmptyResultsError(ParseError):
+    """Página HTTP 200 válida, porém sem resultados — marca o fim da listagem."""
+
+
 async def close() -> None:
     _http.close()
 
@@ -257,7 +278,7 @@ async def search_all_rent_maceio() -> list[RawAd]:
     _cycle_headers = _build_headers()
     try:
         page = 1
-        while True:
+        while page <= config.SCRAPER_MAX_PAGES:
             url = _rent_maceio_listings_url(page)
             try:
                 html = await fetch(url)
@@ -268,6 +289,12 @@ async def search_all_rent_maceio() -> list[RawAd]:
                 break
             try:
                 page_listings = extract_listings_from_search_page(html)
+            except EmptyResultsError:
+                logger.info("Página %s: fim da listagem (sem resultados) — encerrando", page)
+                break
+            except ParseError as e:
+                logger.exception("Erro ao extrair listings de %s: %s", url, e)
+                break
             except Exception as e:
                 logger.exception("Erro ao extrair listings de %s: %s", url, e)
                 break

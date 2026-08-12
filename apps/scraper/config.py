@@ -17,6 +17,12 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 SCRAPER_DELAY_MIN = float(os.getenv("SCRAPER_DELAY_MIN", "2.0"))
 SCRAPER_DELAY_MAX = float(os.getenv("SCRAPER_DELAY_MAX", "5.0"))
 
+# Número máximo de páginas a iterar (proteção contra loop infinito)
+SCRAPER_MAX_PAGES = int(os.getenv("SCRAPER_MAX_PAGES", "130"))
+
+# Marcador textual do estado "sem resultados" do OLX (fim normal da listagem)
+OLX_EMPTY_RESULTS_TEXT = os.getenv("OLX_EMPTY_RESULTS_TEXT", "Nenhum anúncio foi encontrado")
+
 # Coleta agendada (cron diário)
 SCRAPE_CRON_HOUR = int(os.getenv("SCRAPE_CRON_HOUR", "8"))
 SCRAPE_CRON_MINUTE = int(os.getenv("SCRAPE_CRON_MINUTE", "0"))
