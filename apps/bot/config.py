@@ -21,3 +21,6 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
 # URL base da API do scraper (sem trailing slash)
 SCRAPER_API_URL = os.getenv("SCRAPER_API_URL", "http://localhost:8000").rstrip("/")
+
+# Arquivo de persistência do PicklePersistence (estado de conversas/carrosséis)
+PERSISTENCE_FILE = os.getenv("PERSISTENCE_FILE", "carousel_state.pickle").strip()

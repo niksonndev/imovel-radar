@@ -69,7 +69,7 @@ def start_polling(app: Application) -> None:
 
 
 def main() -> None:
-    persistence = PicklePersistence(filepath="carousel_state.pickle")
+    persistence = PicklePersistence(filepath=config.PERSISTENCE_FILE)
 
     app = (
         Application.builder()
