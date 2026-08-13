@@ -1,0 +1,47 @@
+name: imovel-radar-prod
+
+services:
+  scraper:
+    # Imagens buildadas via GHA e publicadas no GHCR — não buildar localmente
+    image: ghcr.io/niksonndev/imovel-radar-scraper:${IMAGE_TAG:-latest}
+    env_file:
+      - path: apps/scraper/.env
+        required: false
+    environment:
+      API_PORT: '8000'
+    # Sem "ports": a API do scraper NÃO fica acessível publicamente;
+    # só o bot a alcança via a rede interna do compose (scraper:8000).
+    volumes:
+      - scraper_data:/app/apps/scraper/data # SQLite persistente (dado, não código)
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  bot:
+    image: ghcr.io/niksonndev/imovel-radar-bot:${IMAGE_TAG:-latest}
+    env_file:
+      - path: apps/bot/.env
+        required: true
+    environment:
+      SCRAPER_API_URL: http://scraper:8000 # rede interna do compose
+      PERSISTENCE_FILE: /data/carousel_state.pickle
+    volumes:
+      - bot_state:/data # estado do PicklePersistence
+    depends_on:
+      scraper:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  scraper_data:
+  bot_state:
