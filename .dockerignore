@@ -1,0 +1,46 @@
+# VCS / CI
+.git
+.gitignore
+.github
+
+# Node / Turborepo / frontend (fora do escopo Docker)
+node_modules
+**/node_modules
+.turbo
+**/.turbo
+apps/frontend
+**/.next
+out
+pnpm-lock.yaml
+
+# Python / uv
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/.ruff_cache
+**/.pytest_cache
+**/*.egg-info
+
+# Segredos — nunca entrar no build context
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
+**/.env.example
+
+# Dados / estado transiente
+**/data
+**/*.pickle
+
+# IDEs / SO / logs / testes
+.vscode
+**/.vscode
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.log
+test-results
+.coverage
+htmlcov

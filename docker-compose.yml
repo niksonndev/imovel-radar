@@ -1,0 +1,53 @@
+name: imovel-radar
+
+services:
+  scraper:
+    build:
+      context: .
+      dockerfile: apps/scraper/Dockerfile
+    image: imovel-radar-scraper:latest
+    env_file:
+      - path: apps/scraper/.env
+        required: false
+    environment:
+      API_PORT: "8000"
+    ports:
+      - "8000:8000"
+    volumes:
+      - scraper_data:/app/apps/scraper/data # SQLite persistente
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  bot:
+    build:
+      context: .
+      dockerfile: apps/bot/Dockerfile
+    image: imovel-radar-bot:latest
+    env_file:
+      - path: apps/bot/.env
+        required: false
+    environment:
+      # localhost não resolve no container; usa o nome do serviço do compose
+      SCRAPER_API_URL: http://scraper:8000
+      PERSISTENCE_FILE: /data/carousel_state.pickle
+    volumes:
+      - bot_state:/data
+    depends_on:
+      scraper:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  scraper_data:
+  bot_state:
