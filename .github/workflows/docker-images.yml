@@ -7,18 +7,18 @@ name: Docker images (GHCR)
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+    tags: ['v*']
     paths:
-      - "apps/scraper/**"
-      - "apps/bot/**"
-      - "packages/shared-models/**"
-      - ".github/workflows/docker-images.yml"
+      - 'apps/scraper/**'
+      - 'apps/bot/**'
+      - 'packages/shared-models/**'
+      - '.github/workflows/docker-images.yml'
   pull_request:
     paths:
-      - "apps/scraper/**"
-      - "apps/bot/**"
-      - "packages/shared-models/**"
-      - ".github/workflows/docker-images.yml"
+      - 'apps/scraper/**'
+      - 'apps/bot/**'
+      - 'packages/shared-models/**'
+      - '.github/workflows/docker-images.yml'
   workflow_dispatch:
 
 permissions:
@@ -60,13 +60,13 @@ jobs:
         with:
           images: ${{ env.IMAGE_BASE }}-${{ matrix.name }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,enable={{is_default_branch}},format=short
-            type=semver,pattern={{version}},enable={{is_tag}}
-            type=semver,pattern={{major}}.{{minor}},enable={{is_tag}}
-            type=sha,priority=200,prefix=,enable={{is_pull_request}},format=short
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=sha,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
 
       - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
