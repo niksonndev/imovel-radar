@@ -1,15 +1,16 @@
 import os
-from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-DB_PATH = DATA_DIR / "imoveis.db"
+# URL de conexão do Postgres. Em produção, defina DATABASE_URL (ex.: Neon).
+# O default aponta para o container local de desenvolvimento (pg-local).
+DATABASE_URL = (
+    os.getenv("DATABASE_URL", "").strip()
+    or "postgresql+psycopg://postgres:teste123@localhost:5432/imovel_radar"
+)
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
