@@ -1,5 +1,4 @@
 import os
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
 
@@ -14,29 +13,15 @@ DATABASE_URL = (
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
-# Entre uma requisição ao OLX e outra esperamos 2–5 s
+# Entre uma requisição ao OLX e outra esperamos 2–4 s
 SCRAPER_DELAY_MIN = float(os.getenv("SCRAPER_DELAY_MIN", "2.0"))
-SCRAPER_DELAY_MAX = float(os.getenv("SCRAPER_DELAY_MAX", "5.0"))
+SCRAPER_DELAY_MAX = float(os.getenv("SCRAPER_DELAY_MAX", "4.0"))
 
 # Número máximo de páginas a iterar (proteção contra loop infinito)
-SCRAPER_MAX_PAGES = int(os.getenv("SCRAPER_MAX_PAGES", "130"))
+SCRAPER_MAX_PAGES = int(os.getenv("SCRAPER_MAX_PAGES", "100"))
 
 # Marcador textual do estado "sem resultados" do OLX (fim normal da listagem)
 OLX_EMPTY_RESULTS_TEXT = os.getenv("OLX_EMPTY_RESULTS_TEXT", "Nenhum anúncio foi encontrado")
-
-# Coleta agendada (cron diário)
-SCRAPE_CRON_HOUR = int(os.getenv("SCRAPE_CRON_HOUR", "8"))
-SCRAPE_CRON_MINUTE = int(os.getenv("SCRAPE_CRON_MINUTE", "0"))
-SCRAPE_TIMEZONE_NAME = os.getenv("SCRAPE_TIMEZONE", "America/Maceio").strip()
-if not SCRAPE_TIMEZONE_NAME:
-    raise RuntimeError("SCRAPE_TIMEZONE não pode ser vazio")
-try:
-    SCRAPE_TIMEZONE = ZoneInfo(SCRAPE_TIMEZONE_NAME)
-except ZoneInfoNotFoundError as e:
-    raise RuntimeError(
-        f"SCRAPE_TIMEZONE inválido: {SCRAPE_TIMEZONE_NAME!r}. Use um ID IANA (ex.: America/Maceio)."
-        "No Windows instale o pacote PyPI 'tzdata' se a base de fusos não estiver disponível."
-    ) from e
 
 # URLs do OLX
 _OLX_BASE_DEFAULT = "https://www.olx.com.br"
