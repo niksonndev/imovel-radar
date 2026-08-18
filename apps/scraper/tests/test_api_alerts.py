@@ -6,22 +6,19 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+from sqlalchemy.engine import Engine
+from sqlmodel import Session, SQLModel
 
 from api.alerts import router as alerts_router
 from database import get_session
 from database.models import Alert as AlertModel
+from database.models import User
 
 
 @pytest.fixture()
-def test_engine():
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-        json_serializer=lambda obj: __import__("json").dumps(obj, ensure_ascii=False),
-    )
+def test_engine(engine: Engine) -> Engine:
+    """Engine do conftest com schema recriado por teste (isolamento)."""
+    SQLModel.metadata.drop_all(engine)
     SQLModel.metadata.create_all(engine)
     return engine
 
@@ -45,10 +42,18 @@ def client(app: FastAPI) -> Iterator[TestClient]:
 
 
 @pytest.fixture()
-def create_test_alert(client: TestClient):
+def create_test_alert(test_engine, client: TestClient):
     created: list[tuple[dict[str, Any], dict[str, Any]]] = []
 
     def _create(payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        # O Postgres impõe FK users.chat_id — garante o usuário antes do alerta
+        # (no SQLite os testes rodavam sem esse pré-requisito).
+        with Session(test_engine) as session:
+            chat_id = int(payload["chat_id"])
+            if session.get(User, chat_id) is None:
+                session.add(User(chat_id=chat_id))
+                session.commit()
+
         response = client.post("/alerts", json=payload)
         assert response.status_code == 201
         body = response.json()
@@ -61,7 +66,11 @@ def create_test_alert(client: TestClient):
         client.delete(f"/alerts/{payload['chat_id']}/{body['id']}")
 
 
-def test_create_alert_returns_201_with_id(client: TestClient) -> None:
+def test_create_alert_returns_201_with_id(test_engine, client: TestClient) -> None:
+    with Session(test_engine) as session:
+        session.add(User(chat_id=123456))
+        session.commit()
+
     payload = {
         "chat_id": 123456,
         "alert_name": "Apto 2 quartos Ponta Verde",
@@ -74,7 +83,8 @@ def test_create_alert_returns_201_with_id(client: TestClient) -> None:
 
     assert response.status_code == 201
     body = response.json()
-    assert body == {"id": 1, "message": "Alerta criado com sucesso"}
+    assert body["id"] > 0
+    assert body["message"] == "Alerta criado com sucesso"
 
 
 def test_create_alert_validates_payload(client: TestClient) -> None:
@@ -100,6 +110,10 @@ def test_create_alert_rejects_empty_price_range(client: TestClient) -> None:
 
 
 def test_create_alert_persists_expected_fields(test_engine, client: TestClient) -> None:
+    with Session(test_engine) as session:
+        session.add(User(chat_id=123456))
+        session.commit()
+
     payload = {
         "chat_id": 123456,
         "alert_name": "Casa em Jatiúca",
