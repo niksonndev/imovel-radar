@@ -34,7 +34,7 @@ if _cfg_file and Path(_cfg_file).exists() and Path(_cfg_file).suffix == ".ini":
 
 target_metadata = SQLModel.metadata
 
-DATABASE_URL = f"sqlite:///{app_config.DB_PATH}"
+DATABASE_URL = app_config.DATABASE_URL
 
 
 def run_migrations_offline() -> None:
