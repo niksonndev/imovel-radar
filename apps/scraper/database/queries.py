@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from shared_models.api_schemas import CreateAlertRequest, NotifiedPair
 from sqlalchemy import delete, func
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlmodel import Session, select
 
 from collector.parser import RawAd
@@ -36,7 +36,7 @@ def upsert_listing(session: Session, raw_ad: RawAd) -> None:
         "properties": raw_ad["properties"],
         "active": True,
     }
-    stmt = sqlite_insert(Listing).values(**values)
+    stmt = postgres_insert(Listing).values(**values)
     stmt = stmt.on_conflict_do_update(
         index_elements=["listing_id"],
         set_={
