@@ -11,8 +11,7 @@ services:
       API_PORT: '8000'
     # Sem "ports": a API do scraper NÃO fica acessível publicamente;
     # só o bot a alcança via a rede interna do compose (scraper:8000).
-    volumes:
-      - scraper_data:/app/apps/scraper/data # SQLite persistente (dado, não código)
+    # Banco Postgres externo (Neon) — defina DATABASE_URL no apps/scraper/.env.
     healthcheck:
       test:
         [
@@ -43,5 +42,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  scraper_data:
   bot_state:

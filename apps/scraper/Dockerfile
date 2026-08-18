@@ -28,8 +28,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Código-fonte (invalida só quando apps/scraper muda; .dockerignore trima caches/venv/env)
 COPY apps/scraper /app/apps/scraper
 
-# Diretório do SQLite — existente + chown para o volume herdar ownership
-RUN mkdir -p data && chown -R nonroot:nonroot /app
+# O banco é Postgres externo (sem volume local de dados)
+RUN chown -R nonroot:nonroot /app
 
 # O venv do projeto é criado por `uv sync` em <workdir>/.venv
 ENV PATH="/app/apps/scraper/.venv/bin:$PATH"

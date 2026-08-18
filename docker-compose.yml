@@ -11,10 +11,11 @@ services:
         required: false
     environment:
       API_PORT: "8000"
+      # Banco Postgres externo (pg-local/Neon); host.docker.internal alcança a
+      # máquina host em Docker Desktop/Windows.
+      DATABASE_URL: postgresql+psycopg://postgres:teste123@host.docker.internal:5432/imovel_radar
     ports:
       - "8000:8000"
-    volumes:
-      - scraper_data:/app/apps/scraper/data # SQLite persistente
     healthcheck:
       test:
         [
@@ -49,5 +50,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  scraper_data:
   bot_state:
