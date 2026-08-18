@@ -1,4 +1,4 @@
-"""SQLModel models (tables) for the scraper's SQLite database.
+"""SQLModel models (tables) for the scraper's Postgres database.
 
 Local **persistence** layer. API response classes (`shared_models.api_schemas`)
 are the shared contract between services and live in `packages/shared-models`.

@@ -3,7 +3,7 @@
 Responsabilidades:
 - Servir API REST para consulta de listings, alertas e matches
 - Rodar scheduler interno (APScheduler) para coleta diária do OLX
-- Ser o único proprietário do banco SQLite
+- Ser o único proprietário do banco Postgres
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Imóvel Radar — Scraper",
-    description="API REST do scraper OLX. Proprietário do banco SQLite. "
+    description="API REST do scraper OLX. Proprietário do banco Postgres. "
     "Gerencia listings, alertas e matches.",
     version="0.1.0",
     lifespan=lifespan,

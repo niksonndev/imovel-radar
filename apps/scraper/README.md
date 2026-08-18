@@ -2,7 +2,7 @@
 
 FastAPI service responsible for the core business logic of Imóvel Radar:
 
-- Exclusive owner of the SQLite database (`data/imoveis.db`)
+- Owns the Postgres database (SQLModel + Alembic, via `DATABASE_URL`)
 - Runs daily OLX scraping for rental listings in Maceió
 - Exposes a REST API for listings, alerts, users, and match tracking
 - Uses an internal APScheduler job to run the scraping cycle in the same process
@@ -47,6 +47,7 @@ Environment variables (`.env`):
 ```bash
 LOG_LEVEL=INFO
 API_PORT=8000
+DATABASE_URL=postgresql+psycopg://postgres:teste123@localhost:5432/imovel_radar
 SCRAPE_CRON_HOUR=8
 SCRAPE_CRON_MINUTE=0
 SCRAPE_TIMEZONE=America/Maceio
@@ -84,11 +85,10 @@ pnpm run test --filter scraper
 apps/scraper/
 ├── main.py              # FastAPI app + lifespan (applies migrations, starts scheduler)
 ├── config.py            # Environment variables (OLX, scraping, delay, app settings)
-├── database/            # SQLite schema, queries, DB access, users
+├── database/            # Postgres schema, queries, DB access, users
 ├── collector/           # OLX scraper + parser (RSC payload extraction)
 ├── api/                 # FastAPI routes (health, users, listings, alerts)
 ├── scheduler/           # APScheduler jobs for regular scraping and updates
 ├── alembic/             # Database migrations
-├── data/                # SQLite database directory
 └── docs/                # Project documentation
 ```

@@ -10,7 +10,7 @@ Telegram bot + scraper for monitoring real-estate listings on OLX Maceió. The s
 - **Scraper** (FastAPI, port 8000): `cloudscraper` + `BeautifulSoup4` + `APScheduler`
 - **Bot** (python-telegram-bot, port 3333): `httpx` (HTTP client to the scraper)
 - **Shared package**: `shared-models` — Pydantic schemas defining the contract between services
-- **Database**: SQLite via native `sqlite3` (exclusive to the scraper)
+- **Database**: Postgres via SQLModel + Alembic (dev: container local; prod: Neon)
 
 ## Structure
 
@@ -23,14 +23,13 @@ imovel-radar/
 │           ├── api_schemas.py
 │           └── utils.py
 ├── apps/
-│   ├── scraper/              ← FastAPI — owns SQLite, scrapes OLX, exposes REST API
+│   ├── scraper/              ← FastAPI — owns Postgres, scrapes OLX, exposes REST API
 │   │   ├── main.py           (FastAPI + lifespan → APScheduler)
 │   │   ├── config.py         (OLX URLs, delays, user agents)
 │   │   ├── database/         (schema, queries, DB access, users)
 │   │   ├── collector/        (OLX scraper and parser)
 │   │   ├── api/              (health, users, listings, alerts)
 │   │   ├── scheduler/        (APScheduler — daily scraping)
-│   │   ├── data/             (imoveis.db)
 │   │   ├── docs/
 │   │   │   ├── README.md
 │   │   │   ├── olx-scraper.md

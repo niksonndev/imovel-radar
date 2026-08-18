@@ -4,19 +4,19 @@ paths:
 ---
 # Scraper — Imóvel Radar (Python)
 
-FastAPI service responsible for all business logic: OLX scraping, SQLite persistence, and the REST API for the bot.
+FastAPI service responsible for all business logic: OLX scraping, Postgres persistence, and the REST API for the bot.
 
 ## Stack
 
 - Python, FastAPI, uvicorn
 - APScheduler (internal scheduler — daily collection job)
 - cloudscraper + BeautifulSoup + lxml (Cloudflare bypass + RSC extraction)
-- SQLite (native sqlite3) — sole owner of the database
+- Postgres (via SQLModel + Alembic) — sole owner of the database
 
 ## Architecture (layers)
 
-- scheduler → collector → parser → SQLite → REST API
-- The scraper is the **sole owner of the SQLite database** — the bot does not access the database directly.
+- scheduler → collector → parser → Postgres → REST API
+- The scraper is the **sole owner of the Postgres database** — the bot does not access the database directly.
 - Exposes a REST API (FastAPI) for the bot to consume listings, alerts, and matches.
 
 ## What to avoid

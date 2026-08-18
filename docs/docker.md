@@ -30,7 +30,7 @@ Containerização dos serviços Python do monorepo (`apps/scraper` e `apps/bot`)
 
 > Os dois `Dockerfile`s têm **build context = raiz do monorepo** porque os apps
 > dependem do pacote `packages/shared-models` (path dependency editável do `uv`).
-> Além disso, `/app/data` (SQLite) e `/data` (pickle do bot) são volumes.
+> O bot mantém um volume em `/data` (pickle); o scraper usa Postgres externo via `DATABASE_URL`.
 
 ## Como subir
 
@@ -46,7 +46,7 @@ docker compose ps        # scraper deve estar "healthy"; bot "Up"
 
 | Serviço  | Volume          | Dados |
 |----------|-----------------|-------|
-| scraper  | `scraper_data`  | SQLite (`apps/scraper/data/imoveis.db`) |
+| scraper  | —               | Postgres externo via `DATABASE_URL` (dev: pg-local; prod: Neon) |
 | bot      | `bot_state`     | `carousel_state.pickle` (estado PicklePersistence) |
 
 ## Comandos úteis
@@ -105,7 +105,7 @@ IMAGE_TAG=v1.2.3 docker compose -f docker-compose.prod.yml up -d
 ## Observações
 
 - **Segredos**: `.env` é excluído do build via `.dockerignore` — nunca vão para a imagem.
-- **Usuário não-root**: os containers rodam como `nonroot` (uid/gid 999). Os diretórios
-  `data/` e `/data` são criados e chownados no build, para que os volumes herdem ownership.
+- **Usuário não-root**: os containers rodam como `nonroot` (uid/gid 999). O scraper usa
+  Postgres externo; só o bot mantém volume local (`/data`).
 - **Frontend** (`apps/frontend`, Next.js) fica de fora do compose por ser estático e
   deployado no Vercel.

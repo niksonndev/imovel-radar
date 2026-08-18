@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 async def job_daily() -> dict[str, int]:
-    """Collect OLX listings and persist to SQLite.
+    """Collect OLX listings and persist to Postgres.
 
     Returns a dict with ``success`` (bool) and ``count`` (int) for
     exposure via healthcheck, if desired.
