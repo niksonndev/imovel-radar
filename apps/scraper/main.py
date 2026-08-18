@@ -2,7 +2,7 @@
 
 Responsabilidades:
 - Servir API REST para consulta de listings, alertas e matches
-- Rodar scheduler interno (APScheduler) para coleta diária do OLX
+- Coleta diária disparada por EventBridge (Lambda) — ver ``lambda_handler.py``
 - Ser o único proprietário do banco Postgres
 """
 
@@ -22,7 +22,6 @@ from api.alerts import router as alerts_router
 from api.health import router as health_router
 from api.listings import router as listings_router
 from api.users import router as users_router
-from scheduler.setup import start_scheduler, stop_scheduler
 
 # Garante que o diretório raiz do scraper está no sys.path
 ROOT = Path(__file__).resolve().parent
@@ -51,13 +50,11 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan event do FastAPI: aplica migrações e inicia scheduler."""
+    """Lifespan event do FastAPI: aplica migrações (dev local)."""
     logger.info("Inicializando Scraper...")
     _run_migrations()
-    start_scheduler()
     logger.info("Scraper pronto na porta %s", config.API_PORT)
     yield
-    stop_scheduler()
     logger.info("Scraper finalizado.")
 
 

@@ -1,11 +1,13 @@
-"""Jobs scheduled via APScheduler.
+"""Coleção diária do OLX.
 
-``job_daily`` is the composed job that runs 1x/day: performs the full scrape and
-persists to the database. Does not need to send notifications — the bot polls for matches.
+``job_daily`` coleta e persiste; é invocada pelo EventBridge (Lambda) ou
+manualmente (``uv run python -m scheduler.jobs``). Não notifica — quem lê
+listings não notificados é o bot, direto do banco (ADR 0005).
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from sqlmodel import Session
@@ -20,8 +22,7 @@ logger = logging.getLogger(__name__)
 async def job_daily() -> dict[str, int]:
     """Collect OLX listings and persist to Postgres.
 
-    Returns a dict with ``success`` (bool) and ``count`` (int) for
-    exposure via healthcheck, if desired.
+    Returns a dict with ``success`` (bool) and ``count`` (int).
     """
     result: dict[str, int] = {"success": 0, "count": 0}
     try:
@@ -39,3 +40,7 @@ async def job_daily() -> dict[str, int]:
     except Exception:
         logger.exception("Scheduled collection failed")
         return result
+
+
+if __name__ == "__main__":
+    asyncio.run(job_daily())

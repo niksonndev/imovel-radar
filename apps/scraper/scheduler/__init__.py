@@ -1,8 +1,9 @@
-"""Agendamento da coleta diária via APScheduler, no mesmo processo do FastAPI.
+"""Coleção diária do OLX.
 
-Expõe ``start_scheduler`` para o lifespan event do FastAPI.
+A coleta é disparada pelo EventBridge (Lambda) ou manualmente — não há mais
+scheduler em processo (ADR 0004).
 """
 
-from .setup import start_scheduler
+from .jobs import job_daily
 
-__all__ = ["start_scheduler"]
+__all__ = ["job_daily"]
