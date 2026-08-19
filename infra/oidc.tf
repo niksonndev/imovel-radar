@@ -119,6 +119,85 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       values   = ["lambda.amazonaws.com"]
     }
   }
+
+  # ── Bot (webhook + notificação) ─────────────────────────────────────────────
+  statement {
+    sid = "LambdaBotFunction"
+    actions = [
+      "lambda:GetFunctionConfiguration", "lambda:UpdateFunctionCode",
+      "lambda:UpdateFunctionConfiguration", "lambda:InvokeFunction",
+      "lambda:CreateFunction", "lambda:DeleteFunction", "lambda:GetPolicy",
+      "lambda:AddPermission", "lambda:RemovePermission",
+    ]
+    resources = [
+      "arn:aws:lambda:${var.region}:*:function:${var.project}-${var.environment}-bot-webhook",
+    ]
+  }
+
+  statement {
+    sid = "DynamoDbConversationState"
+    actions = [
+      "dynamodb:CreateTable", "dynamodb:DescribeTable",
+      "dynamodb:DeleteTable", "dynamodb:UpdateTable",
+      "dynamodb:UpdateTimeToLive", "dynamodb:TagResource", "dynamodb:UntagResource",
+      "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem",
+      "dynamodb:DeleteItem", "dynamodb:Query",
+    ]
+    resources = [
+      "arn:aws:dynamodb:${var.region}:*:table/${var.project}-${var.environment}-conversation-state",
+    ]
+  }
+
+  statement {
+    sid     = "SsmBotTokenRead"
+    actions = ["ssm:GetParameter"]
+    resources = [
+      "arn:aws:ssm:${var.region}:*:parameter/${var.project}/${var.environment}/telegram_bot_token",
+    ]
+  }
+
+  statement {
+    sid = "IAMBotRoleAndPolicy"
+    actions = [
+      "iam:CreateRole", "iam:GetRole", "iam:DeleteRole", "iam:TagRole",
+      "iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+      "iam:AttachRolePolicy", "iam:DetachRolePolicy",
+      "iam:ListAttachedRolePolicies", "iam:CreatePolicy", "iam:GetPolicy",
+      "iam:DeletePolicy", "iam:ListPolicies",
+    ]
+    resources = [
+      "arn:aws:iam::*:role/${var.project}-${var.environment}-bot-webhook",
+      "arn:aws:iam::*:policy/${var.project}-${var.environment}-bot-webhook-secrets-state",
+    ]
+  }
+
+  statement {
+    sid     = "IAMPassRoleForBotLambda"
+    actions = ["iam:PassRole"]
+    resources = [
+      "arn:aws:iam::*:role/${var.project}-${var.environment}-bot-webhook",
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["lambda.amazonaws.com"]
+    }
+  }
+
+  statement {
+    sid = "BotCloudWatchLogsAndAlarm"
+    actions = [
+      "logs:CreateLogGroup", "logs:PutRetentionPolicy", "logs:DeleteLogGroup",
+      "logs:CreateLogStream", "logs:PutLogEvents", "logs:DeleteLogStream",
+      "cloudwatch:PutMetricAlarm", "cloudwatch:DeleteAlarms",
+      "cloudwatch:DescribeAlarms",
+    ]
+    resources = [
+      "arn:aws:logs:${var.region}:*:log-group:/aws/lambda/${var.project}-${var.environment}-bot-webhook",
+      "arn:aws:logs:${var.region}:*:log-group:/aws/lambda/${var.project}-${var.environment}-bot-webhook:log-stream:*",
+      "arn:aws:cloudwatch:${var.region}:*:alarm:${var.project}-${var.environment}-bot-webhook-*",
+    ]
+  }
 }
 
 resource "aws_iam_policy" "github_actions_deploy" {

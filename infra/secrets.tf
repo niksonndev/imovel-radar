@@ -5,3 +5,7 @@ resource "aws_ssm_parameter" "database_url" {
   type  = "SecureString"
   value = var.database_url
 }
+
+# O TELEGRAM_BOT_TOKEN é bootstrap explícito (fora do Terraform) para nunca
+# entrar no state — ver infra/README.md ("Bot infra — corte 1").
+# A Bot Lambda só lê (ssm:GetParameter, em bot-lambda.tf).

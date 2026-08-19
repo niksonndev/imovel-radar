@@ -21,3 +21,16 @@ output "ssm_database_url_name" {
 output "github_actions_role_arn" {
   value = aws_iam_role.github_actions.arn
 }
+
+# ── Bot (corte 1) ─────────────────────────────────────────────────────────────
+output "conversation_table_name" {
+  value = aws_dynamodb_table.conversation_state.name
+}
+
+output "bot_lambda_role_arn" {
+  value = aws_iam_role.bot_lambda.arn
+}
+
+output "telegram_bot_token_ssm_name" {
+  value = var.bot_ssm_token_name
+}

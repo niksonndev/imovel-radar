@@ -36,6 +36,18 @@ else
   echo "    --thumbprint-list <THUMBPRINT_ATUAL>"
 fi
 
+TOKEN_PARAM="${TOKEN_PARAM:-/imovel-radar/prod/telegram_bot_token}"
+
+echo "==> SSM telegram_bot_token (bootstrap, fora do Terraform)"
+if aws ssm get-parameter --name "$TOKEN_PARAM" --query Parameter.Name --output text >/dev/null 2>&1; then
+  echo "Parâmetro já existe: $TOKEN_PARAM"
+else
+  echo "Crie o token do bot no SSM (não versionado):"
+  echo "  aws ssm put-parameter --name $TOKEN_PARAM --type SecureString \\"
+  echo "    --value '<token-do-botfather>'"
+  echo "  # reexecute este script para reconfirmar."
+fi
+
 echo
 echo "Pronto. Agora rode:"
 echo "  cd infra"

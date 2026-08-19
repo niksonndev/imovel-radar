@@ -54,3 +54,31 @@ build do zip → `terraform plan`/`apply` → smoke pós-deploy (10 páginas).
 
 > ATENÇÃO: `database_url` aparece no state (projeto pessoal); o CI o passa por
 > `-var`, então não fica hardcoded nos arquivos.
+
+## Bot infra — corte 1 (webhook/notificação)
+
+Prepara a base da Bot Lambda sem criar a função (ela entra no corte 2, junto
+com o código do bot). Recursos deste corte:
+
+- **DynamoDB `imovel-radar-prod-conversation-state`** — estado de conversa do
+  PTB (ADR 0006): PK `chat_id` (Number) + SK `store` (String), TTL nativo no
+  atributo `ttl`, billing on-demand (free tier permanente). O atributo
+  `version` é gravado pelo código (optimistic concurrency no `put_item`).
+- **SSM `/imovel-radar/prod/telegram_bot_token`** — SecureString **fora do
+  Terraform** (bootstrap), para o token nunca entrar no state.
+- **IAM role `imovel-radar-prod-bot-webhook`** — execução da Bot Lambda:
+  `AWSLambdaBasicExecutionRole` + leitura de secrets no SSM (token +
+  `database_url`) + acesso à tabela de conversação.
+- **Política de deploy do GitHub Actions ampliada** — permissões para criar a
+  tabela DynamoDB, a role/policy do bot, ler o token e (no corte 2) a função
+  Lambda, logs e alarmes.
+
+### Bootstrap do token (uma vez)
+
+```bash
+aws ssm put-parameter --name /imovel-radar/prod/telegram_bot_token \
+  --type SecureString --value 'SEU_TOKEN_DO_BOTFATHER'
+```
+
+O `./infra/bootstrap-state.sh` verifica a existência desse parâmetro de forma
+idempotente.
