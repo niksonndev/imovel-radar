@@ -45,7 +45,7 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
-          cache-dependency-glob: "apps/scraper/uv.lock"
+          cache-dependency-glob: 'apps/scraper/uv.lock'
 
       - uses: hashicorp/setup-terraform@v3
 
@@ -106,8 +106,11 @@ jobs:
           FN="imovel-radar-prod-scraper-collect"
           aws lambda update-function-configuration --function-name "$FN" \
             --environment "Variables={DATABASE_URL=${{ env.DATABASE_URL }},LOG_LEVEL=INFO,SCRAPER_MAX_PAGES=10}" >/dev/null
-          aws lambda invoke --function-name "$FN" \
-            --payload '{"source":"aws.events","detail-type":"Scheduled Event"}' /tmp/invoke.json
+          aws lambda invoke \
+            --function-name "$FN" \
+            --cli-binary-format raw-in-base64-out \
+            --payload '{"source":"aws.events","detail-type":"Scheduled Event"}' \
+            /tmp/invoke.json
           cat /tmp/invoke.json
           # restaura o env padrão (SCRAPER_MAX_PAGES=100)
           aws lambda update-function-configuration --function-name "$FN" \
