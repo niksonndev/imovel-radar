@@ -83,3 +83,10 @@ logs/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+infra/*.tfvars
+dist/
