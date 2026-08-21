@@ -5,7 +5,7 @@
     "dev": "turbo run dev --continue",
     "dev:scraper": "cd apps/scraper && uv run uvicorn main:app --reload --port 8000",
     "dev:bot": "cd apps/bot && uv run python main.py",
-    "dev:frontend": "cd apps/frontend && pnpm run dev",
+    "dev:frontend": "turbo run dev --filter=frontend",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "setup": "pnpm run setup:shared-models && pnpm run setup:scraper && pnpm run setup:bot && pnpm install",

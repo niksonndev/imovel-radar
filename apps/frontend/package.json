@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint && tsc --noEmit",
+    "lint": "eslint . && tsc --noEmit",
+    "test": "pnpm run test:a11y",
     "test:a11y": "playwright test tests/accessibility"
   },
   "dependencies": {

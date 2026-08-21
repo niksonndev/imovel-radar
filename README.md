@@ -49,7 +49,7 @@ imovel-radar/
 │   │   │   └── ui/           (keyboards, menus)
 │   │   ├── jobs/             (polling_job — checks matches every hour)
 │   │   └── README.md
-│   └── frontend/             ← Next.js (unchanged)
+│   └── frontend/             ← Next.js 16 (App Router, SSG → out/) — membro do workspace pnpm
 ├── docs/
 │   └── adr/
 │       └── separate-scraper-from-bot.md
