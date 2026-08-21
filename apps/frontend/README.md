@@ -7,7 +7,7 @@ Landing page estática (SSG) do Imóvel Radar. O objetivo é uma única ação d
 - **Next.js 16** (App Router) com `output: "export"` — build 100% estático em `out/`
 - **Tailwind CSS v4** com tokens do design system Bold (definidos em `src/app/globals.css`)
 - **shadcn/ui** (style `base-nova`) + Base UI + lucide-react
-- Fontes: Archivo Black (headings) e JetBrains Mono (mono/caps), via `next/font/google`
+- Fontes: Archivo Black (headings), Inter (body) e JetBrains Mono (mono/caps), via `next/font/google`
 - Testes de acessibilidade com **Playwright + axe-core**
 
 ## Comandos
@@ -41,7 +41,8 @@ src/
 ├── content/
 │   └── page-content.ts      # TODO o copy da página — edite aqui
 └── lib/
-    └── utils.ts             # cn() e helpers
+    ├── site.ts             # SITE_URL (env), SITE_NAME e SITE_DESCRIPTION
+    └── utils.ts            # cn() e helpers
 tests/
 └── accessibility/           # specs Playwright + axe (contraste, teclado, reflow)
 ```

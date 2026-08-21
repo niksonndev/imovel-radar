@@ -1,5 +1,8 @@
 import { ImageResponse } from "next/og";
 
+import { OG_IMAGE_TAGLINE } from "@/content/page-content";
+import { SITE_NAME } from "@/lib/site";
+
 export const size = {
   width: 1200,
   height: 630,
@@ -9,8 +12,7 @@ export const dynamic = "force-static";
 
 export const contentType = "image/png";
 
-export const alt =
-  "Imóvel Radar — anúncios novos do OLX Maceió direto no Telegram";
+export const alt = `${SITE_NAME} — ${OG_IMAGE_TAGLINE}`;
 
 export default function OpengraphImage() {
   return new ImageResponse(
@@ -29,7 +31,7 @@ export default function OpengraphImage() {
         }}
       >
         <div style={{ display: "flex", fontSize: 110, fontWeight: 700 }}>
-          Imóvel Radar
+          {SITE_NAME}
         </div>
         <div
           style={{
@@ -38,7 +40,7 @@ export default function OpengraphImage() {
             color: "#4DA3D9",
           }}
         >
-          Anúncios novos do OLX Maceió direto no Telegram
+          {OG_IMAGE_TAGLINE}
         </div>
       </div>
     ),

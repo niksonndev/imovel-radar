@@ -45,6 +45,10 @@ export const CTA_BUTTON_LABEL = "Ativar no Telegram";
 export const FEATURES_SECTION_HEADING = "Funcionalidades";
 export const SECTION_CTA_LABEL = "Começar agora";
 
+// Open Graph image
+export const OG_IMAGE_TAGLINE =
+  "Anúncios novos do OLX Maceió direto no Telegram";
+
 // Footer
 export const FOOTER_TELEGRAM_LABEL = "Telegram";
 export const FOOTER_LEGAL = "Feito com Imóvel Radar";

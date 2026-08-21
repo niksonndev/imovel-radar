@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Archivo_Black, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-import { SITE_URL } from "@/lib/site";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 
 const archivoBlack = Archivo_Black({
   weight: "400",
@@ -19,10 +19,6 @@ const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
-
-const SITE_NAME = "Imóvel Radar";
-const SITE_DESCRIPTION =
-  "Monitore anúncios de imóveis no OLX Maceió e receba alertas no Telegram na hora.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
