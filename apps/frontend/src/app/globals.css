@@ -194,3 +194,14 @@
   animation-timeline: view();
   animation-range: entry 10% exit 80%;
 }
+
+/* Marquee infinito de bairros (lista duplicada => translateX(-50%) é seamless) */
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@utility animate-marquee {
+  animation: marquee 30s linear infinite;
+}

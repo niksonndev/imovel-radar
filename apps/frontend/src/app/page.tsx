@@ -1,4 +1,5 @@
 import { HeroSection } from "@/components/hero-section";
+import { NeighborhoodsMarquee } from "@/components/neighborhoods-marquee";
 import { FeatureCards } from "@/components/feature-cards";
 import { HowItWorks } from "@/components/how-it-works";
 import { TelegramPreview } from "@/components/telegram-preview";
@@ -10,6 +11,7 @@ export default function Home() {
     <div className="flex flex-1 flex-col">
       <main className="bg-surface">
         <HeroSection />
+        <NeighborhoodsMarquee />
         <FeatureCards />
         <HowItWorks />
         <TelegramPreview />

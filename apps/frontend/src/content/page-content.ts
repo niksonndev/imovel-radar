@@ -66,6 +66,23 @@ export const MOCK_ALERTS = [
   },
 ];
 
+// Marquee de bairros monitorados
+export const MARQUEE_LABEL = "Bairros monitorados em Maceió";
+export const MONITORED_NEIGHBORHOODS = [
+  "Ponta Verde",
+  "Jatiúca",
+  "Pajuçara",
+  "Mangabeiras",
+  "Cruz das Almas",
+  "Benedito Bentes",
+  "Tabuleiro do Martins",
+  "Farol",
+  "Jacarecica",
+  "Antares",
+  "Serraria",
+  "Riacho Doce",
+];
+
 // Footer
 export const FOOTER_TELEGRAM_LABEL = "Telegram";
 export const FOOTER_LEGAL = "Feito com Imóvel Radar";
