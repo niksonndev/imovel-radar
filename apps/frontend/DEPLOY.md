@@ -12,9 +12,11 @@ O frontend é um build estático (`output: "export"`), então qualquer host de a
 
 ## 2. Variáveis de ambiente
 
+**Nenhuma variável é obrigatória.** Em produção na Vercel, a URL pública do site é resolvida automaticamente a partir das variáveis de sistema (`VERCEL_PROJECT_PRODUCTION_URL` → `VERCEL_URL`), disponíveis em todos os planos. Certifique-se apenas de que **Settings → Environment Variables → "Enable access to System Environment Variables"** está marcado (padrão).
+
 | Variável | Obrigatória | Descrição |
 | --- | --- | --- |
-| `NEXT_PUBLIC_SITE_URL` | sim (produção) | URL pública do site (ex.: `https://imovelradar.com.br`). Usada em canonical, Open Graph, sitemap e robots. O build **falha** se esta variável não estiver definida em deploy de produção na Vercel; em dev/preview, um fallback é usado com aviso no log. |
+| `NEXT_PUBLIC_SITE_URL` | não (opcional) | Sobrepõe a URL detectada automaticamente. Use apenas se o site tiver um domínio próprio (ex.: `https://imovelradar.com.br`). Usada em canonical, Open Graph, sitemap e robots. O build só **falha** em produção se nem essa variável nem as variáveis de sistema da Vercel estiverem disponíveis; fora da Vercel (dev/build local), um fallback é usado com aviso no log. |
 
 ## 3. Build
 
@@ -23,7 +25,7 @@ O frontend é um build estático (`output: "export"`), então qualquer host de a
 
 ## 4. Pós-deploy — checklist
 
-- [ ] `/robots.txt` apontando para o sitemap correto (usa `NEXT_PUBLIC_SITE_URL`)
+- [ ] `/robots.txt` apontando para o sitemap correto (usa a URL pública resolvida)
 - [ ] `/sitemap.xml` com a URL de produção
 - [ ] OG image renderizando ao compartilhar o link no Telegram/WhatsApp
 - [ ] CTA do Telegram abrindo o bot correto
