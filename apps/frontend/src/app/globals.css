@@ -138,3 +138,17 @@
     transform: translateX(130%);
   }
 }
+
+/* Acessibilidade: desliga animações/transições para quem prefere movimento
+   reduzido (WCAG 2.3.3). Animações com fill-mode "both" pulam direto para o
+   estado final visível; o marquee para na posição inicial visual. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
