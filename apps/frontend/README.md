@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Frontend — Imóvel Radar
 
-## Getting Started
+Landing page estática (SSG) do Imóvel Radar. O objetivo é uma única ação de conversão: levar o visitante para o bot do Telegram.
 
-First, run the development server:
+## Stack
+
+- **Next.js 16** (App Router) com `output: "export"` — build 100% estático em `out/`
+- **Tailwind CSS v4** com tokens do design system Bold (definidos em `src/app/globals.css`)
+- **shadcn/ui** (style `base-nova`) + Base UI + lucide-react
+- Fontes: Archivo Black (headings) e JetBrains Mono (mono/caps), via `next/font/google`
+- Testes de acessibilidade com **Playwright + axe-core**
+
+## Comandos
+
+Este app faz parte de um monorepo Turborepo (pnpm). Da raiz do repositório:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm run dev     # dev server em http://localhost:3000
+pnpm run build   # build estático (saída em apps/frontend/out/)
+pnpm run lint    # eslint + tsc --noEmit
+pnpm run test    # testes de acessibilidade (builda e serve out/ automaticamente)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Ou diretamente em `apps/frontend/`: `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm test:a11y`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Estrutura
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+├── app/
+│   ├── layout.tsx           # fontes, metadata global, viewport
+│   ├── page.tsx             # composição das seções da landing
+│   ├── globals.css          # tokens do tema (Bold design system)
+│   ├── robots.ts            # robots.txt gerado no build
+│   ├── sitemap.ts           # sitemap.xml gerado no build
+│   └── opengraph-image.tsx  # imagem OG gerada no build
+├── components/
+│   ├── hero-section.tsx     # seções da landing (server components)
+│   ├── ...
+│   └── ui/                  # componentes shadcn/ui
+├── content/
+│   └── page-content.ts      # TODO o copy da página — edite aqui
+└── lib/
+    └── utils.ts             # cn() e helpers
+tests/
+└── accessibility/           # specs Playwright + axe (contraste, teclado, reflow)
+```
 
-## Learn More
+## Editar o conteúdo
 
-To learn more about Next.js, take a look at the following resources:
+Todo o texto da landing vive em [`src/content/page-content.ts`](src/content/page-content.ts). Alterar o copy **não exige mudanças nos componentes**.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+A URL do bot do Telegram também está nesse arquivo (`TELEGRAM_BOT_URL`).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deploy
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Veja [DEPLOY.md](DEPLOY.md) para os passos manuais de deploy na Vercel.
