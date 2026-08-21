@@ -15,6 +15,10 @@
     {
       "name": "📦 shared-models",
       "path": "packages/shared-models"
+    },
+    {
+      "name": "🌐 frontend",
+      "path": "apps/frontend"
     }
   ],
   "settings": {
