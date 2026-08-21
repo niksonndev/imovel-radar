@@ -53,45 +53,7 @@
 }
 
 :root {
-  --background: oklch(0.98 0.003 240);
-  --foreground: #111827;
-  --card: oklch(1 0 0);
-  --card-foreground: #111827;
-  --popover: oklch(1 0 0);
-  --popover-foreground: #111827;
-  --primary: #0077BC;
-  --primary-on-surface: #4DA3D9;
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: #009866;
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.96 0.005 240);
-  --muted-foreground: oklch(0.5 0.01 240);
-  --accent: oklch(0.96 0.005 240);
-  --accent-foreground: #111827;
-  --destructive: #DC2626;
-  --success: #16A34A;
-  --warning: #D97706;
-  --surface: #111111;
-  --border: oklch(0.9 0.01 240);
-  --input: oklch(0.9 0.01 240);
-  --ring: #0077BC;
-  --chart-1: #0077BC;
-  --chart-2: #009866;
-  --chart-3: #D97706;
-  --chart-4: #DC2626;
-  --chart-5: #16A34A;
-  --radius: 8px;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: #111827;
-  --sidebar-primary: #0077BC;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.96 0.005 240);
-  --sidebar-accent-foreground: #111827;
-  --sidebar-border: oklch(0.9 0.01 240);
-  --sidebar-ring: #0077BC;
-}
-
-.dark {
+  /* Tema escuro é o padrão do site (landing usa bg-surface/text-white). */
   --background: #111111;
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.18 0.005 240);
