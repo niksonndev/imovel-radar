@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Archivo_Black, JetBrains_Mono } from "next/font/google";
+import { Archivo_Black, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 import { SITE_URL } from "@/lib/site";
@@ -7,6 +7,11 @@ import { SITE_URL } from "@/lib/site";
 const archivoBlack = Archivo_Black({
   weight: "400",
   variable: "--font-archivo-black",
+  subsets: ["latin"],
+});
+
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
@@ -67,7 +72,7 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${archivoBlack.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${archivoBlack.variable} ${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
