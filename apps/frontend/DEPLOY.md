@@ -14,7 +14,7 @@ O frontend é um build estático (`output: "export"`), então qualquer host de a
 
 | Variável | Obrigatória | Descrição |
 | --- | --- | --- |
-| `NEXT_PUBLIC_SITE_URL` | sim (produção) | URL pública do site (ex.: `https://imovelradar.com.br`). Usada em canonical, Open Graph, sitemap e robots. O fallback de dev é um placeholder — **não deixe o fallback ir para produção**. |
+| `NEXT_PUBLIC_SITE_URL` | sim (produção) | URL pública do site (ex.: `https://imovelradar.com.br`). Usada em canonical, Open Graph, sitemap e robots. O build **falha** se esta variável não estiver definida em deploy de produção na Vercel; em dev/preview, um fallback é usado com aviso no log. |
 
 ## 3. Build
 
