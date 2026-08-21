@@ -49,6 +49,23 @@ export const SECTION_CTA_LABEL = "Começar agora";
 export const OG_IMAGE_TAGLINE =
   "Anúncios novos do OLX Maceió direto no Telegram";
 
+// Telegram preview (mock de conversa)
+export const TELEGRAM_PREVIEW_HEADLINE = "Veja como o alerta chega";
+export const TELEGRAM_PREVIEW_SUBHEADLINE =
+  "Sem abrir o OLX e sem perder tempo: a notificação chega no seu Telegram com o resumo do anúncio e o link direto.";
+export const MOCK_ALERTS = [
+  {
+    title: "Apartamento em Ponta Verde",
+    detail: "R$ 1.800/mês · 2 quartos · 65m²",
+    time: "14:32",
+  },
+  {
+    title: "Casa em Jatiúca",
+    detail: "R$ 2.500/mês · 3 quartos · 120m²",
+    time: "14:35",
+  },
+];
+
 // Footer
 export const FOOTER_TELEGRAM_LABEL = "Telegram";
 export const FOOTER_LEGAL = "Feito com Imóvel Radar";
