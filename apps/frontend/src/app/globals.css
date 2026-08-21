@@ -114,3 +114,27 @@
     mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 75%);
   }
 }
+
+/* Brilho que atravessa o botão no hover */
+@utility btn-shine {
+  position: relative;
+  overflow: hidden;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 40%,
+      rgb(255 255 255 / 0.35) 50%,
+      transparent 60%
+    );
+    transform: translateX(-130%);
+    transition: transform 0.7s ease;
+  }
+
+  &:hover::after {
+    transform: translateX(130%);
+  }
+}

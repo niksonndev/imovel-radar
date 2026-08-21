@@ -68,9 +68,7 @@ export function HowItWorks() {
           href={TELEGRAM_BOT_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className={cn(
-            buttonVariants({ variant: "default", size: "lg" })
-          )}
+          className={cn(buttonVariants({ variant: "default", size: "lg" }), "btn-shine")}
         >
           {SECTION_CTA_LABEL}
         </a>

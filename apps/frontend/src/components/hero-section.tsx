@@ -45,7 +45,7 @@ export function HeroSection() {
           rel="noopener noreferrer"
           className={cn(
             buttonVariants({ variant: "default", size: "lg" }),
-            "mt-2 h-11 px-6 text-base animate-in fade-in slide-in-from-bottom-3 fill-mode-both duration-500 delay-300"
+            "btn-shine mt-2 h-11 px-6 text-base animate-in fade-in slide-in-from-bottom-3 fill-mode-both duration-500 delay-300"
           )}
         >
           <Send className="size-4" data-icon="inline-start" />
