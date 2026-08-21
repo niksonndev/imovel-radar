@@ -1,4 +1,5 @@
 import {
+  FOOTER_TELEGRAM_LABEL,
   FOOTER_LEGAL,
   TELEGRAM_BOT_URL,
 } from "@/content/page-content";
@@ -19,7 +20,7 @@ export function Footer() {
         )}
       >
         <ExternalLink className="size-4" />
-        Telegram
+        {FOOTER_TELEGRAM_LABEL}
       </a>
       <p className="font-mono text-xs tracking-wider text-white/60">
         {FOOTER_LEGAL}

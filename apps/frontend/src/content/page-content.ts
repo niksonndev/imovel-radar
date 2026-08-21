@@ -41,5 +41,10 @@ export const CTA_SUBHEADLINE =
   "Grátis, sem limite de uso, sem cadastro complicado.";
 export const CTA_BUTTON_LABEL = "Ativar no Telegram";
 
+// Sections
+export const FEATURES_SECTION_HEADING = "Funcionalidades";
+export const SECTION_CTA_LABEL = "Começar agora";
+
 // Footer
+export const FOOTER_TELEGRAM_LABEL = "Telegram";
 export const FOOTER_LEGAL = "Feito com Imóvel Radar";

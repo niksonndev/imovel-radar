@@ -6,6 +6,7 @@ import {
   STEP_2_DESC,
   STEP_3_TITLE,
   STEP_3_DESC,
+  SECTION_CTA_LABEL,
   TELEGRAM_BOT_URL,
 } from "@/content/page-content";
 import { buttonVariants } from "@/components/ui/button";
@@ -71,7 +72,7 @@ export function HowItWorks() {
             buttonVariants({ variant: "default", size: "lg" })
           )}
         >
-          Começar agora
+          {SECTION_CTA_LABEL}
         </a>
       </div>
     </section>

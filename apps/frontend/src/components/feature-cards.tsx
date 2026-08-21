@@ -5,6 +5,8 @@ import {
   FEATURE_2_DESC,
   FEATURE_3_TITLE,
   FEATURE_3_DESC,
+  FEATURES_SECTION_HEADING,
+  SECTION_CTA_LABEL,
   TELEGRAM_BOT_URL,
 } from "@/content/page-content";
 import { buttonVariants } from "@/components/ui/button";
@@ -32,7 +34,7 @@ const features = [
 export function FeatureCards() {
   return (
     <section className="px-4 py-16 sm:py-20">
-      <h2 className="sr-only">Funcionalidades</h2>
+      <h2 className="sr-only">{FEATURES_SECTION_HEADING}</h2>
       <div className="mx-auto grid w-full max-w-5xl gap-6 sm:grid-cols-3 sm:gap-8">
         {features.map((feature) => (
           <article
@@ -57,7 +59,7 @@ export function FeatureCards() {
                 "mt-auto self-start px-0"
               )}
             >
-              Começar agora
+              {SECTION_CTA_LABEL}
             </a>
           </article>
         ))}
