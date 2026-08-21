@@ -39,7 +39,7 @@ export function FeatureCards() {
         {features.map((feature) => (
           <article
             key={feature.title}
-            className="group flex flex-col gap-4 rounded-lg border bg-card p-6 text-card-foreground shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10"
+            className="group reveal-on-scroll flex flex-col gap-4 rounded-lg border bg-card p-6 text-card-foreground shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10"
           >
             <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 transition-colors duration-300 group-hover:bg-primary/20">
               <feature.icon className="size-5 text-primary" />

@@ -47,12 +47,12 @@ export function HowItWorks() {
                   {step.number}
                 </span>
                 {index < steps.length - 1 && (
-                  <div className="mt-1 w-px flex-1 bg-white/20" />
+                  <div className="draw-line mt-1 w-px flex-1 bg-white/20" />
                 )}
               </div>
 
               {/* Step content */}
-              <div className="flex flex-col gap-1 pb-8">
+              <div className="reveal-on-scroll flex flex-col gap-1 pb-8">
                 <h3 className="font-heading text-lg text-white">
                   {step.title}
                 </h3>

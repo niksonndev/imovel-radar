@@ -11,7 +11,7 @@ import { Send } from "lucide-react";
 export function CTASection() {
   return (
     <section className="flex flex-col items-center justify-center bg-primary px-4 py-24 sm:py-32">
-      <div className="flex w-full max-w-2xl flex-col items-center gap-6 text-center">
+      <div className="reveal-on-scroll mx-auto flex w-full max-w-2xl flex-col items-center gap-6 text-center">
         <h2 className="font-heading text-3xl leading-tight tracking-tight text-primary-foreground sm:text-4xl">
           {CTA_HEADLINE}
         </h2>

@@ -15,7 +15,7 @@ export function TelegramPreview() {
     <section className="px-4 py-20 sm:py-28">
       <div className="mx-auto grid w-full max-w-5xl items-center gap-12 md:grid-cols-2">
         {/* Texto */}
-        <div className="flex flex-col items-start gap-5">
+        <div className="reveal-on-scroll flex flex-col items-start gap-5">
           <h2 className="font-heading text-3xl leading-tight tracking-tight text-white sm:text-4xl">
             {TELEGRAM_PREVIEW_HEADLINE}
           </h2>
@@ -37,7 +37,10 @@ export function TelegramPreview() {
         </div>
 
         {/* Mockup do Telegram (ilustrativo) */}
-        <div aria-hidden="true" className="relative mx-auto w-full max-w-xs">
+        <div
+          aria-hidden="true"
+          className="reveal-on-scroll relative mx-auto w-full max-w-xs"
+        >
           <div className="absolute -inset-8 rounded-full bg-primary/10 blur-[80px]" />
           <div className="relative rounded-[2rem] border border-border bg-card p-3 shadow-2xl shadow-primary/10">
             <div className="overflow-hidden rounded-[1.6rem] bg-background">

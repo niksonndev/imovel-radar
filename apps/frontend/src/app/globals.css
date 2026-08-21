@@ -151,4 +151,46 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+
+  /* Animações scroll-driven não dependem de duração — desligar de fato */
+  .reveal-on-scroll,
+  .draw-line {
+    animation: none !important;
+  }
+}
+
+/* Revelação ao rolar (CSS scroll-driven, sem JS). Em navegadores sem suporte
+   a animation-timeline, a animação vira time-based de 0s e termina visível. */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility reveal-on-scroll {
+  animation: reveal-up linear both;
+  animation-timeline: view();
+  animation-range: entry 0% entry 80%;
+}
+
+/* Linha vertical da timeline "Como funciona" se desenhando ao rolar */
+@keyframes draw-line {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@utility draw-line {
+  transform-origin: top;
+  animation: draw-line linear both;
+  animation-timeline: view();
+  animation-range: entry 10% exit 80%;
 }
