@@ -103,3 +103,14 @@
     @apply font-sans;
   }
 }
+
+@layer components {
+  /* Grade fina com fade radial — fundo decorativo do hero */
+  .bg-grid-fade {
+    background-image:
+      linear-gradient(to right, rgb(255 255 255 / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(255 255 255 / 0.05) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 75%);
+  }
+}

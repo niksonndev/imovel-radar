@@ -6,6 +6,7 @@ import {
 } from "@/content/page-content";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Send } from "lucide-react";
 
 export function CTASection() {
   return (
@@ -25,9 +26,10 @@ export function CTASection() {
           rel="noopener noreferrer"
           className={cn(
             buttonVariants({ variant: "default", size: "lg" }),
-            "mt-2 bg-white text-primary hover:bg-white/90"
+            "mt-2 h-11 px-6 text-base bg-white text-primary hover:bg-white/90"
           )}
         >
+          <Send className="size-4" data-icon="inline-start" />
           {CTA_BUTTON_LABEL}
         </a>
       </div>
