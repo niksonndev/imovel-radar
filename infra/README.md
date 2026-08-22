@@ -55,15 +55,10 @@ build do zip → `terraform plan`/`apply` → smoke pós-deploy (10 páginas).
 > ATENÇÃO: `database_url` aparece no state (projeto pessoal); o CI o passa por
 > `-var`, então não fica hardcoded nos arquivos.
 
-## Bot infra (webhook + notificação)
+## Bot infra — corte 1 (webhook/notificação)
 
-**Corte 1** (aplicado): DynamoDB de estado de conversa (ADR 0006), SSM do token,
-IAM role `imovel-radar-prod-bot-webhook` e expansão da política de deploy.
-
-**Corte 2** (este): cria a função Lambda do bot, API Gateway, EventBridge e
-smoke/setWebhook no CI.
-
-Recursos (o `terraform apply` cria/provisiona):
+Prepara a base da Bot Lambda sem criar a função (ela entra no corte 2, junto
+com o código do bot). Recursos deste corte:
 
 - **DynamoDB `imovel-radar-prod-conversation-state`** — estado de conversa do
   PTB (ADR 0006): PK `chat_id` (Number) + SK `store` (String), TTL nativo no
@@ -73,28 +68,10 @@ Recursos (o `terraform apply` cria/provisiona):
   Terraform** (bootstrap), para o token nunca entrar no state.
 - **IAM role `imovel-radar-prod-bot-webhook`** — execução da Bot Lambda:
   `AWSLambdaBasicExecutionRole` + leitura de secrets no SSM (token +
-  `database_url`) + acesso à tabela de conversação (incl. `Scan`).
-- **Bot Lambda `imovel-radar-prod-bot-webhook`** — python3.13, handler
-  `lambda_handler.lambda_handler`, env `DATABASE_URL`, `DYNAMODB_TABLE`,
-  `SSM_TOKEN_PARAM`, `LOG_LEVEL`. Distingue entre webhook e notificação pela
-  origem do evento.
-- **API Gateway** `imovel-radar-prod-bot-webhook-api` — HTTP API com rota
-  `POST /webhook`, integração AWS_PROXY (timeout 29 s). URL no output.
-- **EventBridge** `imovel-radar-prod-bot-notify` — cron horário → Lambda.
-- **Logs + alarme CloudWatch** do webhook/notificação.
-
-### Zip separados (scraper vs bot)
-
-- `scraper_zip_path` → `dist/lambda.zip` do scraper (chave `scraper/lambda.zip`).
-- `bot_zip_path` → `dist/lambda.zip` do bot (chave `bot/lambda.zip`).
-
-Separar zips evita re-deploy cruzado (o acoplamento de `zip_path` reportado no
-corte 1).
-
-### Set webhook
-
-`.github/workflows/infra-deploy.yml` chama `setWebhook` após o apply apontando
-para `bot_webhook_url` (lido do output do terraform).
+  `database_url`) + acesso à tabela de conversação.
+- **Política de deploy do GitHub Actions ampliada** — permissões para criar a
+  tabela DynamoDB, a role/policy do bot, ler o token e (no corte 2) a função
+  Lambda, logs e alarmes.
 
 ### Bootstrap do token (uma vez)
 

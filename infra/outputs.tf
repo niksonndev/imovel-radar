@@ -34,8 +34,3 @@ output "bot_lambda_role_arn" {
 output "telegram_bot_token_ssm_name" {
   value = var.bot_ssm_token_name
 }
-
-output "bot_webhook_url" {
-  description = "URL pública do webhook do Telegram (chamar setWebhook com este base)"
-  value       = "${aws_apigatewayv2_api.bot_webhook.api_endpoint}/webhook"
-}

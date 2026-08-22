@@ -1,10 +1,13 @@
 """
-Bot Telegram — Imóvel Radar.
+Bot Telegram — cliente "dumb" da API do scraper.
 
-Dev local (/dev): roda com polling + PicklePersistence no fluxo ``main.py``.
-Produção (serverless, ADR 0004): a Bot Lambda processa webhooks via
-``lambda_handler.py`` com estado de conversa em DynamoDB (ADR 0006) e acesso
-direto ao Postgres compartilhado (ADR 0005).
+Não acessa banco de dados nem faz scraping. Toda a lógica de negócio
+(listings, alertas, matches) fica no serviço Scraper.
+
+Responsabilidades:
+- Traduzir a conversa do Telegram em chamadas HTTP para o scraper
+- Polling periódico de matches novos (a cada 1 hora)
+- Enviar notificações como carrosséis do Telegram
 """
 
 from __future__ import annotations
@@ -16,8 +19,9 @@ from pathlib import Path
 from telegram.ext import Application, ContextTypes, PicklePersistence
 
 import config
-from application import build_application
-from handlers.setup import apply_bot_commands
+from application import RadarApplication
+from handlers.api_client import close_client, init_client
+from handlers.setup import apply_bot_commands, setup
 from jobs.polling_job import notify_new_matches
 from models import CustomContext, UserData
 
@@ -36,11 +40,13 @@ logger = logging.getLogger(__name__)
 
 async def post_init(app: Application) -> None:
     await apply_bot_commands(app)
+    init_client()
     start_polling(app)
     logger.info("Bot iniciado.")
 
 
 async def post_shutdown(app: Application) -> None:
+    await close_client()
     _ = app  # silencia hint de parâmetro não usado
     logger.info("Bot finalizado")
 
@@ -63,16 +69,20 @@ def start_polling(app: Application) -> None:
 
 
 def main() -> None:
-    # Dev local: persistência por arquivo (PicklePersistence). Produção en serverless
-    # usa DynamoDBPersistence via lambda_handler.py (ADR 0006).
-    persistence = PicklePersistence(filepath=config.get_persistence_file())
+    persistence = PicklePersistence(filepath=config.PERSISTENCE_FILE)
 
-    app = build_application(
-        persistence=persistence,
-        context_types=ContextTypes(context=CustomContext, user_data=UserData),
+    app = (
+        Application.builder()
+        .application_class(RadarApplication)
+        .token(config.TELEGRAM_BOT_TOKEN)
+        .context_types(ContextTypes(context=CustomContext, user_data=UserData))
+        .persistence(persistence)
+        .post_init(post_init)
+        .post_shutdown(post_shutdown)
+        .build()
     )
-    app.post_init = post_init
-    app.post_shutdown = post_shutdown
+
+    setup(app)
 
     logger.info("Iniciando polling...")
     app.run_polling(allowed_updates=["message", "callback_query"])

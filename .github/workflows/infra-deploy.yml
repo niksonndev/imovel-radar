@@ -1,16 +1,13 @@
-name: Infra Deploy (scraper + bot lambdas)
+name: Infra Deploy (scraper lambda)
 
-# Deploy das lambdas (scraper de coleta + bot webhook/notificação) via Terraform.
-# Gatilhos: mudanças em apps/scraper, apps/bot, packages/shared-models,
-# infra/ ou no próprio workflow.
+# Deploy da Lambda de coleta (scraper) via Terraform + EventBridge.
+# Gatilhos: mudanças em apps/scraper, infra/ ou no próprio workflow.
 
 on:
   push:
     branches: [main]
     paths:
       - 'apps/scraper/**'
-      - 'apps/bot/**'
-      - 'packages/shared-models/**'
       - 'infra/**'
       - '.github/workflows/infra-deploy.yml'
 
@@ -48,7 +45,7 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
-          cache-dependency-glob: '{apps/scraper/uv.lock,apps/bot/uv.lock}'
+          cache-dependency-glob: 'apps/scraper/uv.lock'
 
       - uses: hashicorp/setup-terraform@v3
 
@@ -77,7 +74,7 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
-      - name: Build scraper Lambda zip
+      - name: Build Lambda zip
         working-directory: apps/scraper
         run: |
           uv export --no-dev --frozen -o /tmp/requirements.txt
@@ -89,21 +86,6 @@ jobs:
           cp -r scheduler collector database dist/python/
           cd dist/python && zip -q -r ../lambda.zip .
 
-      - name: Bot lint + Build bot Lambda zip
-        working-directory: apps/bot
-        run: |
-          uv python install
-          uv sync --frozen
-          uv run ruff check .
-          uv export --no-dev --frozen -o /tmp/requirements-bot.txt
-          grep -vi 'shared-models' /tmp/requirements-bot.txt > /tmp/requirements-bot-no-shared.txt
-          mkdir -p dist/python
-          uv pip install --target dist/python -r /tmp/requirements-bot-no-shared.txt
-          cp -r ../../packages/shared-models/src/shared_models dist/python/shared_models
-          cp lambda_handler.py config.py application.py models.py persistence.py dist/python/
-          cp -r handlers jobs database dist/python/
-          cd dist/python && zip -q -r ../lambda.zip .
-
       - name: Terraform plan + apply
         working-directory: infra
         run: |
@@ -113,12 +95,10 @@ jobs:
             -backend-config="region=${{ env.AWS_REGION }}" \
             -backend-config="use_lockfile=true"
           terraform plan \
-            -var "scraper_zip_path=../apps/scraper/dist/lambda.zip" \
-            -var "bot_zip_path=../apps/bot/dist/lambda.zip" \
+            -var "zip_path=../apps/scraper/dist/lambda.zip" \
             -var "database_url=${{ env.DATABASE_URL }}"
           terraform apply -auto-approve \
-            -var "scraper_zip_path=../apps/scraper/dist/lambda.zip" \
-            -var "bot_zip_path=../apps/bot/dist/lambda.zip" \
+            -var "zip_path=../apps/scraper/dist/lambda.zip" \
             -var "database_url=${{ env.DATABASE_URL }}"
 
       - name: Post-deploy smoke (10 páginas)
@@ -135,12 +115,3 @@ jobs:
           # restaura o env padrão (SCRAPER_MAX_PAGES=100)
           aws lambda update-function-configuration --function-name "$FN" \
             --environment "Variables={DATABASE_URL=${{ env.DATABASE_URL }},LOG_LEVEL=INFO,SCRAPER_MAX_PAGES=100}" >/dev/null
-
-      - name: Set webhook (Telegram → API Gateway)
-        run: |
-          TOKEN=$(aws ssm get-parameter --name /imovel-radar/prod/telegram_bot_token --with-decryption --query Parameter.Value --output text)
-          WEBHOOK_URL="$(terraform -chdir=infra output bot_webhook_url)"
-          curl -s -X POST "https://api.telegram.org/bot${TOKEN}/setWebhook" \
-            -H 'Content-Type: application/json' \
-            -d "{\"url\": \"${WEBHOOK_URL}\", \"allowed_updates\": [\"message\", \"callback_query\"]}"
-          echo

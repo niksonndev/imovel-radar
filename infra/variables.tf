@@ -29,23 +29,13 @@ variable "artifact_bucket" {
   default = "imovel-radar-lambda-artifacts"
 }
 
-# ── Artefatos (scraper e bot separados — evita re-deploy cruzado) ──────────
-variable "scraper_artifact_key" {
+variable "artifact_key" {
   default = "scraper/lambda.zip"
 }
 
-variable "scraper_zip_path" {
-  description = "Caminho local do zip da Lambda de coleta (passado pelo CI; necessário p/ apply)"
-  default     = "../apps/scraper/dist/lambda.zip"
-}
-
-variable "bot_artifact_key" {
-  default = "bot/lambda.zip"
-}
-
-variable "bot_zip_path" {
-  description = "Caminho local do zip da Bot Lambda (passado pelo CI; necessário p/ apply)"
-  default     = "../apps/bot/dist/lambda.zip"
+variable "zip_path" {
+  description = "Caminho local do zip da Lambda (passado pelo CI; necessário p/ apply)"
+  default     = ""
 }
 
 variable "database_url" {
@@ -86,6 +76,12 @@ variable "conversation_ttl_hours" {
 variable "bot_notify_cron" {
   description = "Cron do EventBridge para o job de notificação do bot (UTC) — 1x/hora"
   default     = "cron(0 * * * ? *)"
+}
+
+# Usadas a partir do corte 2 (função + trigger). Default vazio não quebra o plan.
+variable "bot_zip_path" {
+  description = "Caminho local do zip da Bot Lambda (passado pelo CI no corte 2)"
+  default     = ""
 }
 
 variable "bot_memory" {

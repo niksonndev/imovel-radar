@@ -28,9 +28,10 @@ MAL_RM_RE = re.compile(r"^mal_rm_(\d+)$")
 
 async def _render_alert_list_message(query: CallbackQuery, user_id: int) -> None:
     try:
-        alerts = await get_alerts_for_user(user_id)
+        response = await get_alerts_for_user(user_id)
+        alerts = response.alerts
     except Exception:
-        logger.exception("Falha ao listar alertas via banco")
+        logger.exception("Falha ao listar alertas via API")
         await query.edit_message_text(
             text=menus.meus_alertas_erro(),
             parse_mode=ParseMode.MARKDOWN,

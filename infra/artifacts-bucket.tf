@@ -18,18 +18,10 @@ resource "aws_s3_bucket_public_access_block" "artifacts" {
   restrict_public_buckets = true
 }
 
-# Upload dos zips feito pelo próprio Terraform (o CI passa os zip_paths).
-
+# Upload do zip feito pelo próprio Terraform (o CI passa o zip_path).
 resource "aws_s3_object" "scraper_artifact" {
   bucket = aws_s3_bucket.artifacts.id
-  key    = var.scraper_artifact_key
-  source = var.scraper_zip_path
-  etag   = filemd5(var.scraper_zip_path)
-}
-
-resource "aws_s3_object" "bot_artifact" {
-  bucket = aws_s3_bucket.artifacts.id
-  key    = var.bot_artifact_key
-  source = var.bot_zip_path
-  etag   = filemd5(var.bot_zip_path)
+  key    = var.artifact_key
+  source = var.zip_path
+  etag   = filemd5(var.zip_path)
 }
