@@ -90,10 +90,20 @@ Consequences of this decision, deliberately:
 
 1. Where the matching queries live (duplicated in the bot vs. moved to a
    shared location such as `packages/shared-models`).
-2. Future of `packages/shared-models`: `api_schemas` loses purpose on this
-   path, while domain models and utils remain useful (re-opens question #3 of
-   ADR 0004).
-3. Deprecation/removal path of the scraper's user/alerts/matches endpoints
+2. Deprecation/removal path of the scraper's user/alerts/matches endpoints
    (immediate removal vs. staged deprecation during switchover).
-4. Idempotency implementation for alert creation (see ADR 0006, confirm
+3. Idempotency implementation for alert creation (see ADR 0006, confirm
    flow).
+
+## Decided after acceptance
+
+**SQLModel table models live in `packages/shared-models`
+(`shared_models.tables`)** — resolves the model-duplication half of open
+question #2 (and the "matching queries must move or be shared" trade-off
+above is mitigated: both apps now import the same table definitions). With
+ownership of the schema split between two apps (matrix above), the neutral
+package owns the physical definitions; the scraper's Alembic remains the sole
+owner of migrations. The module is deliberately not re-exported at package
+top level: its class names (`Listing`, `Alert`, ...) collide with the Pydantic
+domain models in `shared_models.models`, which remain the API/display contract.
+

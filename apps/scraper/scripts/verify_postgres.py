@@ -27,10 +27,11 @@ if str(ROOT) not in sys.path:
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+from shared_models.tables import Listing  # noqa: E402
+
 import config  # noqa: E402
 from collector.parser import RawAd  # noqa: E402
 from database import engine  # noqa: E402
-from database.models import Listing  # noqa: E402
 from database.queries import upsert_listing  # noqa: E402
 
 

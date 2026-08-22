@@ -6,13 +6,13 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from shared_models.tables import Alert as AlertModel
+from shared_models.tables import User
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, SQLModel
 
 from api.alerts import router as alerts_router
 from database import get_session
-from database.models import Alert as AlertModel
-from database.models import User
 
 
 @pytest.fixture()

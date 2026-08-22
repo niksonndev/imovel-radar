@@ -9,10 +9,10 @@ from shared_models.api_schemas import (
     UnnotifiedListingsResponse,
 )
 from shared_models.models import Listing, Properties
+from shared_models.tables import Listing as ListingModel
 from sqlmodel import Session
 
 from database import get_session
-from database.models import Listing as ListingModel
 from database.queries import (
     get_neighbourhoods,
     get_unnotified_listings_for_user,

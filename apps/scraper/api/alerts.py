@@ -9,10 +9,10 @@ from shared_models.api_schemas import (
     CreateAlertResponse,
 )
 from shared_models.models import Alert
+from shared_models.tables import Alert as AlertModel
 from sqlmodel import Session
 
 from database import get_session
-from database.models import Alert as AlertModel
 from database.queries import (
     create_alert,
     delete_alert_for_user,

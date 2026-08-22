@@ -3,11 +3,11 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 import pytest
+import shared_models.tables  # noqa: F401  (registra as tabelas no SQLModel.metadata)
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, SQLModel
 
 import config
-import database.models  # noqa: F401  (registra as tabelas no SQLModel.metadata)
 from database import make_engine
 
 

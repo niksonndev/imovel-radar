@@ -1,8 +1,18 @@
-"""SQLModel models (tables) for the scraper's Postgres database.
+"""SQLModel table models do Postgres compartilhado — fonte única do schema físico.
 
-Local **persistence** layer. API response classes (`shared_models.api_schemas`)
-are the shared contract between services and live in `packages/shared-models`.
+Usados por scraper e bot (ADR 0005): a bot é dona de ``users``, ``alerts`` e
+``alert_matches`` e lê ``listing`` (read-only); o scraper é dono de ``listing``.
+
+Atenção: as classes registram-se num ``SQLModel.metadata`` global compartilhado.
+Mudanças de schema vão **exclusivamente** por migrations Alembic (apps/scraper/alembic)
+— nunca chame ``SQLModel.metadata.create_all`` fora dos testes.
+
+Não reexportado no ``__init__`` do pacote de propósito: os nomes colidem com os
+modelos Pydantic de domínio (``shared_models.models``). Importe de
+``shared_models.tables`` explicitamente.
 """
+
+from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any, NamedTuple
@@ -23,7 +33,7 @@ from sqlmodel import Field, SQLModel
 
 
 class Listing(SQLModel, table=True):
-    """An OLX listing persisted in the ``listing`` table."""
+    """An OLX listing in the ``listing`` table (read-only pela bot)."""
 
     __tablename__ = "listing"  # type: ignore
 
@@ -56,7 +66,7 @@ class Listing(SQLModel, table=True):
 
 
 class User(SQLModel, table=True):
-    """User identified by Telegram chat_id."""
+    """User identified by Telegram chat_id (dona: bot)."""
 
     __tablename__ = "users"  # type: ignore
 
@@ -68,7 +78,7 @@ class User(SQLModel, table=True):
 
 
 class Alert(SQLModel, table=True):
-    """Registered alert. ``neighbourhoods`` is JSON serialized."""
+    """Registered alert. ``neighbourhoods`` is JSON serialized (dona: bot)."""
 
     __tablename__ = "alerts"  # type: ignore
     __table_args__ = (
@@ -97,7 +107,7 @@ class Alert(SQLModel, table=True):
 
 
 class AlertMatch(SQLModel, table=True):
-    """Record that a listing has already been notified for an alert."""
+    """Record that a listing has already been notified for an alert (dona: bot)."""
 
     __tablename__ = "alert_matches"  # type: ignore
 
@@ -114,6 +124,9 @@ class AlertMatch(SQLModel, table=True):
         sa_column=Column("notified_at", DateTime(timezone=True), server_default=func.now()),
     )
 
+
 class ListingAlertMatch(NamedTuple):
+    """A listing plus the alert it matched."""
+
     listing: Listing
     alert_id: int

@@ -1,5 +1,4 @@
 from .db import engine, get_session, make_engine
-from .models import Alert, AlertMatch, Listing, User
 from .queries import (
     create_alert,
     delete_alert_for_user,
@@ -13,10 +12,6 @@ from .queries import (
 from .users import create_user, get_user
 
 __all__ = [
-    "Alert",
-    "AlertMatch",
-    "Listing",
-    "User",
     "engine",
     "get_session",
     "make_engine",

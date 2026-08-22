@@ -2,10 +2,10 @@ import json
 from pathlib import Path
 
 from shared_models.api_schemas import CreateAlertRequest
+from shared_models.tables import Alert, Listing, User
 from sqlmodel import Session
 
 from collector.parser import RawAd
-from database.models import Alert, Listing, User
 from database.queries import create_alert, get_neighbourhoods, upsert_listing
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"

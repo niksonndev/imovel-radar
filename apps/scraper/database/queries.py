@@ -11,13 +11,12 @@ As queries acessam as colunas diretamente pelos modelos SQLModel, evitando
 from __future__ import annotations
 
 from shared_models.api_schemas import CreateAlertRequest, NotifiedPair
+from shared_models.tables import Alert, AlertMatch, Listing, ListingAlertMatch
 from sqlalchemy import delete, func
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlmodel import Session, select
 
 from collector.parser import RawAd
-
-from .models import Alert, AlertMatch, Listing, ListingAlertMatch
 
 
 # ── Listings ──────────────────────────────────────────────────────────────
