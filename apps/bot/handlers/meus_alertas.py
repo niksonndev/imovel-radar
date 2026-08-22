@@ -1,6 +1,6 @@
 """
 Handlers do menu *Meus Alertas*: listagem, detalhe, remoção e stub de edição.
-Acessa a API do scraper em vez do banco local.
+Lê/remove alertas direto do Postgres compartilhado (ADR 0005).
 """
 
 from __future__ import annotations
@@ -28,10 +28,9 @@ MAL_RM_RE = re.compile(r"^mal_rm_(\d+)$")
 
 async def _render_alert_list_message(query: CallbackQuery, user_id: int) -> None:
     try:
-        response = await get_alerts_for_user(user_id)
-        alerts = response.alerts
+        alerts = await get_alerts_for_user(user_id)
     except Exception:
-        logger.exception("Falha ao listar alertas via API")
+        logger.exception("Falha ao listar alertas via banco")
         await query.edit_message_text(
             text=menus.meus_alertas_erro(),
             parse_mode=ParseMode.MARKDOWN,
@@ -143,7 +142,7 @@ async def meus_alertas_actions_callback(update: Update, context: CustomContext) 
         try:
             await delete_alert(alert_id, user_id)
         except Exception:
-            logger.exception("Falha ao remover alerta via API")
+            logger.exception("Falha ao remover alerta no banco")
             await query.answer("Não foi possível remover o alerta.", show_alert=True)
             return
 

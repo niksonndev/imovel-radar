@@ -4,10 +4,9 @@ Textos centralizados do bot: boas-vindas, wizard, seeds e mensagens de erro.
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 
-from shared_models import Alert
+from shared_models.tables import Alert
 from shared_models.utils import format_brl
 from telegram.helpers import escape_markdown
 
@@ -36,15 +35,10 @@ def meus_alertas_erro() -> str:
     )
 
 
-def _meus_alertas_created_display(raw: object) -> str:
-    s = str(raw or "").strip()
-    if not s:
+def _meus_alertas_created_display(created_at: datetime | None) -> str:
+    if created_at is None:
         return "—"
-    try:
-        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
-        formatted = f"{dt.day:02d}/{dt.month:02d}/{dt.year}"
-    except ValueError:
-        formatted = s
+    formatted = f"{created_at.day:02d}/{created_at.month:02d}/{created_at.year}"
     return escape_markdown(formatted, version=1)
 
 
@@ -54,12 +48,8 @@ def _meus_alertas_format_one(a: Alert) -> str:
     status = "✅ Ativo" if a.active else "⏸ Pausado"
     price_line = f"💰 *Preço:* {format_brl(a.min_price)} – {format_brl(a.max_price)}"
 
-    nh_raw = a.neighbourhoods or "[]"
-    try:
-        nh = json.loads(nh_raw) if isinstance(nh_raw, str) else nh_raw
-    except json.JSONDecodeError:
-        nh = []
-    if isinstance(nh, list) and nh:
+    nh = a.neighbourhoods or []
+    if nh:
         nh_joined = ", ".join(str(x) for x in nh)
         nh_str = escape_markdown(nh_joined, version=1)
         loc = f"📍 *Bairros:* {nh_str}"
@@ -76,12 +66,8 @@ def meus_alertas_detail_view(alert: Alert) -> str:
     status_line = "✅ Alerta ativo" if alert.active else "❌ Alerta inativo"
     price_line = f"💰 {format_brl(alert.min_price)} – {format_brl(alert.max_price)}"
 
-    nh_raw = alert.neighbourhoods or "[]"
-    try:
-        nh = json.loads(nh_raw) if isinstance(nh_raw, str) else nh_raw
-    except json.JSONDecodeError:
-        nh = []
-    loc_short = ", ".join(str(x) for x in nh) if isinstance(nh, list) and nh else "Todos"
+    nh = alert.neighbourhoods or []
+    loc_short = ", ".join(str(x) for x in nh) if nh else "Todos"
     loc_esc = escape_markdown(loc_short, version=1)
     bairros_line = f"📍 {loc_esc}"
 
