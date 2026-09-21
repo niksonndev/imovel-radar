@@ -9,6 +9,7 @@ Lê/escreve no Postgres via SQLModel usando os table models de
 from __future__ import annotations
 
 import logging
+from typing import NamedTuple
 
 from shared_models.tables import Alert, ListingAlertMatch, ListingKind
 from sqlmodel import Session
@@ -17,6 +18,13 @@ from database import queries
 from database.db import get_engine
 
 logger = logging.getLogger(__name__)
+
+
+class CreateAlertResult(NamedTuple):
+    """Resultado de ``create_alert``: id e se a linha foi inserida agora."""
+
+    alert_id: int
+    created: bool
 
 
 # ── Users (dona: bot) ──────────────────────────────────────────────────────
@@ -47,22 +55,21 @@ async def create_alert(
     max_price: int | None = None,
     neighbourhoods: list[str],
     listing_kind: ListingKind = "aluguel",
-) -> int:
-    """Cria o alerta no Postgres e retorna o id gerado (idempotente nos filtros)."""
+) -> CreateAlertResult:
+    """Cria o alerta (ou reusa um com os mesmos filtros) e indica se foi novo."""
     if min_price is None and max_price is None:
         raise ValueError("Informe min_price, max_price, ou ambos.")
     with Session(get_engine()) as session:
         existing = queries.find_equivalent_alert(
             session,
             chat_id=chat_id,
-            alert_name=alert_name,
             min_price=min_price,
             max_price=max_price,
             neighbourhoods=neighbourhoods,
             listing_kind=listing_kind,
         )
         if existing is not None and existing.id is not None:
-            return existing.id
+            return CreateAlertResult(alert_id=existing.id, created=False)
         alert_id = queries.create_alert(
             session,
             chat_id=chat_id,
@@ -73,7 +80,7 @@ async def create_alert(
             listing_kind=listing_kind,
         )
         session.commit()
-    return alert_id
+    return CreateAlertResult(alert_id=alert_id, created=True)
 
 
 async def get_alerts_for_user(chat_id: int) -> list[Alert]:

@@ -34,3 +34,4 @@ class CreateAlertWizardState(TypedDict, total=False):
     neighbourhood_page: int
     confirming: bool
     seed_done: bool
+    alert_was_created: bool
