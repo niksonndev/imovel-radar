@@ -5,7 +5,7 @@ from shared_models.tables import Listing
 from sqlmodel import Session
 
 from collector.parser import RawAd
-from database.queries import get_neighbourhoods, upsert_listing
+from database.queries import deactivate_missing_listings, get_neighbourhoods, upsert_listing
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -72,3 +72,61 @@ def test_get_neighbourhoods_returns_full_names(session: Session) -> None:
     # Retorna os nomes completos (e não apenas a inicial).
     assert set(result) == set(names)
     assert all(len(name) > 1 for name in result)
+
+
+def _listing(listing_id: int, municipality: str = "Maceió", *, active: bool = True) -> Listing:
+    return Listing(
+        listing_id=listing_id,
+        url=f"https://exemplo.com/{listing_id}",
+        title=f"Imóvel {listing_id}",
+        municipality=municipality,
+        neighbourhood="Centro",
+        category="Apartamento",
+        images=[],
+        properties={},
+        active=active,
+    )
+
+
+def test_deactivate_missing_listings_inactivates_unseen(session: Session) -> None:
+    session.add(_listing(1))
+    session.add(_listing(2))
+    session.commit()
+
+    n = deactivate_missing_listings(session, {1}, "Maceió")
+    session.commit()
+    session.expire_all()
+
+    assert n == 1
+    seen = session.get(Listing, 1)
+    unseen = session.get(Listing, 2)
+    assert seen is not None and seen.active is True
+    assert unseen is not None and unseen.active is False
+
+
+def test_deactivate_missing_listings_empty_seen_ids_is_noop(session: Session) -> None:
+    session.add(_listing(1))
+    session.commit()
+
+    n = deactivate_missing_listings(session, set(), "Maceió")
+    session.expire_all()
+
+    assert n == 0
+    stored = session.get(Listing, 1)
+    assert stored is not None and stored.active is True
+
+
+def test_deactivate_missing_listings_scopes_by_municipality(session: Session) -> None:
+    session.add(_listing(1, "Maceió"))
+    session.add(_listing(2, "Recife"))
+    session.commit()
+
+    n = deactivate_missing_listings(session, {999}, "Maceió")
+    session.commit()
+    session.expire_all()
+
+    assert n == 1
+    maceio = session.get(Listing, 1)
+    recife = session.get(Listing, 2)
+    assert maceio is not None and maceio.active is False
+    assert recife is not None and recife.active is True

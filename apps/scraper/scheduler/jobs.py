@@ -14,7 +14,7 @@ from sqlmodel import Session
 
 import collector
 from database import engine
-from database.queries import upsert_listing
+from database.queries import deactivate_missing_listings, upsert_listing
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,13 @@ async def job_daily() -> dict[str, int]:
         with Session(engine) as session:
             for listing in listings:
                 upsert_listing(session, listing)
+            if listings:
+                deactivated = deactivate_missing_listings(
+                    session,
+                    {ad["listing_id"] for ad in listings},
+                    municipality="Maceió",
+                )
+                logger.info("Deactivated %s missing listings", deactivated)
             session.commit()
 
         logger.info("Scheduled collection: end (%s listings)", len(listings))
