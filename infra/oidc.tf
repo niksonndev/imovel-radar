@@ -198,6 +198,28 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       "arn:aws:cloudwatch:${var.region}:*:alarm:${var.project}-${var.environment}-bot-webhook-*",
     ]
   }
+
+  statement {
+    sid = "BotApiGateway"
+    actions = [
+      "apigateway:GET", "apigateway:POST", "apigateway:PUT",
+      "apigateway:PATCH", "apigateway:DELETE",
+    ]
+    resources = [
+      "arn:aws:apigateway:${var.region}::/apis/*",
+    ]
+  }
+
+  statement {
+    sid = "BotEventBridgeNotify"
+    actions = [
+      "events:PutRule", "events:PutTargets", "events:DescribeRule",
+      "events:DeleteRule", "events:RemoveTargets",
+    ]
+    resources = [
+      "arn:aws:events:${var.region}:*:rule/${var.project}-${var.environment}-bot-notify",
+    ]
+  }
 }
 
 resource "aws_iam_policy" "github_actions_deploy" {

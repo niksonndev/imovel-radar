@@ -1,12 +1,11 @@
 import json
 from pathlib import Path
 
-from shared_models.api_schemas import CreateAlertRequest
+from shared_models.tables import Listing
 from sqlmodel import Session
 
 from collector.parser import RawAd
-from database.models import Alert, Listing, User
-from database.queries import create_alert, get_neighbourhoods, upsert_listing
+from database.queries import get_neighbourhoods, upsert_listing
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -44,35 +43,6 @@ def test_upsert_listing_updates_existing_by_listing_id(session: Session) -> None
         assert stored is not None
         assert stored.price_value == 2500
         assert stored.old_price == listing["price_value"]
-
-
-def test_create_alert_persists_fields(session: Session) -> None:
-    engine = session.get_bind()
-
-    with Session(engine) as setup:
-        user = User(chat_id=123456)
-        setup.add(user)
-        setup.commit()
-
-    alert_data = CreateAlertRequest(
-        chat_id=123456,
-        alert_name="Apto 2 quartos Ponta Verde",
-        min_price=200_000,
-        max_price=400_000,
-        neighbourhoods=["Ponta Verde", "Jatiúca"],
-    )
-
-    alert_id = create_alert(session, alert_data)
-    session.commit()
-
-    with Session(engine) as verify:
-        stored = verify.get(Alert, alert_id)
-        assert stored is not None
-        assert stored.chat_id == alert_data.chat_id
-        assert stored.alert_name == alert_data.alert_name
-        assert stored.min_price == alert_data.min_price
-        assert stored.max_price == alert_data.max_price
-        assert stored.neighbourhoods == alert_data.neighbourhoods
 
 
 def test_get_neighbourhoods_returns_full_names(session: Session) -> None:

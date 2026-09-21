@@ -88,12 +88,27 @@ Consequences of this decision, deliberately:
 
 ## Not yet decided
 
-1. Where the matching queries live (duplicated in the bot vs. moved to a
-   shared location such as `packages/shared-models`).
-2. Future of `packages/shared-models`: `api_schemas` loses purpose on this
-   path, while domain models and utils remain useful (re-opens question #3 of
-   ADR 0004).
-3. Deprecation/removal path of the scraper's user/alerts/matches endpoints
-   (immediate removal vs. staged deprecation during switchover).
-4. Idempotency implementation for alert creation (see ADR 0006, confirm
-   flow).
+_(none for the original three items — resolved below.)_
+
+## Decided after acceptance
+
+**SQLModel table models live in `packages/shared-models`
+(`shared_models.tables`)** — resolves the model-duplication half of open
+question #2 (and the "matching queries must move or be shared" trade-off
+above is mitigated: both apps now import the same table definitions). With
+ownership of the schema split between two apps (matrix above), the neutral
+package owns the physical definitions; the scraper's Alembic remains the sole
+owner of migrations. The module is deliberately not re-exported at package
+top level: its class names (`Listing`, `Alert`, ...) collide with the Pydantic
+domain models in `shared_models.models`, which remain the API/display contract.
+
+**Matching queries live in the bot** (`apps/bot/database/queries.py`). The
+scraper no longer serves users/alerts/matches over HTTP.
+
+**Scraper REST endpoints for users/alerts/matches were removed** (immediate
+removal after the bot owns those tables). `shared_models.api_schemas` is
+deprecated and no longer re-exported.
+
+**Confirm idempotency:** `created_alert_id` no draft + `find_equivalent_alert`
+(mesmo usuário, nome e filtros).
+

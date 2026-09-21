@@ -19,8 +19,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import shared_models.tables  # noqa: F401,E402  (registra as tabelas no SQLModel.metadata)
+
 import config as app_config  # noqa: E402
-import database.models  # noqa: F401,E402  (registers tables in SQLModel.metadata)
 from database.db import engine  # noqa: E402
 
 yaml_config = context.config

@@ -1,8 +1,7 @@
 name: Docker images (GHCR)
 
-# Builda e publica as imagens do scraper e do bot no GitHub Container Registry.
-# Build context = raiz do monorepo (os apps dependem de packages/shared-models).
-# Tags: latest + sha (branch default), semver (tags v*).
+# Builda e publica imagens do scraper e do bot no GHCR (opcional / rollback).
+# Produção canônica é Lambda (.github/workflows/infra-deploy.yml).
 
 on:
   push:

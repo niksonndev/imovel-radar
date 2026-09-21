@@ -4,6 +4,11 @@
 
 Accepted
 
+> **Superseded in part by ADR 0004 / 0005:** production no longer runs these
+> services as Compose containers on a shared host. The split of
+> responsibilities evolved further (bot owns users/alerts; shared Neon). The
+> Decision below is historical.
+
 ## Context
 
 Imóvel Radar started as a single Python process: the Telegram bot contained, in the same codebase, OLX scraping logic, database access (SQLite), and orchestration of the conversation with the user.
@@ -29,7 +34,10 @@ Split the project into two services with well-defined responsibilities:
   - Translates the Telegram conversation into HTTP calls to the scraper (e.g. `POST /alerts` with the user's criteria)
   - Polls for results/matches and sends them as Telegram messages
 
-Both services run as separate Docker containers on the same Oracle VM, communicating over the internal Docker Compose network (no publicly exposed port, no reverse proxy at this stage). The contract between them is typed via Pydantic schemas shared in a common package in the monorepo.
+Both services were intended to run as separate Docker containers on the same
+host, communicating over the internal Docker Compose network (no publicly
+exposed port, no reverse proxy at that stage). The contract between them is
+typed via Pydantic schemas shared in a common package in the monorepo.
 
 The Telegram `chat_id` is used as the user identifier in API calls — there's no custom authentication system; identity is delegated to Telegram.
 
@@ -44,12 +52,14 @@ The Telegram `chat_id` is used as the user identifier in API calls — there's n
 
 **Negative / accepted trade-offs:**
 
-- One more service to operate (two containers instead of a single process), even though on the same VM.
+- One more service to operate (two containers instead of a single process), even though on the same host.
 - Introduces network latency (even if local, via Docker) between bot and scraper, where before it was a direct function call.
 - Requires keeping an API contract (Pydantic schemas) in sync between both sides — mitigated by a shared package in the monorepo.
 
 ## Alternatives considered
 
 - **Keep everything in a single process**: simpler in the short term, but perpetuates the coupling that already caused the silent failure mentioned in the context, and doesn't solve the bot's testability problem.
-- **Separate into different VMs right away**: unnecessary at this stage — Oracle Free Tier allows up to 4 VMs via the Ampere A1 instance, so there's room for this in the future, but separating into containers on the same VM already delivers sufficient process and failure isolation for now.
+- **Separate onto different hosts right away**: unnecessary at that stage —
+  process isolation via containers on one host already delivered sufficient
+  failure isolation.
 - **Expose communication via a reverse proxy with public HTTPS**: deferred until there's an actual external consumer (e.g. a dashboard), since today only the bot consumes the API, within the same Docker network.

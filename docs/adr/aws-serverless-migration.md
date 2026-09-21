@@ -4,27 +4,28 @@
 
 Accepted
 
+> **Current topology:** production is Lambda-only (scraper + bot, API Gateway,
+> EventBridge, Neon, DynamoDB). There is no Compose host in prod;
+> `docker-compose.prod.yml` is retired. The Context below describes the
+> historical trigger for this ADR.
+
 ## Context
 
-Imóvel Radar currently runs as two Docker containers (`apps/scraper` and
-`apps/bot`) on a single Oracle VM via `docker-compose.prod.yml`, pulling
-pre-built images from GHCR. Continuous integration already exists — GitHub
-Actions builds and publishes images (`.github/workflows/docker-images.yml`)
-and runs the scraper test suite (`.github/workflows/scraper-tests.yml`) —
-but **deployment is still a manual step**: `docker compose ... up` executed
-over SSH on the host, with environment files created by hand and the SQLite
-database living on the VM's volumes.
+Imóvel Radar previously targeted two Docker containers (`apps/scraper` and
+`apps/bot`) via `docker-compose.prod.yml` / GHCR, with deployment as a manual
+`docker compose ... up` step and mutable host state. Continuous integration
+existed (image build + scraper tests), but **deploy was still ad-hoc**.
 
-Several drivers push us to reassess this model:
+Several drivers pushed us to reassess that model:
 
-- **Infra predictability.** The VM is mutable and was set up by hand. We want
-  the whole infrastructure described as versioned, reviewable code
+- **Infra predictability.** A mutable host set up by hand is a liability. We
+  want the whole infrastructure described as versioned, reviewable code
   (Terraform), so it can be recreated or moved at any time.
-- **A real CI/CD pipeline.** Today CI stops at "built and published"; the
-  deploy itself is an ad-hoc, human-driven action with no gate, no rollback
-  story and no traceability in git.
+- **A real CI/CD pipeline.** CI that stops at "built and published" leaves
+  deploy as a human-driven action with no gate, no rollback story and no
+  traceability in git.
 - **Zero budget is a hard constraint.** Imóvel Radar is a personal/portfolio
-  project — there is no infrastructure budget. Whatever replaces the VM must
+  project — there is no infrastructure budget. Whatever runs in prod must
   demonstrably stay at $0 (free tiers only) at the expected scale.
 - **The REST API has no real consumer.** Per ADR 0001, the HTTP contract
   exists to keep the bot decoupled from the scraper's data. Today the bot is
@@ -40,8 +41,8 @@ change under the serverless model.
 
 ## Decision
 
-Replace the single VM with an AWS serverless architecture, with **all
-infrastructure managed by Terraform**:
+Replace Compose/host-based deploy with an AWS serverless architecture, with
+**all infrastructure managed by Terraform**:
 
 - **EventBridge** (scheduled rule) triggers the daily collection, replacing
   the in-process APScheduler that runs today inside the FastAPI process.
@@ -84,7 +85,7 @@ infrastructure managed by Terraform**:
   runtime startup step.
 - HTTPS is provided by API Gateway; no reverse proxy, certificate or SSH
   maintenance.
-- Zero idle cost: no VM to keep paying for/rebooting; free tiers cover the
+- Zero idle cost: no host to keep paying for/rebooting; free tiers cover the
   profile.
 - Serverless scaling with no capacity planning; cold-start latency is
   acceptable at this scale.
@@ -149,9 +150,9 @@ infrastructure managed by Terraform**:
 
 ## Alternatives considered
 
-- **Keep the VM + Docker Compose.** Still free and working today, but leaves
-  deployment manual and infra mutable — the exact problems this ADR exists to
-  solve.
+- **Keep Compose on a long-running host.** Still free and working as a local
+  or ad-hoc option, but leaves deployment manual and infra mutable — the
+  exact problems this ADR exists to solve.
 - **Managed containers (ECS Fargate + ECR).** No practical free tier —
   violates the zero-cost constraint.
 - **PaaS (Fly.io, Render, Railway free tiers).** Viable, but smaller free
@@ -161,29 +162,22 @@ infrastructure managed by Terraform**:
   as-is, but at the cost of operating an API layer with no external consumer.
   Revisit when a dashboard/public API actually exists — the shared-DB model
   does not preclude re-adding an API later.
-- **Self-hosted Postgres (on the Oracle VM) instead of Neon.** Removes
-  managed-DB convenience and keeps a VM in the critical path; Neon's free tier
-  removes both.
+- **Self-hosted Postgres on a long-running host instead of Neon.** Removes
+  managed-DB convenience and keeps a host in the critical path; Neon's free
+  tier removes both.
 
 ## Not yet decided
 
-1. **Scheduler orchestration.** Does EventBridge fully replace APScheduler, or
-   does the scraper Lambda keep internal orchestration (retry, chunking to fit
-   the 15-minute cap, partial-failure reporting) for one job run? The sink —
-   `job_daily` becomes the Lambda handler — is clear; the chunking/retry
-   strategy is not.
-2. **`packages/shared-models` future.** With no HTTP hop between bot and
-   scraper, the request/response schemas in `api_schemas.py` lose their
-   purpose; domain models (`Listing`, `Alert`) and utils (`format_brl`,
-   `money_to_int`) remain useful as shared types. Keep the package as "shared
-   types/utilities" or fold the remaining pieces into each app?
-3. **Secrets strategy.** Telegram bot token and Neon connection string must be
-   injected into the lambdas and into GitHub Actions (webhook setup can also
-   live there). SSM Parameter Store vs Secrets Manager; OIDC-based access;
-   rotation/cost trade-offs.
-4. **Migration placement in the pipeline.** Run `alembic upgrade head` as a
-   gate before `terraform apply`? A separate job? Backward/rollback strategy
-   when a deploy fails after migrating?
-5. **Bot conversation state.** In-memory persistence (accepting wizard/carousel
-   resets on cold start) vs. state in Postgres vs. file-backed
-   `PicklePersistence` on S3.
+1. **Scheduler orchestration.** EventBridge dispara a coleta; chunking/retry
+   interno da scraper Lambda para caber nos 15 minutos ainda pode evoluir.
+
+## Decided after acceptance
+
+- **`packages/shared-models`:** table models em `shared_models.tables`;
+  `api_schemas` deprecated após remoção da API users/alerts/matches.
+- **Secrets:** SSM Parameter Store (`telegram_bot_token` bootstrap fora do TF;
+  `database_url` no TF). Webhook `secret_token` gerado no Terraform e injetado
+  na Lambda / `setWebhook`.
+- **Migrations:** `alembic upgrade head` no CI **antes** de `terraform apply`.
+- **Bot conversation state:** DynamoDB via `BasePersistence` (ADR 0006).
+- **Bot DB access:** bot dona de users/alerts/matches (ADR 0005).

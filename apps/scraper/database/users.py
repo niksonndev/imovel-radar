@@ -1,8 +1,7 @@
 from __future__ import annotations
 
+from shared_models.tables import User
 from sqlmodel import Session
-
-from .models import User
 
 
 def create_user(session: Session, chat_id: int) -> User:

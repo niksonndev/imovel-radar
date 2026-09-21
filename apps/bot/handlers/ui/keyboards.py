@@ -4,7 +4,7 @@ Teclados inline do Telegram para o menu principal e para o wizard de alerta.
 
 from __future__ import annotations
 
-from shared_models import Alert
+from shared_models.tables import Alert
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 NEIGHBORHOODS_PAGE_SIZE = 12
@@ -138,10 +138,11 @@ def meus_alertas_pick_keyboard(alerts: list[Alert]) -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(
                 _meus_alertas_pick_button_label(a),
-                callback_data=f"mal_p_{int(a.id)}",
+                callback_data=f"mal_p_{a.id}",
             )
         ]
         for a in alerts
+        if a.id is not None  # table model: id é opcional antes do primeiro flush
     ]
     rows.append([InlineKeyboardButton("🏠 Menu principal", callback_data="mal_m")])
     return InlineKeyboardMarkup(rows)

@@ -92,15 +92,15 @@ and `bot_data` (carousel included), keyed by `chat_id`.
 
 ## Not yet decided
 
-1. Exact item schema — full JSON blob of the PTB data vs. separate attributes
-   — and the semantics of the `version`/`updated_at` attribute.
-2. TTL value (proposed 2–6 h, aligned with human conversation pacing; the
-   handler already answers "Sessão expirada").
-3. Mapping of the PTB stores (`user_data`/`chat_data`/`bot_data`/
-   `conversation_data`) to DynamoDB keys, and whether the full payload
-   (including `neighbourhood_options`) is persisted.
-4. `Application` instantiation inside the Lambda (module-level warm reuse vs.
-   per-invocation) and its interplay with the persistence backend.
-5. Confirm-flow cleanup semantics: idempotent insert + draft deletion; what
-   happens when the insert succeeds but the draft deletion fails (TTL as the
-   safety net).
+_(original questions resolved below.)_
+
+## Decided after acceptance
+
+- **Item schema:** JSON blob em `data` + `version` integer; PK `chat_id` + SK `store`.
+- **TTL:** 4 h (`DYNAMODB_TTL_HOURS` / `var.conversation_ttl_hours`), só em `user_data`/`chat_data`.
+- **Key mapping:** `user_data`/`chat_data` por id; `bot_data` e `conversations` em PK=0.
+  Conversation keys (tuplas PTB) serializadas com `json.dumps(list(key))`.
+- **Application:** module-level warm reuse (`_get_application`).
+- **Confirm:** insert idempotente (`find_equivalent_alert` + `created_alert_id`);
+  draft apagado no sucesso; TTL cobre drafts órfãos. The `ConversationHandler`
+  is `name="new_alert"` + `persistent=True`.

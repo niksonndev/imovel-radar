@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from collections.abc import MutableMapping
 
-from shared_models import Listing
+from shared_models.tables import Listing
 from shared_models.utils import format_brl
 from telegram import (
     Bot,
@@ -48,7 +48,7 @@ def _truncate(text: str, limit: int) -> str:
 
 
 def _carousel_caption(listing: Listing, index: int, total: int) -> str:
-    props = listing.properties.model_dump()
+    props = listing.properties  # já é dict no table model
 
     title = _truncate(listing.title, MAX_TITLE_LEN)
     price = format_brl(listing.price_value)
@@ -123,7 +123,9 @@ async def send_carousel(
 
     state_store[_state_key(carousel_id)] = {
         "chat_id": chat_id,
-        "listings": [item.model_dump() for item in listings],
+        # mode="json": first_seen_at/updated_at viram strings ISO seguras p/ o
+        # JSON do DynamoDB; a rehidratação valida de volta pra datetime.
+        "listings": [item.model_dump(mode="json") for item in listings],
         "index": 0,
     }
 

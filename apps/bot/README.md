@@ -1,51 +1,36 @@
 # Bot — Imóvel Radar
 
-Cliente "dumb" da API do Scraper. Não acessa banco de dados nem implementa
-lógica de negócio — apenas traduz conversas do Telegram em chamadas HTTP.
+Bot Telegram do projeto. Em produção (serverless, ADR 0004/0005/0006) processa
+webhooks do Telegram via API Gateway → Bot Lambda, com acesso direto ao Postgres
+compartilhado (Neon pooled) e estado de conversa em DynamoDB. O dev local segue
+usando polling + PicklePersistence.
 
 ## Fluxos
 
-### `/novo_alerta` — Wizard de criação
+- `/novo_alerta` — wizard persistente (`name="new_alert"`). Ao confirmar, escreve
+  o alerta em `alerts` (idempotente nos filtros), busca matches e envia carrossel.
+- **Meus Alertas** — listagem, detalhe e remoção leem/escrevem `alerts`.
+- **Carrossel** — navegação via `bot_data` persistido em DynamoDB (ADR 0006).
+- **Notificação horária** — EventBridge → Lambda.
 
-1. Usuário escolhe faixa de preço (preset ou personalizado)
-2. Seleciona bairros (multi-seleção com paginação)
-3. Define nome do alerta
-4. Confirma → `POST /alerts` → `GET /alerts/{id}/matches` → carrossel
-
-### "Meus Alertas"
-
-- Listagem: `GET /alerts?user_id=chat_id`
-- Detalhe: `GET /alerts/{id}`
-- Remoção: `DELETE /alerts/{id}`
-
-### Carrossel de anúncios
-
-- Navegação Anterior/Próximo via `GET /listings?ids=1,2,3`
-
-## Polling de matches
-
-A cada **1 hora**, o bot consulta `GET /alerts/active` e para cada
-alerta ativo busca `GET /alerts/{id}/matches`. Se houver matches, envia
-carrossel e marca como notificados via `POST /alerts/{id}/matches/notify`.
-
-## Configuração
-
-Variáveis de ambiente (`.env`):
+## Configuração (`.env`)
 
 ```
 TELEGRAM_BOT_TOKEN=123456:ABC-your-bot-token
 ADMIN_CHAT_ID=123456789
-SCRAPER_API_URL=http://localhost:8000
 LOG_LEVEL=INFO
+DATABASE_URL=postgresql+psycopg://postgres:teste123@localhost:5432/imovel_radar
+# Lambda/webhook:
+DYNAMODB_TABLE=imovel-radar-prod-conversation-state
+SSM_TOKEN_PARAM=/imovel-radar/prod/telegram_bot_token
+TELEGRAM_WEBHOOK_SECRET=...
 ```
 
-## Como rodar
+## Como rodar (dev)
 
 ```bash
 cd apps/bot
-uv pip install -e ../../packages/shared-models
 uv sync
-# configure .env
 uv run python main.py
 ```
 
@@ -53,16 +38,13 @@ uv run python main.py
 
 ```
 apps/bot/
-├── main.py              # PTB Application + polling setup
-├── config.py            # Variáveis de ambiente
-├── models.py            # CustomContext, UserData, wizard types
-├── handlers/            # Manipuladores de comandos/UI
-│   ├── api_client.py    # httpx client tipado para o scraper
-│   ├── carousel.py      # Navegação de anúncios
-│   ├── create_new_alert.py  # Wizard de criação
-│   ├── hydrator.py      # Transformação de dados
-│   ├── meus_alertas.py  # CRUD de alertas
-│   ├── setup.py         # Registro de handlers
-│   └── ui/              # Textos e teclados
-└── jobs/                # Jobs agendados
-    └── polling_job.py   # Polling de matches (1h)
+├── main.py                # dev: PTB polling + PicklePersistence
+├── lambda_handler.py      # produção: webhook + notificação
+├── application.py         # build_application + RadarApplication
+├── persistence.py         # BasePersistence → DynamoDB
+├── database/              # engine lazy + queries
+└── handlers/
+    ├── data.py            # camada de dados (Postgres)
+    ├── setup.py
+    └── ui/
+```

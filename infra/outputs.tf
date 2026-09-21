@@ -22,7 +22,7 @@ output "github_actions_role_arn" {
   value = aws_iam_role.github_actions.arn
 }
 
-# ── Bot (corte 1) ─────────────────────────────────────────────────────────────
+# ── Bot ──────────────────────────────────────────────────────────────────
 output "conversation_table_name" {
   value = aws_dynamodb_table.conversation_state.name
 }
@@ -33,4 +33,19 @@ output "bot_lambda_role_arn" {
 
 output "telegram_bot_token_ssm_name" {
   value = var.bot_ssm_token_name
+}
+
+output "bot_webhook_url" {
+  description = "URL pública do webhook do Telegram (chamar setWebhook com este base)"
+  value       = "${aws_apigatewayv2_api.bot_webhook.api_endpoint}/webhook"
+}
+
+output "bot_lambda_function_name" {
+  value = aws_lambda_function.bot.function_name
+}
+
+output "bot_webhook_secret" {
+  description = "secret_token do setWebhook (header X-Telegram-Bot-Api-Secret-Token)"
+  value       = random_password.bot_webhook_secret.result
+  sensitive   = true
 }

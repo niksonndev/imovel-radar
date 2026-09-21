@@ -263,10 +263,14 @@ version = "0.1.0"
 source = { editable = "../../packages/shared-models" }
 dependencies = [
     { name = "pydantic" },
+    { name = "sqlmodel" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pydantic", specifier = ">=2.0" }]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "sqlmodel", specifier = "==0.0.38" },
+]
 
 [[package]]
 name = "iniconfig"
