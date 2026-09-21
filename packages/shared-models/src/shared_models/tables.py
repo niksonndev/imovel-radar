@@ -19,12 +19,12 @@ from typing import Any, NamedTuple
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     CheckConstraint,
     Column,
     DateTime,
     ForeignKey,
-    Integer,
     Text,
     func,
     text,
@@ -66,11 +66,17 @@ class Listing(SQLModel, table=True):
 
 
 class User(SQLModel, table=True):
-    """User identified by Telegram chat_id (dona: bot)."""
+    """User identified by Telegram chat_id (dona: bot).
+
+    ``chat_id`` is BIGINT — Telegram user ids can exceed PostgreSQL INTEGER
+    (2^31-1).
+    """
 
     __tablename__ = "users"  # type: ignore
 
-    chat_id: int = Field(primary_key=True)
+    chat_id: int = Field(
+        sa_column=Column("chat_id", BigInteger, primary_key=True, nullable=False)
+    )
     created_at: datetime | None = Field(
         default=None,
         sa_column=Column("created_at", DateTime(timezone=True), server_default=func.now()),
@@ -90,7 +96,7 @@ class Alert(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     chat_id: int = Field(
-        sa_column=Column("chat_id", Integer, ForeignKey("users.chat_id"), nullable=False)
+        sa_column=Column("chat_id", BigInteger, ForeignKey("users.chat_id"), nullable=False)
     )
     alert_name: str | None = Field(default=None, sa_column=Column("alert_name", Text))
     min_price: int | None = None

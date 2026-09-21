@@ -48,3 +48,32 @@ def test_ensure_user_is_idempotent(session: Session) -> None:
     session.commit()
     ids = queries.get_users_chat_ids(session)
     assert ids == [42]
+
+
+def test_large_telegram_chat_id_fits_bigint(session: Session) -> None:
+    """Telegram ids can exceed PostgreSQL INTEGER max (2^31-1)."""
+    chat_id = 7_217_061_180
+    queries.ensure_user(session, chat_id)
+    session.commit()
+
+    alert_id = queries.create_alert(
+        session,
+        chat_id=chat_id,
+        alert_name="Aluguel grande chat_id",
+        min_price=0,
+        max_price=1500,
+        neighbourhoods=["Jatiúca"],
+    )
+    session.commit()
+
+    found = queries.find_equivalent_alert(
+        session,
+        chat_id=chat_id,
+        alert_name="Aluguel grande chat_id",
+        min_price=0,
+        max_price=1500,
+        neighbourhoods=["Jatiúca"],
+    )
+    assert found is not None
+    assert found.id == alert_id
+    assert found.chat_id == chat_id
