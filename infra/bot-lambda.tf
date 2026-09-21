@@ -119,7 +119,9 @@ resource "aws_lambda_permission" "bot_webhook_apigw" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.bot.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.bot_webhook.execution_arn}/$default"
+  # ArnLike precisa de /* — só `/$default` não casa com .../$default/POST/webhook,
+  # e a API Gateway devolve 500 sem invocar a Lambda.
+  source_arn = "${aws_apigatewayv2_api.bot_webhook.execution_arn}/*/*"
 }
 
 # ── EventBridge — notificação horária (EventBridge → bot Lambda) ───────────

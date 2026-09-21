@@ -8,6 +8,10 @@ Dois gatilhos possíveis (ADR 0004):
 
 Quente-reuso: a ``Application`` é construída/inicializada uma vez por instância
 (module-level) e reciclada entre invocações.
+
+Importante: **não** usar ``asyncio.run()`` a cada invoke — ele fecha o event
+loop e o cliente HTTPX do PTB fica preso ao loop morto (``Event loop is closed``
+no 2º clique do menu). Mantemos um loop vivo na instância quente.
 """
 
 from __future__ import annotations
@@ -18,7 +22,9 @@ import hmac
 import json
 import logging
 import sys
+from collections.abc import Coroutine
 from pathlib import Path
+from typing import Any, TypeVar
 
 from telegram import Update
 from telegram.ext import Application, ContextTypes
@@ -44,13 +50,33 @@ logger = logging.getLogger(__name__)
 
 _SECRET_HEADER = "x-telegram-bot-api-secret-token"
 
+_T = TypeVar("_T")
+
 _application: Application | None = None
-_application_lock = asyncio.Lock()
+_application_lock: asyncio.Lock | None = None
+_loop: asyncio.AbstractEventLoop | None = None
+
+
+def _get_loop() -> asyncio.AbstractEventLoop:
+    """Loop persistente na instância quente; invalida a Application se morrer."""
+    global _loop, _application, _application_lock
+    if _loop is None or _loop.is_closed():
+        _loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(_loop)
+        _application = None
+        _application_lock = None
+    return _loop
+
+
+def _run(coro: Coroutine[Any, Any, _T]) -> _T:
+    return _get_loop().run_until_complete(coro)
 
 
 async def _get_application() -> Application:
     """Constrói e inicializa a Application uma vez por instância quente."""
-    global _application
+    global _application, _application_lock
+    if _application_lock is None:
+        _application_lock = asyncio.Lock()
     if _application is None:
         async with _application_lock:
             if _application is None:
@@ -142,10 +168,10 @@ def lambda_handler(event: dict | None, context: object | None) -> dict:
     logger.info("Lambda bot invocada (typed=%s)", _is_eventbridge(event))
 
     if _is_eventbridge(event):
-        asyncio.run(_handle_notify())
+        _run(_handle_notify())
         return {"statusCode": 200}
 
-    return asyncio.run(_handle_webhook(event))
+    return _run(_handle_webhook(event))
 
 
 if __name__ == "__main__":

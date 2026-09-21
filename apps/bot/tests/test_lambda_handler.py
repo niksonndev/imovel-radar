@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 
@@ -44,3 +45,14 @@ def test_decode_event_body_handles_base64() -> None:
         "body": base64.b64encode(raw.encode()).decode(),
     }
     assert lambda_handler.decode_event_body(event) == raw
+
+
+def test_persistent_loop_survives_multiple_runs() -> None:
+    """asyncio.run fecharia o loop; o helper deve reutilizar o mesmo."""
+    loop1 = lambda_handler._get_loop()
+    assert not loop1.is_closed()
+    result = lambda_handler._run(asyncio.sleep(0, result=42))
+    assert result == 42
+    loop2 = lambda_handler._get_loop()
+    assert loop1 is loop2
+    assert not loop2.is_closed()
