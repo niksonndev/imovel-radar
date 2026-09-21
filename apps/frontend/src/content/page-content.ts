@@ -41,5 +41,48 @@ export const CTA_SUBHEADLINE =
   "Grátis, sem limite de uso, sem cadastro complicado.";
 export const CTA_BUTTON_LABEL = "Ativar no Telegram";
 
+// Sections
+export const FEATURES_SECTION_HEADING = "Funcionalidades";
+export const SECTION_CTA_LABEL = "Começar agora";
+
+// Open Graph image
+export const OG_IMAGE_TAGLINE =
+  "Anúncios novos do OLX Maceió direto no Telegram";
+
+// Telegram preview (mock de conversa)
+export const TELEGRAM_PREVIEW_HEADLINE = "Veja como o alerta chega";
+export const TELEGRAM_PREVIEW_SUBHEADLINE =
+  "Sem abrir o OLX e sem perder tempo: a notificação chega no seu Telegram com o resumo do anúncio e o link direto.";
+export const MOCK_ALERTS = [
+  {
+    title: "Apartamento em Ponta Verde",
+    detail: "R$ 1.800/mês · 2 quartos · 65m²",
+    time: "14:32",
+  },
+  {
+    title: "Casa em Jatiúca",
+    detail: "R$ 2.500/mês · 3 quartos · 120m²",
+    time: "14:35",
+  },
+];
+
+// Marquee de bairros monitorados
+export const MARQUEE_LABEL = "Bairros monitorados em Maceió";
+export const MONITORED_NEIGHBORHOODS = [
+  "Ponta Verde",
+  "Jatiúca",
+  "Pajuçara",
+  "Mangabeiras",
+  "Cruz das Almas",
+  "Benedito Bentes",
+  "Tabuleiro do Martins",
+  "Farol",
+  "Jacarecica",
+  "Antares",
+  "Serraria",
+  "Riacho Doce",
+];
+
 // Footer
+export const FOOTER_TELEGRAM_LABEL = "Telegram";
 export const FOOTER_LEGAL = "Feito com Imóvel Radar";

@@ -5,6 +5,8 @@ import {
   FEATURE_2_DESC,
   FEATURE_3_TITLE,
   FEATURE_3_DESC,
+  FEATURES_SECTION_HEADING,
+  SECTION_CTA_LABEL,
   TELEGRAM_BOT_URL,
 } from "@/content/page-content";
 import { buttonVariants } from "@/components/ui/button";
@@ -32,14 +34,14 @@ const features = [
 export function FeatureCards() {
   return (
     <section className="px-4 py-16 sm:py-20">
-      <h2 className="sr-only">Funcionalidades</h2>
+      <h2 className="sr-only">{FEATURES_SECTION_HEADING}</h2>
       <div className="mx-auto grid w-full max-w-5xl gap-6 sm:grid-cols-3 sm:gap-8">
         {features.map((feature) => (
           <article
             key={feature.title}
-            className="flex flex-col gap-4 rounded-lg border bg-card p-6 text-card-foreground shadow-sm"
+            className="group reveal-on-scroll flex flex-col gap-4 rounded-lg border bg-card p-6 text-card-foreground shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10"
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 transition-colors duration-300 group-hover:bg-primary/20">
               <feature.icon className="size-5 text-primary" />
             </div>
             <h3 className="font-heading text-lg text-card-foreground">
@@ -57,7 +59,7 @@ export function FeatureCards() {
                 "mt-auto self-start px-0"
               )}
             >
-              Começar agora
+              {SECTION_CTA_LABEL}
             </a>
           </article>
         ))}

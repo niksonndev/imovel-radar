@@ -6,11 +6,12 @@ import {
 } from "@/content/page-content";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Send } from "lucide-react";
 
 export function CTASection() {
   return (
     <section className="flex flex-col items-center justify-center bg-primary px-4 py-24 sm:py-32">
-      <div className="flex w-full max-w-2xl flex-col items-center gap-6 text-center">
+      <div className="reveal-on-scroll mx-auto flex w-full max-w-2xl flex-col items-center gap-6 text-center">
         <h2 className="font-heading text-3xl leading-tight tracking-tight text-primary-foreground sm:text-4xl">
           {CTA_HEADLINE}
         </h2>
@@ -25,9 +26,10 @@ export function CTASection() {
           rel="noopener noreferrer"
           className={cn(
             buttonVariants({ variant: "default", size: "lg" }),
-            "mt-2 bg-white text-primary hover:bg-white/90"
+            "mt-2 h-11 px-6 text-base bg-white text-primary hover:bg-white/90"
           )}
         >
+          <Send className="size-4" data-icon="inline-start" />
           {CTA_BUTTON_LABEL}
         </a>
       </div>

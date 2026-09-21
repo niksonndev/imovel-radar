@@ -27,7 +27,7 @@ imovel-radar/
 ├── apps/
 │   ├── scraper/              ← dono de `listing`; coleta OLX (Lambda em prod)
 │   ├── bot/                  ← webhook Lambda + Postgres direto (ADR 0005)
-│   └── frontend/             ← Next.js
+│   └── frontend/             ← Next.js 16 (App Router, SSG → out/)
 ├── docs/
 │   └── adr/
 │       └── separate-scraper-from-bot.md

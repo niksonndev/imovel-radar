@@ -6,6 +6,7 @@ import {
   STEP_2_DESC,
   STEP_3_TITLE,
   STEP_3_DESC,
+  SECTION_CTA_LABEL,
   TELEGRAM_BOT_URL,
 } from "@/content/page-content";
 import { buttonVariants } from "@/components/ui/button";
@@ -46,12 +47,12 @@ export function HowItWorks() {
                   {step.number}
                 </span>
                 {index < steps.length - 1 && (
-                  <div className="mt-1 w-px flex-1 bg-white/20" />
+                  <div className="draw-line mt-1 w-px flex-1 bg-white/20" />
                 )}
               </div>
 
               {/* Step content */}
-              <div className="flex flex-col gap-1 pb-8">
+              <div className="reveal-on-scroll flex flex-col gap-1 pb-8">
                 <h3 className="font-heading text-lg text-white">
                   {step.title}
                 </h3>
@@ -67,11 +68,9 @@ export function HowItWorks() {
           href={TELEGRAM_BOT_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className={cn(
-            buttonVariants({ variant: "default", size: "lg" })
-          )}
+          className={cn(buttonVariants({ variant: "default", size: "lg" }), "btn-shine")}
         >
-          Começar agora
+          {SECTION_CTA_LABEL}
         </a>
       </div>
     </section>
