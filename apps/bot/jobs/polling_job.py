@@ -60,6 +60,7 @@ async def _process_chat(chat_id: int, app: Application) -> None:
         app.bot_data,
     )
 
+    # Mark immediately after send so a later failure cannot re-notify.
     pairs = [(row.alert_id, row.listing.listing_id) for row in rows]
     await mark_listings_notified(chat_id, pairs)
     logger.info("Notificação: chat %s — %s listings marcados", chat_id, len(pairs))

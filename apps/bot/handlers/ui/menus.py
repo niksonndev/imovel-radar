@@ -253,5 +253,16 @@ def seed_nenhum_imovel() -> str:
     )
 
 
+def seed_alert_already_exists() -> str:
+    return (
+        "ℹ️ Você já tem um alerta com esses filtros.\n"
+        "Nenhum imóvel novo desde a última notificação. 🔔"
+    )
+
+
 def seed_alert_created() -> str:
     return "✅ Alerta criado! Vou te avisar quando aparecer algo novo. 🔔"
+
+
+def seed_alert_new_matches() -> str:
+    return "✅ Encontrei imóveis novos para o seu alerta! 🔔"

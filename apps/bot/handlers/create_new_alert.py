@@ -367,8 +367,9 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
     user = update.effective_user
     try:
         alert_id = draft.get("created_alert_id")
+        alert_was_created = wizard_state.get("alert_was_created", True)
         if alert_id is None:
-            alert_id = await create_alert(
+            result = await create_alert(
                 chat_id=user.id,
                 alert_name=draft["alert_name"],  # type: ignore[typeddict-item]
                 min_price=draft.get("min_price"),
@@ -376,7 +377,10 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
                 neighbourhoods=draft["neighbourhoods"],  # type: ignore[typeddict-item]
                 listing_kind=_draft_kind(draft),
             )
+            alert_id = result.alert_id
+            alert_was_created = result.created
             draft["created_alert_id"] = alert_id
+            wizard_state["alert_was_created"] = alert_was_created
 
         if not wizard_state.get("seed_done"):
             await query.message.reply_text("⏳ Procurando imóveis que combinam com seu alerta…")  # type: ignore[union-attr]
@@ -385,8 +389,13 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
             listings: list[Listing] = [row.listing for row in rows if row.alert_id == alert_id]
 
             if not listings:
+                empty_msg = (
+                    menus.seed_nenhum_imovel()
+                    if alert_was_created
+                    else menus.seed_alert_already_exists()
+                )
                 await query.message.reply_text(  # type: ignore[union-attr]
-                    menus.seed_nenhum_imovel(),
+                    empty_msg,
                     reply_markup=keyboards.main_menu_keyboard(),
                 )
             else:
@@ -397,13 +406,16 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
                     str(alert_id),
                     context.application.bot_data,
                 )
-
-                await query.message.reply_text(  # type: ignore[union-attr]
-                    menus.seed_alert_created(),
-                    reply_markup=keyboards.main_menu_keyboard(),
-                )
+                # Mark before follow-up UI so a later failure cannot re-notify.
                 pairs = [(alert_id, item.listing_id) for item in listings]
                 await mark_listings_notified(user.id, pairs)
+
+                await query.message.reply_text(  # type: ignore[union-attr]
+                    menus.seed_alert_created()
+                    if alert_was_created
+                    else menus.seed_alert_new_matches(),
+                    reply_markup=keyboards.main_menu_keyboard(),
+                )
 
             wizard_state["seed_done"] = True
 
