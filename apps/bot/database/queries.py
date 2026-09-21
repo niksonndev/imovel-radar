@@ -1,15 +1,26 @@
 """Consultas da Bot Lambda no Postgres compartilhado (ADR 0005).
 
-A bot lê ``listing`` (read-only), escreve ``users``/``alerts``/``alert_matches``.
-O commit/rollback fica com o chamador.
+A bot lê ``listing`` (read-only), escreve ``users``/``alerts``/``alert_matches``/
+``watched_listings``. O commit/rollback fica com o chamador.
 """
 
 from __future__ import annotations
 
-from shared_models.tables import Alert, AlertMatch, Listing, ListingAlertMatch, ListingKind, User
-from sqlalchemy import delete, func
+from shared_models.tables import (
+    Alert,
+    AlertMatch,
+    Listing,
+    ListingAlertMatch,
+    ListingKind,
+    User,
+    WatchedListing,
+    WatchedListingChange,
+)
+from sqlalchemy import delete, func, or_
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlmodel import Session, select
+
+import config
 
 
 # ── Users (dona: bot) ──────────────────────────────────────────────────────
@@ -49,6 +60,11 @@ def get_neighbourhoods(
             .order_by(func.count().desc())
         ).all()
     )
+
+
+# ── Listings (read-only) ───────────────────────────────────────────────────
+def get_listing(session: Session, listing_id: int) -> Listing | None:
+    return session.get(Listing, listing_id)
 
 
 # ── Alerts (dona: bot) ─────────────────────────────────────────────────────
@@ -185,3 +201,124 @@ def mark_listings_notified(session: Session, pairs: list[tuple[int, int]]) -> No
         .on_conflict_do_nothing(index_elements=["alert_id", "listing_id"])
     )
     session.exec(stmt)  # type: ignore[call-overload]
+
+
+# ── Watchlist (dona: bot) ──────────────────────────────────────────────────
+def count_watches_for_user(session: Session, chat_id: int) -> int:
+    return int(
+        session.exec(
+            select(func.count())
+            .select_from(WatchedListing)
+            .where(WatchedListing.chat_id == chat_id)
+        ).one()
+    )
+
+
+def get_watches_for_user(session: Session, chat_id: int) -> list[WatchedListingChange]:
+    """Watches do usuário com o listing atual (mais recentes primeiro)."""
+    rows = session.exec(
+        select(WatchedListing, Listing)
+        .join(Listing, Listing.listing_id == WatchedListing.listing_id)
+        .where(WatchedListing.chat_id == chat_id)
+        .order_by(WatchedListing.id.desc())  # type: ignore[union-attr]
+    ).all()
+    return [WatchedListingChange(watch=w, listing=listing) for w, listing in rows]
+
+
+def get_watch_for_user(
+    session: Session, chat_id: int, watch_id: int
+) -> WatchedListingChange | None:
+    row = session.exec(
+        select(WatchedListing, Listing)
+        .join(Listing, Listing.listing_id == WatchedListing.listing_id)
+        .where(WatchedListing.id == watch_id, WatchedListing.chat_id == chat_id)
+    ).one_or_none()
+    if row is None:
+        return None
+    watch, listing = row
+    return WatchedListingChange(watch=watch, listing=listing)
+
+
+def get_watch_by_listing(
+    session: Session, chat_id: int, listing_id: int
+) -> WatchedListing | None:
+    return session.exec(
+        select(WatchedListing).where(
+            WatchedListing.chat_id == chat_id,
+            WatchedListing.listing_id == listing_id,
+        )
+    ).one_or_none()
+
+
+def create_watch(session: Session, *, chat_id: int, listing_id: int) -> tuple[str, int | None]:
+    """Cria acompanhamento. Retorna ``(status, watch_id)``.
+
+    status: ``created`` | ``duplicate`` | ``cap_reached`` | ``listing_missing``
+    """
+    listing = get_listing(session, listing_id)
+    if listing is None:
+        return "listing_missing", None
+
+    existing = get_watch_by_listing(session, chat_id, listing_id)
+    if existing is not None:
+        return "duplicate", existing.id
+
+    if count_watches_for_user(session, chat_id) >= config.WATCHLIST_FREE_CAP:
+        return "cap_reached", None
+
+    watch = WatchedListing(
+        chat_id=chat_id,
+        listing_id=listing_id,
+        last_known_price=listing.price_value,
+        last_known_active=listing.active,
+    )
+    session.add(watch)
+    session.flush()
+    if watch.id is None:
+        raise RuntimeError("Falha ao obter ID do acompanhamento inserido")
+    return "created", watch.id
+
+
+def delete_watch_for_user(session: Session, chat_id: int, watch_id: int) -> bool:
+    watch = session.exec(
+        select(WatchedListing).where(
+            WatchedListing.id == watch_id,
+            WatchedListing.chat_id == chat_id,
+        )
+    ).first()
+    if watch is None:
+        return False
+    session.delete(watch)
+    return True
+
+
+def get_changed_watches(session: Session) -> list[WatchedListingChange]:
+    """Watches cujo listing mudou de preço ou status ativo desde o baseline."""
+    rows = session.exec(
+        select(WatchedListing, Listing)
+        .join(Listing, Listing.listing_id == WatchedListing.listing_id)
+        .where(
+            or_(
+                Listing.price_value.is_distinct_from(WatchedListing.last_known_price),
+                Listing.active.is_distinct_from(WatchedListing.last_known_active),
+            )
+        )
+        .order_by(WatchedListing.chat_id, WatchedListing.id)
+    ).all()
+    return [WatchedListingChange(watch=w, listing=listing) for w, listing in rows]
+
+
+def update_watch_baselines(
+    session: Session,
+    updates: list[tuple[int, int | None, bool]],
+) -> None:
+    """Atualiza baselines ``(watch_id, price, active)`` após notificar."""
+    if not updates:
+        return
+    for watch_id, price, active in updates:
+        watch = session.get(WatchedListing, watch_id)
+        if watch is None:
+            continue
+        watch.last_known_price = price
+        watch.last_known_active = active
+        session.add(watch)

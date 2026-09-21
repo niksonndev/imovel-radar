@@ -3,15 +3,21 @@
 Lê/escreve no Postgres via SQLModel usando os table models de
 ``shared_models.tables``, que os handlers consomem diretamente (ver
 ``docs/bot-models-migration.md``). A bot é dona de
-``users``/``alerts``/``alert_matches`` e lê ``listing``.
+``users``/``alerts``/``alert_matches``/``watched_listings`` e lê ``listing``.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
-from shared_models.tables import Alert, ListingAlertMatch, ListingKind
+from shared_models.tables import (
+    Alert,
+    Listing,
+    ListingAlertMatch,
+    ListingKind,
+    WatchedListingChange,
+)
 from sqlmodel import Session
 
 from database import queries
@@ -25,6 +31,14 @@ class CreateAlertResult(NamedTuple):
 
     alert_id: int
     created: bool
+
+
+CreateWatchStatus = Literal["created", "duplicate", "cap_reached", "listing_missing"]
+
+
+class CreateWatchResult(NamedTuple):
+    status: CreateWatchStatus
+    watch_id: int | None
 
 
 # ── Users (dona: bot) ──────────────────────────────────────────────────────
@@ -44,6 +58,11 @@ async def ensure_user(chat_id: int) -> bool:
 async def get_neighbourhoods(*, listing_kind: ListingKind | None = None) -> list[str]:
     with Session(get_engine()) as session:
         return queries.get_neighbourhoods(session, listing_kind=listing_kind)
+
+
+async def get_listing(listing_id: int) -> Listing | None:
+    with Session(get_engine()) as session:
+        return queries.get_listing(session, listing_id)
 
 
 # ── Alerts (dona: bot) ─────────────────────────────────────────────────────
@@ -118,3 +137,40 @@ async def mark_listings_notified(chat_id: int, pairs: list[tuple[int, int]]) -> 
         queries.mark_listings_notified(session, pairs)
         session.commit()
     return {"status": "ok"}
+
+
+# ── Watchlist (dona: bot) ──────────────────────────────────────────────────
+async def create_watch(*, chat_id: int, listing_id: int) -> CreateWatchResult:
+    with Session(get_engine()) as session:
+        status, watch_id = queries.create_watch(session, chat_id=chat_id, listing_id=listing_id)
+        if status == "created":
+            session.commit()
+        return CreateWatchResult(status=status, watch_id=watch_id)  # type: ignore[arg-type]
+
+
+async def get_watches_for_user(chat_id: int) -> list[WatchedListingChange]:
+    with Session(get_engine()) as session:
+        return list(queries.get_watches_for_user(session, chat_id))
+
+
+async def get_watch_for_user(watch_id: int, chat_id: int) -> WatchedListingChange | None:
+    with Session(get_engine()) as session:
+        return queries.get_watch_for_user(session, chat_id, watch_id)
+
+
+async def delete_watch(watch_id: int, chat_id: int) -> bool:
+    with Session(get_engine()) as session:
+        deleted = queries.delete_watch_for_user(session, chat_id, watch_id)
+        session.commit()
+        return deleted
+
+
+async def get_changed_watches() -> list[WatchedListingChange]:
+    with Session(get_engine()) as session:
+        return list(queries.get_changed_watches(session))
+
+
+async def update_watch_baselines(updates: list[tuple[int, int | None, bool]]) -> None:
+    with Session(get_engine()) as session:
+        queries.update_watch_baselines(session, updates)
+        session.commit()
