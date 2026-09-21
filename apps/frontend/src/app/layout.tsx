@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import { GoogleTagManager } from "@next/third-parties/google";
 import { Archivo_Black, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
+
+const GTM_ID = "GTM-WDVXQDFF";
 
 const archivoBlack = Archivo_Black({
   weight: "400",
@@ -71,6 +74,7 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${archivoBlack.variable} ${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
+      <GoogleTagManager gtmId={GTM_ID} />
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
