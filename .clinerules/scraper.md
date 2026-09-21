@@ -4,25 +4,25 @@ paths:
 ---
 # Scraper — Imóvel Radar (Python)
 
-FastAPI service responsible for all business logic: OLX scraping, Postgres persistence, and the REST API for the bot.
+Lambda (prod) / FastAPI health (dev) responsible for OLX scraping and `listing` persistence.
 
 ## Stack
 
-- Python, FastAPI, uvicorn
-- APScheduler (internal scheduler — daily collection job)
-- cloudscraper + BeautifulSoup + lxml (Cloudflare bypass + RSC extraction)
-- Postgres (via SQLModel + Alembic) — sole owner of the database
+- Python; FastAPI only for local `/health` + Alembic on startup
+- Daily collection: EventBridge → Lambda (`lambda_handler.py`)
+- cloudscraper + BeautifulSoup + lxml
+- Postgres (SQLModel + Alembic) — writer of `listing` only (ADR 0005)
 
 ## Architecture (layers)
 
-- scheduler → collector → parser → Postgres → REST API
-- The scraper is the **sole owner of the Postgres database** — the bot does not access the database directly.
-- Exposes a REST API (FastAPI) for the bot to consume listings, alerts, and matches.
+- scheduler → collector → parser → Postgres (`listing`)
+- The bot owns `users`, `alerts`, `alert_matches` and reads `listing` directly
+- Do not re-add REST endpoints for users/alerts/matches
 
 ## What to avoid
 
-- Do not move business logic into the bot — the scraper owns the database and the business rules.
-- Do not let the bot access the database directly — all communication goes through the REST API.
+- Do not write `users` / `alerts` / `alert_matches` from the scraper
+- Do not restore the old bot HTTP API
 
 ## Library documentation
 

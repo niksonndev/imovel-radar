@@ -27,7 +27,7 @@ cp apps/scraper/.env.example apps/scraper/.env
 # edit apps/scraper/.env if needed
 
 cp apps/bot/.env.example apps/bot/.env
-# edit apps/bot/.env with TELEGRAM_BOT_TOKEN and SCRAPER_API_URL
+# edit apps/bot/.env with TELEGRAM_BOT_TOKEN and DATABASE_URL
 ```
 
 ## Running the services
@@ -91,9 +91,10 @@ packages/shared-models/
 └── src/
     └── shared_models/            ← Python package (import shared_models)
         ├── __init__.py           ← re-exports everything
-        ├── api_schemas.py        ← REST route schemas
-        ├── models.py             ← domain models (Listing, Alert, etc.)
-        └── utils.py              ← utilities (format_brl, money_to_int)
+        ├── tables.py            ← SQLModel table models (schema físico)
+        ├── models.py            ← domain models (Listing, Alert, etc.)
+        ├── api_schemas.py       ← deprecated (antiga API REST)
+        └── utils.py             ← utilities (format_brl, money_to_int)
 ```
 
 Each app installs `shared-models` as **editable** (declared in `pyproject.toml` via `[tool.uv.sources]`). Run `pnpm run setup` to install it automatically.

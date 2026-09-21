@@ -7,49 +7,27 @@ Telegram bot + scraper for monitoring real-estate listings on OLX Maceió. The s
 ## Stack
 
 - **Monorepo**: Turborepo + pnpm (Node.js workspaces for the frontend)
-- **Scraper** (FastAPI, port 8000): `cloudscraper` + `BeautifulSoup4` + `APScheduler`
-- **Bot** (python-telegram-bot, port 3333): `httpx` (HTTP client to the scraper)
-- **Shared package**: `shared-models` — Pydantic schemas defining the contract between services
-- **Database**: Postgres via SQLModel + Alembic (dev: container local; prod: Neon)
+- **Scraper** (Lambda + FastAPI local): coleta OLX → `listing` no Postgres (Neon)
+- **Bot** (Lambda webhook + polling local): dona de `users`/`alerts`/`alert_matches`; lê `listing`
+- **Shared package**: `shared-models` — table models SQLModel + utils; `api_schemas` está deprecated
+- **Database**: Postgres via SQLModel + Alembic (dev: local; prod: Neon pooled)
+- **Estado de conversa (prod)**: DynamoDB
 
 ## Structure
 
 ```text
 imovel-radar/
 ├── packages/
-│   └── shared-models/        ← Pydantic schemas for the contract (Listing, Alert, etc.)
+│   └── shared-models/        ← tables SQLModel + domain models + utils
 │       └── src/
+│           ├── tables.py
 │           ├── models.py
-│           ├── api_schemas.py
+│           ├── api_schemas.py  (deprecated)
 │           └── utils.py
 ├── apps/
-│   ├── scraper/              ← FastAPI — owns Postgres, scrapes OLX, exposes REST API
-│   │   ├── main.py           (FastAPI + lifespan → APScheduler)
-│   │   ├── config.py         (OLX URLs, delays, user agents)
-│   │   ├── database/         (schema, queries, DB access, users)
-│   │   ├── collector/        (OLX scraper and parser)
-│   │   ├── api/              (health, users, listings, alerts)
-│   │   ├── scheduler/        (APScheduler — daily scraping)
-│   │   ├── docs/
-│   │   │   ├── README.md
-│   │   │   ├── olx-scraper.md
-│   │   │   └── parser.md
-│   │   └── README.md
-│   ├── bot/                  ← PTB — lightweight client of the scraper API
-│   │   ├── main.py           (PTB Application + polling setup)
-│   │   ├── config.py         (TELEGRAM_BOT_TOKEN, SCRAPER_API_URL)
-│   │   ├── models.py         (CustomContext, UserData, wizard types)
-│   │   ├── handlers/         (conversation flow, UI, API client)
-│   │   │   ├── api_client.py (httpx → scraper)
-│   │   │   ├── carousel.py
-│   │   │   ├── create_new_alert.py
-│   │   │   ├── meus_alertas.py
-│   │   │   ├── hydrator.py
-│   │   │   ├── setup.py
-│   │   │   └── ui/           (keyboards, menus)
-│   │   ├── jobs/             (polling_job — checks matches every hour)
-│   │   └── README.md
-│   └── frontend/             ← Next.js (unchanged)
+│   ├── scraper/              ← dono de `listing`; coleta OLX (Lambda em prod)
+│   ├── bot/                  ← webhook Lambda + Postgres direto (ADR 0005)
+│   └── frontend/             ← Next.js
 ├── docs/
 │   └── adr/
 │       └── separate-scraper-from-bot.md
@@ -62,64 +40,48 @@ imovel-radar/
 ## Architecture / Flow
 
 ```text
-                   ┌───────────────────┐
-                   │  Scraper (8000)   │
-                   │  FastAPI          │
-                   │                   │
-  ┌─────────┐  cron │  ┌─────────────┐  │
-  │ APSched.│──────▶│  │ scrape OLX  │  │
-  │ daily   │       │  │ → upsert DB │  │
-  └─────────┘       │  └─────────────┘  │
-                   │                   │
-                   │  ┌─────────────┐  │
-                   │  │ REST API    │  │
-                   │  │ /users      │  │
-                   │  │ /listings   │  │
-                   │  │ /alerts     │  │
-                   │  └─────────────┘  │
-                   └────────┬──────────┘
-                            │ HTTP (localhost)
-                   ┌────────▼──────────┐
-                   │  Bot (3333)       │
-                   │  python-telegram- │
-                   │  bot + httpx      │
-                   │                   │
-  ┌─────────┐       │  ┌─────────────┐  │
-  │ Polling │       │  │ Handlers    │  │
-  │ 1 hour  │──────▶│  │ → Telegram  │  │
-  └─────────┘       │  └─────────────┘  │
-                   └───────────────────┘
+  EventBridge (diário)          EventBridge (horário)
+          │                              │
+          ▼                              ▼
+  Scraper Lambda                   Bot Lambda
+  (upsert listing)                 (webhook + notify)
+          │                              │
+          └──────── Neon Postgres ───────┘
+                         ▲
+                         │
+              DynamoDB (estado de conversa)
+                         ▲
+              Telegram ──┘ API Gateway POST /webhook
 ```
+
+A bot lê `listing` e escreve `users`/`alerts`/`alert_matches` direto no banco
+(ADR 0005). Não há hop HTTP scraper↔bot.
 
 ### Daily scrape flow
 
 ```text
-APScheduler → job_daily()
-  → search_all_rent_maceio()          # cloudscraper: all OLX pages
-  → extract_listings_from_search_page()  # parser: discards empty entries
-  → upsert listings in the database     # INSERT OR REPLACE in listings
+EventBridge → scraper Lambda → job_daily()
+  → search_all_rent_maceio()
+  → extract_listings_from_search_page()
+  → upsert listing
 ```
 
-### Notification flow (bot polling every hour)
+### Notification flow (EventBridge hourly / JobQueue in local polling)
 
 ```text
-PTB JobQueue → notify_new_matches()
-  → GET /alerts/{chat_id}/active          # all active alerts
-  → for each alert:
-      GET /alerts/{chat_id}/{alert_id}    # alert details
-      GET /listings/{chat_id}/unnotified  # unnotified listings
-      send_carousel()                     # sends a carousel to the user
-      POST /listings/{chat_id}/mark-notified  # marks as notified
+notify_new_matches()
+  → SELECT users
+  → unnotified listings por alerta
+  → send_carousel()
+  → INSERT alert_matches
 ```
 
 ### `/novo_alerta` wizard flow
 
 ```text
-User → chooses price → selects neighbourhoods → names alert → confirms
-  → POST /alerts                       # creates the alert in the scraper
-  → GET /alerts/{chat_id}              # reads the user's alerts
-  → send_carousel()                    # sends result cards
-  → POST /listings/{chat_id}/mark-notified  # marks matches as notified
+User → preço → bairros → nome → confirma
+  → INSERT alerts (idempotente)
+  → carrossel de matches
 ```
 
 ## Bot commands
@@ -141,7 +103,7 @@ pnpm run setup
 Then configure the `.env` files:
 
 - `apps/scraper/.env` — copy from `apps/scraper/.env.example`
-- `apps/bot/.env` — set `TELEGRAM_BOT_TOKEN` and `SCRAPER_API_URL=http://localhost:8000`
+- `apps/bot/.env` — set `TELEGRAM_BOT_TOKEN` and `DATABASE_URL`
 
 ### Run everything
 

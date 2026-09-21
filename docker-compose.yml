@@ -39,8 +39,7 @@ services:
       - path: apps/bot/.env
         required: false
     environment:
-      # localhost não resolve no container; usa o nome do serviço do compose
-      SCRAPER_API_URL: http://scraper:8000
+      DATABASE_URL: postgresql+psycopg://postgres:teste123@host.docker.internal:5432/imovel_radar
       PERSISTENCE_FILE: /data/carousel_state.pickle
     volumes:
       - bot_state:/data

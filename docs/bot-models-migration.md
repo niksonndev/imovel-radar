@@ -5,9 +5,6 @@
 > `UnnotifiedListItem`, `UnnotifiedListingsResult`), que existia só para
 > manter o contrato da antiga API REST do scraper (ADR 0001), morta sob o
 > acesso direto ao banco (ADR 0005).
->
-> Estado intermediário consciente: entre pedaços, o `api_client` mistura
-> tipos de retorno (`Alert` = table model, `Listing` ainda = Pydantic).
 
 ## ✅ Pedaço 1 — Caminho `Alert` (feito)
 
@@ -21,24 +18,32 @@
       recebe `datetime | None` direto
 - [x] `meus_alertas.py`: docstrings/logs desatualizados corrigidos
 
-## ⬜ Pedaço 2 — Caminho `Listing`
+## ✅ Pedaço 2 — Caminho `Listing` (feito)
 
-- [ ] `carousel.py`: `properties` já é `dict` (sem `.model_dump()`);
-      estado persistido em `bot_data`/DynamoDB com `model_dump(mode="json")`
-      explícito (o dump da tabela inclui `first_seen_at`/`updated_at`
-      como datetime)
-- [ ] `api_client.get_unnotified_listings` → retorna
-      `list[ListingAlertMatch]` direto (queries já devolvem isso)
-- [ ] `polling_job.py` / `create_new_alert.py`: consumir `row.listing`
-      e `row.alert_id`; carrossel recebe `[row.listing for row in rows]`
-- [ ] Deletar `to_shared_listing`, `UnnotifiedListItem`,
+- [x] `api_client.get_unnotified_listings` → retorna
+      `list[ListingAlertMatch]` direto (queries já devolviam isso);
+      deletados `to_shared_listing`, `UnnotifiedListItem`,
       `UnnotifiedListingsResult` e os imports de `shared_models.models`
+- [x] `carousel.py`: import de `tables.Listing`; `properties` usado como
+      dict direto; estado em `bot_data` persistido com
+      `model_dump(mode="json")` explícito (`first_seen_at`/`updated_at`
+      viram strings ISO seguras p/ o JSON do DynamoDB)
+- [x] `polling_job.py`: consome `row.listing`/`row.alert_id`;
+      carrossel recebe `[row.listing for row in rows]`
+- [x] `create_new_alert.py`: filtro por alerta sobre `ListingAlertMatch`
 
-## ⬜ Pedaço 3 — Limpeza final
+## ✅ Validação dos pedaços 1–2
 
-- [ ] Shims mortos no `api_client`: `create_user`, `get_user`
-- [ ] Rename `handlers/api_client.py` (é camada de dados, não cliente
-      HTTP) — item da Fase 2 da migration checklist
+- Smoke de imports de todos os módulos tocados
+- Runtime check do carousel com table model: `_carousel_caption` renderiza
+  a partir de dict e o roundtrip `model_dump(mode="json")` →
+  `Listing(**…)` → caption é estável
+- `ruff check .` + `pyright` limpos
+
+## ✅ Pedaço 3 — Limpeza final
+
+- [x] Shims mortos no `api_client`: `create_user`, `get_user` removidos
+- [x] Rename `handlers/api_client.py` → `handlers/data.py`
 
 ## Regras implícitas pós-migração
 

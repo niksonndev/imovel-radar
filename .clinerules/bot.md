@@ -9,21 +9,23 @@ Telegram bot that monitors real estate listings and notifies users via configura
 
 ## Stack
 
-- Python, python-telegram-bot (PTB) — uses PTB's native `JobQueue` for scheduling (do not use APScheduler).
-- httpx — HTTP client for the scraper API.
-- Does not access the database — all business logic lives in the Scraper service.
+- Python, python-telegram-bot (PTB) — JobQueue for local polling; EventBridge in production.
+- Direct Postgres access (ADR 0005) via `handlers/data.py` + `database/queries.py`.
+- DynamoDB `BasePersistence` in production (ADR 0006).
 
 ## Architecture (layers)
 
-- bot → (HTTP via ScraperAPI) → scraper API
-- `handlers/`, `jobs/`, `models.py` — do not recreate a generic `bot/` folder mixing these responsibilities; the separation was done deliberately.
-- `models.py` centralizes the project's TypedDicts (`CreateAlertDraft`, `CreateAlertWizardState`, `UserData`). New types shared across modules go here, not scattered around.
-- `CustomContext` (via PTB's `CallbackContext`) is the standard context type for handlers — do not use the generic `CallbackContext` directly in a new handler.
+- bot → Neon Postgres (`users` / `alerts` / `alert_matches` writes; `listing` reads)
+- scraper writes `listing` only
+- `handlers/`, `jobs/`, `models.py` stay separated
+- `models.py` centralizes TypedDicts (`CreateAlertDraft`, `CreateAlertWizardState`, `UserData`)
+- `CustomContext` is the standard handler context
 
 ## What to avoid
 
-- Do not reintroduce APScheduler — the project deliberately migrated to PTB's native `JobQueue`.
-- Do not access the database directly — all communication with the scraper goes through the REST API (`ScraperAPI`).
+- Do not reintroduce APScheduler.
+- Do not reintroduce an HTTP client to the scraper for users/alerts/matches.
+- ConversationHandler multi-step flows must be `persistent=True` with a `name`.
 
 ## Library documentation
 

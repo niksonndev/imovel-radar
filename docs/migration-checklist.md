@@ -5,51 +5,30 @@
 > no Postgres compartilhado (ADR 0005) e estado de conversa em DynamoDB
 > (ADR 0006). O scraper não entra neste escopo — collector já funcionando.
 
-## Fase 1 — Em progresso
+## Fase 1
 
-- [ ] Remover import residual de `NotifiedPair` (`shared_models.api_schemas`)
-      em `apps/bot/jobs/polling_job.py`
-- [ ] Adicionar testes ao bot (hoje: zero cobertura; CI roda só `ruff`)
-      - unitários para `database/queries.py`
-      - unitários para `persistence.py` (DynamoDBPersistence)
-      - smoke test do `lambda_handler.py`
+- [x] Remover dependência de `shared_models.api_schemas` no bot
+- [x] Testes do bot: `database/queries.py`, `persistence.py`, smoke do `lambda_handler.py`
 
-## Fase 2 — Endurecimento
+## Fase 2
 
-- [ ] Secret do webhook: pendência de implementação — validar o header
-      `X-Telegram-Bot-Api-Secret-Token` no `lambda_handler` e configurar o
-      `secret_token` no `setWebhook` (hoje qualquer um que descobrir a URL do
-      API Gateway consegue injetar updates falsos)
-- [ ] Garantir uso da connection string *pooled* do Neon na Lambda
-- [ ] Revisar hack `app.post_init = post_init` em `main.py` (usar builder)
-- [ ] Unificar semântica de transação nas queries (commit no chamador;
-      `ensure_user` hoje comita internamente)
-- [ ] Tirar criação da engine de import time em `database/db.py`
-      (lazy/injetável, melhora testabilidade)
-- [ ] Renomear `handlers/api_client.py` (nome mentiroso — é camada de dados,
-      não cliente HTTP)
-- [ ] Limpeza menor: typo `"Schenduled Event"` em `lambda_handler.py`;
-      espanhol "apunta al" no `.env.example`
-- [ ] Atualizar guidelines/docs do monorepo: seção `bot` ainda diz que o bot
-      não acessa o banco diretamente — ADR 0005 reverte isso
+- [x] Secret do webhook (`X-Telegram-Bot-Api-Secret-Token` + `setWebhook`)
+- [x] Connection string pooled do Neon (check no CI + warning no engine)
+- [x] `post_init` via Application builder em `main.py`
+- [x] Transação unificada (commit no chamador; `ensure_user` não commita internamente)
+- [x] Engine lazy em `database/db.py`
+- [x] Rename `handlers/api_client.py` → `handlers/data.py`
+- [x] Typo `"Schenduled Event"`; espanhol no `.env.example`
+- [x] Guidelines/docs do monorepo alinhados ao ADR 0005
 
 ## Fase 3 — Deploy
 
-- [ ] Pipeline completa: testes → build dos zips → alembic no Neon →
-      terraform apply → setWebhook
-- [ ] Smoke pós-deploy: mensagem real no bot, wizard completo, notify horário
-      disparado, logs da Lambda limpos
-- [ ] Desligar containers da VM Oracle (`docker-compose.prod.yml`) — fim do
-      modelo antigo
+- [x] Pipeline: testes (scraper + bot) → zips → alembic → terraform → setWebhook (`secret_token`, `-raw`)
+- [ ] Smoke humano pós-deploy: mensagem real, wizard completo (incl. cold start), notify, logs
+- [x] Produção = só Lambda (`docker-compose.prod.yml` aposentado; sem host Compose)
 
-## Fase 4 — Backlog pós-deploy (fora do escopo atual)
+## Fase 4 — Backlog
 
-- [ ] Remover endpoints users/alerts/matches da API do scraper
-      (ADR 0005 — decisão pendente: remoção imediata vs deprecação)
-- [ ] Futuro de `packages/shared-models` (ADR 0004 questão #2 / ADR 0005 #2):
-      - [x] Table models SQLModel consolidados em `shared_models.tables`
-            (fonte única do schema físico — ver "Decided after acceptance"
-            no ADR 0005)
-      - [ ] Remoção/deprecação de `api_schemas` (perde a finalidade);
-            modelos de domínio e utils permanecem
-- [ ] Idempotência do confirm do wizard (ADR 0006 questões #4–5)
+- [x] Remover endpoints users/alerts/matches da API do scraper
+- [x] `shared_models.api_schemas` deprecated (não reexportado)
+- [x] Idempotência do confirm do wizard (draft `created_alert_id` + `find_equivalent_alert`)
