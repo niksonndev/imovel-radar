@@ -8,7 +8,12 @@ Layout dos itens:
                           TTL expirando drafts de wizard abandonados (ADR 0006).
   * ``chat_data``      -> um item por chat (PK=chat_id, SK="chat_data"), com TTL.
   * ``bot_data``       -> um item global (PK=0, SK="bot_data") — carrossel etc.
-  * ``conversations``  -> um item global (PK=0, SK="conversations").
+                          (TTL interno por carrossel via ``created_at``; o item
+                          Dynamo em si não usa TTL nativo para não apagar
+                          carrosséis ativos de outros chats.)
+  * ``conversations``  -> um item global (PK=0, SK="conversations"), com TTL
+                          nativo para não deixar usuários presos no wizard após
+                          abandonar o fluxo.
   * ``callback_data``  -> não usado (store_data.callback_data=False).
 
 Cada item traz ``version`` para optimistic concurrency (ConditionExpression no
@@ -143,7 +148,7 @@ class DynamoDBPersistence(BasePersistence[dict[Any, Any], dict[Any, Any], dict[A
                 "data": _encode(data),
                 "version": new_version,
             }
-            if store in ("user_data", "chat_data"):
+            if store in ("user_data", "chat_data", "conversations"):
                 item["ttl"] = self._ttl()
 
             put_kwargs: dict[str, Any] = {

@@ -148,6 +148,17 @@ def test_update_conversation_encodes_tuple_keys() -> None:
     loaded = _run(pers.get_conversations("new_alert"))
     assert loaded[key] == 2
     assert table.items[(0, "conversations")]["version"] == 1
+    assert "ttl" in table.items[(0, "conversations")]
+
+
+def test_user_data_has_ttl_bot_data_does_not() -> None:
+    table = FakeTable()
+    pers = DynamoDBPersistence(table=table)
+    _run(pers.update_user_data(1, {"a": 1}))
+    _run(pers.update_bot_data({"carousel_1": {"cards": []}}))
+
+    assert "ttl" in table.items[(1, "user_data")]
+    assert "ttl" not in table.items[(0, "bot_data")]
 
 
 def test_get_user_data_scans_with_store_alias() -> None:
