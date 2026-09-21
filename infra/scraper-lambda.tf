@@ -110,6 +110,16 @@ resource "aws_cloudwatch_log_group" "collect" {
   retention_in_days = 14
 }
 
+resource "aws_sns_topic" "alarms" {
+  name = "${var.project}-${var.environment}-alarms"
+}
+
+resource "aws_sns_topic_subscription" "alarms_email" {
+  topic_arn = aws_sns_topic.alarms.arn
+  protocol  = "email"
+  endpoint  = var.alarm_email
+}
+
 resource "aws_cloudwatch_metric_alarm" "collect_errors" {
   alarm_name          = "${var.project}-${var.environment}-scraper-collect-errors"
   comparison_operator = "GreaterThanThreshold"
@@ -120,6 +130,8 @@ resource "aws_cloudwatch_metric_alarm" "collect_errors" {
   statistic           = "Sum"
   threshold           = "0"
   alarm_description   = "Falha (Errors) na coleta diária do scraper."
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
   dimensions = {
     FunctionName = aws_lambda_function.collect.function_name
   }

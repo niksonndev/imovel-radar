@@ -72,6 +72,11 @@ variable "lambda_timeout" {
   default     = 900
 }
 
+variable "alarm_email" {
+  description = "Email para notificações dos alarmes CloudWatch (SNS)"
+  default     = "niksonndev@gmail.com"
+}
+
 # ── Bot (webhook + notificação) ─────────────────────────────────────────────
 variable "bot_ssm_token_name" {
   description = "Caminho do parâmetro SSM com o token do bot (criado no bootstrap, fora do Terraform)"

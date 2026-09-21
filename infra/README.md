@@ -16,6 +16,9 @@ SSM Parameter Store).
 - **EventBridge `imovel-radar-prod-scraper-collect-cron`** — `cron(0 11 * * ? *)`
   (08:00 America/Maceio em UTC).
 - **CloudWatch**: log group (retention 14d) + alarme de erros da Lambda.
+- **SNS `imovel-radar-prod-alarms`** — email (`alarm_email`, default
+  `niksonndev@gmail.com`) nos alarmes de scraper e bot. Após o apply, confirme
+  a inscrição no link que o SNS envia ao inbox (PendingConfirmation até lá).
 
 ## Bootstrap (uma vez)
 
