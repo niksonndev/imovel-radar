@@ -143,6 +143,9 @@ jobs:
             -var "bot_zip_path=../apps/bot/dist/lambda.zip" \
             -var "database_url=${{ env.DATABASE_URL }}"
 
+      # Smoke: 5 páginas sob SCRAPER_MAX_PAGES=5. O hard cap NÃO marca
+      # completed (ver olx_scraper.search_listings) — assim não dispara
+      # deactivate_missing_listings e não destrói o corpus.
       - name: Post-deploy smoke (5 páginas)
         run: |
           FN="imovel-radar-prod-scraper-collect"
@@ -154,9 +157,9 @@ jobs:
             --payload '{"source":"aws.events","detail-type":"Scheduled Event"}' \
             /tmp/invoke.json
           cat /tmp/invoke.json
-          # restaura o env padrão (SCRAPER_MAX_PAGES=100)
+          # restaura o env padrão do Terraform (scraper_max_pages=500)
           aws lambda update-function-configuration --function-name "$FN" \
-            --environment "Variables={DATABASE_URL=${{ env.DATABASE_URL }},LOG_LEVEL=INFO,SCRAPER_MAX_PAGES=100}" >/dev/null
+            --environment "Variables={DATABASE_URL=${{ env.DATABASE_URL }},LOG_LEVEL=INFO,SCRAPER_MAX_PAGES=500}" >/dev/null
 
       - name: Post-deploy bot smoke (EventBridge notify)
         run: |
