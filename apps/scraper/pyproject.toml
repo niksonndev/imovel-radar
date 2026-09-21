@@ -1,7 +1,7 @@
 [project]
 name = "imovel-radar-scraper"
 version = "0.1.0"
-description = "FastAPI service for OLX scraping — sole owner of the database"
+description = "FastAPI/Lambda service for OLX scraping — writer of listing (ADR 0005)"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "fastapi==0.115.0",
