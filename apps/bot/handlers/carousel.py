@@ -5,14 +5,17 @@ Recebe uma ``list[Listing]`` e renderiza no Telegram como uma sequência
 navegável de mensagens com foto e teclado inline.
 
 Assumimos que ``listing.images[0]`` está sempre disponível.
-Este módulo não acessa o banco de dados nem faz requisições HTTP — todo
-dado necessário é recebido como prop e armazenado no estado volátil do bot.
+Navegação é *stateless* no índice (callback ``crs_{id}_{index}``) — não grava
+``bot_data`` a cada clique. Só atualiza o store quando aprende um ``file_id``
+novo (Telegram CDN) ou ao criar/expirar o carrossel.
 """
 
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import MutableMapping
+from typing import Any, TypedDict
 
 from shared_models.tables import Listing
 from shared_models.utils import format_brl
@@ -21,44 +24,63 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     InputMediaPhoto,
+    Message,
     Update,
 )
 from telegram.ext import Application, CallbackQueryHandler
 
+import config
 from models import CustomContext
 
 logger = logging.getLogger(__name__)
 
 MAX_TITLE_LEN = 80
 CAROUSEL_CALLBACK_PREFIX = "crs_"
+# Espelha o TTL de drafts (ADR 0006); carrosséis velhos são podados no store.
+CAROUSEL_TTL_SECONDS = int(config.DYNAMODB_TTL_HOURS * 3600)
 
-_NAV_ACTIONS = frozenset({"next", "prev"})
 
-
-def _next_index(index: int, action: str, total: int) -> int:
-    if action == "next":
-        return min(index + 1, total - 1)
-    if action == "prev":
-        return max(index - 1, 0)
-    return index
+class CarouselCard(TypedDict, total=False):
+    title: str
+    price_value: int | None
+    neighbourhood: str
+    url: str | None
+    image_url: str
+    file_id: str | None
+    rooms: Any
+    size: Any
+    real_estate_type: str
 
 
 def _truncate(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def _carousel_caption(listing: Listing, index: int, total: int) -> str:
-    props = listing.properties  # já é dict no table model
+def _listing_to_card(listing: Listing) -> CarouselCard:
+    props = listing.properties if isinstance(listing.properties, dict) else {}
+    images = listing.images or []
+    return {
+        "title": listing.title or "",
+        "price_value": listing.price_value,
+        "neighbourhood": listing.neighbourhood or "",
+        "url": listing.url,
+        "image_url": images[0],
+        "file_id": None,
+        "rooms": props.get("rooms"),
+        "size": props.get("size"),
+        "real_estate_type": str(props.get("real_estate_type") or "—"),
+    }
 
-    title = _truncate(listing.title, MAX_TITLE_LEN)
-    price = format_brl(listing.price_value)
-    bedrooms = props.get("rooms")
+
+def _card_caption(card: CarouselCard, index: int, total: int) -> str:
+    title = _truncate(card.get("title") or "", MAX_TITLE_LEN)
+    price = format_brl(card.get("price_value"))
+    bedrooms = card.get("rooms")
     bedrooms_label = f"{bedrooms} quarto(s)" if bedrooms is not None else "—"
-    area = props.get("size")
+    area = card.get("size")
     area_label = f"{area:g}m²" if area else "—"
-    neighbourhood = listing.neighbourhood or "—"
-    rental_or_sale = props.get("real_estate_type", "—")
-
+    neighbourhood = card.get("neighbourhood") or "—"
+    rental_or_sale = card.get("real_estate_type") or "—"
     counter = f"{index + 1} de {total}"
 
     return (
@@ -77,9 +99,19 @@ def _carousel_keyboard(
 ) -> InlineKeyboardMarkup:
     nav_row: list[InlineKeyboardButton] = []
     if index > 0:
-        nav_row.append(InlineKeyboardButton("◀ Anterior", callback_data=f"crs_{carousel_id}_prev"))
+        nav_row.append(
+            InlineKeyboardButton(
+                "◀ Anterior",
+                callback_data=f"crs_{carousel_id}_{index - 1}",
+            )
+        )
     if index < total - 1:
-        nav_row.append(InlineKeyboardButton("Próximo ▶", callback_data=f"crs_{carousel_id}_next"))
+        nav_row.append(
+            InlineKeyboardButton(
+                "Próximo ▶",
+                callback_data=f"crs_{carousel_id}_{index + 1}",
+            )
+        )
     rows: list[list[InlineKeyboardButton]] = []
     if nav_row:
         rows.append(nav_row)
@@ -88,18 +120,70 @@ def _carousel_keyboard(
     return InlineKeyboardMarkup(rows)
 
 
-def _parse_nav_callback(data: str) -> tuple[str, str] | None:
+def _parse_nav_callback(data: str) -> tuple[str, int] | None:
+    """``crs_{carousel_id}_{index}`` — índice absoluto (estilo cinema-bot)."""
     if not data.startswith(CAROUSEL_CALLBACK_PREFIX):
         return None
     rest = data[len(CAROUSEL_CALLBACK_PREFIX) :]
-    carousel_id, sep, action = rest.rpartition("_")
-    if not sep or not carousel_id or action not in _NAV_ACTIONS:
+    carousel_id, sep, index_s = rest.rpartition("_")
+    if not sep or not carousel_id:
         return None
-    return carousel_id, action
+    try:
+        index = int(index_s)
+    except ValueError:
+        return None
+    if index < 0:
+        return None
+    return carousel_id, index
 
 
 def _state_key(carousel_id: str) -> str:
     return f"carousel_{carousel_id}"
+
+
+def _photo_file_id(message: Message | bool | None) -> str | None:
+    if message is None or isinstance(message, bool):
+        return None
+    photo = getattr(message, "photo", None)
+    if not photo:
+        return None
+    last = photo[-1]
+    file_id = getattr(last, "file_id", None)
+    return file_id if isinstance(file_id, str) and file_id else None
+
+
+def _media_source(card: CarouselCard) -> str:
+    file_id = card.get("file_id")
+    if isinstance(file_id, str) and file_id:
+        return file_id
+    image_url = card.get("image_url")
+    if isinstance(image_url, str) and image_url:
+        return image_url
+    raise ValueError("card sem image_url/file_id")
+
+
+def _is_expired(state: dict[str, Any], *, now: float | None = None) -> bool:
+    ts = state.get("created_at")
+    if not isinstance(ts, (int, float)):
+        return True
+    return (now if now is not None else time.time()) - float(ts) > CAROUSEL_TTL_SECONDS
+
+
+def prune_expired_carousels(
+    state_store: MutableMapping[str, object],
+    *,
+    now: float | None = None,
+) -> int:
+    """Remove carrosséis expirados do store. Retorna quantos foram removidos."""
+    removed = 0
+    for key in list(state_store.keys()):
+        if not isinstance(key, str) or not key.startswith("carousel_"):
+            continue
+        value = state_store.get(key)
+        if not isinstance(value, dict) or _is_expired(value, now=now):
+            state_store.pop(key, None)
+            removed += 1
+    return removed
 
 
 async def send_carousel(
@@ -109,24 +193,28 @@ async def send_carousel(
     carousel_id: str,
     state_store: MutableMapping[str, object],
 ) -> None:
-    total = len(listings)
-    listing = listings[0]
-    caption = _carousel_caption(listing, 0, total)
-    keyboard = _carousel_keyboard(carousel_id, 0, total, listing.url)
+    prune_expired_carousels(state_store)
 
-    await bot.send_photo(
+    total = len(listings)
+    cards = [_listing_to_card(item) for item in listings]
+    card = cards[0]
+    caption = _card_caption(card, 0, total)
+    keyboard = _carousel_keyboard(carousel_id, 0, total, card.get("url"))
+
+    message = await bot.send_photo(
         chat_id=chat_id,
-        photo=listing.images[0],
+        photo=_media_source(card),
         caption=caption,
         reply_markup=keyboard,
     )
+    file_id = _photo_file_id(message)
+    if file_id:
+        cards[0]["file_id"] = file_id
 
     state_store[_state_key(carousel_id)] = {
         "chat_id": chat_id,
-        # mode="json": first_seen_at/updated_at viram strings ISO seguras p/ o
-        # JSON do DynamoDB; a rehidratação valida de volta pra datetime.
-        "listings": [item.model_dump(mode="json") for item in listings],
-        "index": 0,
+        "cards": cards,
+        "created_at": time.time(),
     }
 
 
@@ -140,46 +228,71 @@ async def carousel_nav_cb(update: Update, context: CustomContext) -> None:
         await query.answer()
         return
 
-    carousel_id, action = parsed
+    carousel_id, new_index = parsed
     bot_data = context.application.bot_data
-    state = bot_data.get(_state_key(carousel_id)) if bot_data is not None else None
-    if not isinstance(state, dict) or not state.get("listings"):
+    key = _state_key(carousel_id)
+    state = bot_data.get(key) if bot_data is not None else None
+
+    if not isinstance(state, dict) or _is_expired(state):
+        if isinstance(state, dict) and bot_data is not None:
+            bot_data.pop(key, None)
         await query.answer(
             "Carrossel expirado. Crie um novo alerta para ver os imoveis.",
             show_alert=False,
         )
         return
 
-    listings = [Listing(**item) for item in state["listings"]]
-    total = len(listings)
-    if total == 0:
-        await query.answer("Todos os anúncios deste carrossel foram removidos.")
+    cards_raw = state.get("cards")
+    if not isinstance(cards_raw, list) or not cards_raw:
+        # Legacy payload (listings completos) ou vazio — trata como expirado.
+        if bot_data is not None:
+            bot_data.pop(key, None)
+        await query.answer(
+            "Carrossel expirado. Crie um novo alerta para ver os imoveis.",
+            show_alert=False,
+        )
         return
 
-    current: int = min(int(state.get("index", 0)), total - 1)
-    new_index = _next_index(current, action, total)
-    if new_index == current:
+    total = len(cards_raw)
+    if new_index < 0 or new_index >= total:
         await query.answer()
         return
 
-    listing = listings[new_index]
-    state["index"] = new_index
-    bot_data[_state_key(carousel_id)] = state
+    card = cards_raw[new_index]
+    if not isinstance(card, dict):
+        await query.answer()
+        return
 
+    # Spinner some antes da troca de mídia (potealmente lenta na 1ª visita).
     await query.answer()
 
-    caption = _carousel_caption(listing, new_index, total)
-    keyboard = _carousel_keyboard(carousel_id, new_index, total, listing.url)
-    await query.edit_message_media(
-        media=InputMediaPhoto(media=listing.images[0], caption=caption),
+    caption = _card_caption(card, new_index, total)  # type: ignore[arg-type]
+    keyboard = _carousel_keyboard(carousel_id, new_index, total, card.get("url"))
+
+    try:
+        media = _media_source(card)  # type: ignore[arg-type]
+    except ValueError:
+        logger.warning("Card %s do carrossel %s sem mídia", new_index, carousel_id)
+        return
+
+    message = await query.edit_message_media(
+        media=InputMediaPhoto(media=media, caption=caption),
         reply_markup=keyboard,
     )
+
+    # Só grava bot_data se aprendemos um file_id novo (CDN do Telegram).
+    learned = _photo_file_id(message)
+    if learned and not card.get("file_id"):
+        card["file_id"] = learned
+        cards_raw[new_index] = card
+        state["cards"] = cards_raw
+        bot_data[key] = state
 
 
 def register_handlers(app: Application) -> None:
     app.add_handler(
         CallbackQueryHandler(
             carousel_nav_cb,
-            pattern=r"^crs_.+_(?:next|prev)$",
+            pattern=r"^crs_.+_\d+$",
         )
     )

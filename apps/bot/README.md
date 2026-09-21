@@ -10,7 +10,9 @@ usando polling + PicklePersistence.
 - `/novo_alerta` — wizard persistente (`name="new_alert"`). Ao confirmar, escreve
   o alerta em `alerts` (idempotente nos filtros), busca matches e envia carrossel.
 - **Meus Alertas** — listagem, detalhe e remoção leem/escrevem `alerts`.
-- **Carrossel** — navegação via `bot_data` persistido em DynamoDB (ADR 0006).
+- **Carrossel** — cards enxutos em `bot_data`; navegação por índice no
+  callback (`crs_{id}_{index}`) sem rewrite a cada clique; `file_id` do
+  Telegram para fotos rápidas após a 1ª visita.
 - **Notificação horária** — EventBridge → Lambda.
 
 ## Configuração (`.env`)
