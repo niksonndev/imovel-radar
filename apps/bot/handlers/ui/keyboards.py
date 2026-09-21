@@ -35,13 +35,32 @@ def _neighbourhoods_done_caption(n_selected: int) -> str:
     return label[:_INLINE_BTN_TEXT_MAX]
 
 
-def price_range_keyboard() -> InlineKeyboardMarkup:
-    presets = [
-        ("wiz_price_preset_rent_0", "Até R$ 800"),
-        ("wiz_price_preset_rent_1", "R$ 800 – R$ 1.500"),
-        ("wiz_price_preset_rent_2", "R$ 1.500 – R$ 3.000"),
-        ("wiz_price_preset_rent_3", "R$ 3.000+"),
-    ]
+def listing_kind_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("🏠 Comprar", callback_data="wiz_kind_venda"),
+                InlineKeyboardButton("🔑 Alugar", callback_data="wiz_kind_aluguel"),
+            ]
+        ]
+    )
+
+
+def price_range_keyboard(*, listing_kind: str = "aluguel") -> InlineKeyboardMarkup:
+    if listing_kind == "venda":
+        presets = [
+            ("wiz_price_preset_sale_0", "Até R$ 150 mil"),
+            ("wiz_price_preset_sale_1", "R$ 150 – 300 mil"),
+            ("wiz_price_preset_sale_2", "R$ 300 – 500 mil"),
+            ("wiz_price_preset_sale_3", "R$ 500 mil+"),
+        ]
+    else:
+        presets = [
+            ("wiz_price_preset_rent_0", "Até R$ 800"),
+            ("wiz_price_preset_rent_1", "R$ 800 – R$ 1.500"),
+            ("wiz_price_preset_rent_2", "R$ 1.500 – R$ 3.000"),
+            ("wiz_price_preset_rent_3", "R$ 3.000+"),
+        ]
     rows: list[list[InlineKeyboardButton]] = [
         [InlineKeyboardButton(label, callback_data=cb)] for cb, label in presets
     ]

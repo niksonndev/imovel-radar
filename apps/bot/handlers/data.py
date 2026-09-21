@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 
-from shared_models.tables import Alert, ListingAlertMatch
+from shared_models.tables import Alert, ListingAlertMatch, ListingKind
 from sqlmodel import Session
 
 from database import queries
@@ -33,9 +33,9 @@ async def ensure_user(chat_id: int) -> bool:
 
 
 # ── Listings / bairros (read-only) ─────────────────────────────────────────
-async def get_neighbourhoods() -> list[str]:
+async def get_neighbourhoods(*, listing_kind: ListingKind | None = None) -> list[str]:
     with Session(get_engine()) as session:
-        return queries.get_neighbourhoods(session)
+        return queries.get_neighbourhoods(session, listing_kind=listing_kind)
 
 
 # ── Alerts (dona: bot) ─────────────────────────────────────────────────────
@@ -46,6 +46,7 @@ async def create_alert(
     min_price: int | None = None,
     max_price: int | None = None,
     neighbourhoods: list[str],
+    listing_kind: ListingKind = "aluguel",
 ) -> int:
     """Cria o alerta no Postgres e retorna o id gerado (idempotente nos filtros)."""
     if min_price is None and max_price is None:
@@ -58,6 +59,7 @@ async def create_alert(
             min_price=min_price,
             max_price=max_price,
             neighbourhoods=neighbourhoods,
+            listing_kind=listing_kind,
         )
         if existing is not None and existing.id is not None:
             return existing.id
@@ -68,6 +70,7 @@ async def create_alert(
             min_price=min_price,
             max_price=max_price,
             neighbourhoods=neighbourhoods,
+            listing_kind=listing_kind,
         )
         session.commit()
     return alert_id

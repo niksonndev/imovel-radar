@@ -6,7 +6,7 @@ O commit/rollback fica com o chamador.
 
 from __future__ import annotations
 
-from shared_models.tables import Alert, AlertMatch, Listing, ListingAlertMatch, User
+from shared_models.tables import Alert, AlertMatch, Listing, ListingAlertMatch, ListingKind, User
 from sqlalchemy import delete, func
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlmodel import Session, select
@@ -29,14 +29,22 @@ def get_users_chat_ids(session: Session) -> list[int]:
 
 
 # ── Neighbourhoods (lê listing) ────────────────────────────────────────────
-def get_neighbourhoods(session: Session, municipality: str = "Maceió") -> list[str]:
+def get_neighbourhoods(
+    session: Session,
+    municipality: str = "Maceió",
+    *,
+    listing_kind: ListingKind | None = None,
+) -> list[str]:
+    conditions = [
+        Listing.municipality == municipality,
+        Listing.neighbourhood != "",
+    ]
+    if listing_kind is not None:
+        conditions.append(Listing.listing_kind == listing_kind)
     return list(
         session.exec(
             select(Listing.neighbourhood)
-            .where(
-                Listing.municipality == municipality,
-                Listing.neighbourhood != "",
-            )
+            .where(*conditions)
             .group_by(Listing.neighbourhood)
             .order_by(func.count().desc())
         ).all()
@@ -52,11 +60,13 @@ def create_alert(
     min_price: int | None,
     max_price: int | None,
     neighbourhoods: list[str] | None,
+    listing_kind: ListingKind = "aluguel",
 ) -> int:
     """Cria um alerta e retorna o id (o chamador decide quando commitar)."""
     alert = Alert(
         chat_id=chat_id,
         alert_name=alert_name,
+        listing_kind=listing_kind,
         min_price=min_price,
         max_price=max_price,
         neighbourhoods=neighbourhoods,
@@ -76,12 +86,14 @@ def find_equivalent_alert(
     min_price: int | None,
     max_price: int | None,
     neighbourhoods: list[str] | None,
+    listing_kind: ListingKind = "aluguel",
 ) -> Alert | None:
     """Alerta já existente do usuário com os mesmos filtros (confirm idempotente)."""
     wanted = sorted(neighbourhoods or [])
     for alert in get_alerts_for_user(session, chat_id):
         if (
             alert.alert_name == alert_name
+            and alert.listing_kind == listing_kind
             and alert.min_price == min_price
             and alert.max_price == max_price
             and sorted(alert.neighbourhoods or []) == wanted
@@ -127,6 +139,7 @@ def delete_alert_for_user(session: Session, chat_id: int, alert_id: int) -> bool
 def get_unnotified_listings_for_alert(session: Session, alert: Alert) -> list[Listing]:
     conditions = [
         Listing.active.is_(True),  # type: ignore[union-attr]
+        Listing.listing_kind == alert.listing_kind,
         AlertMatch.listing_id.is_(None),  # type: ignore[union-attr]
     ]
     if (min_price := alert.min_price) is not None:

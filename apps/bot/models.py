@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Literal, TypedDict
 
+from shared_models.tables import ListingKind
 from telegram.ext import CallbackContext, ExtBot
 
 
@@ -18,6 +19,7 @@ class CreateAlertDraft(TypedDict, total=False):
     """Estado parcial durante o fluxo incremental de criação de alerta."""
 
     alert_name: str
+    listing_kind: ListingKind
     min_price: int
     max_price: int
     neighbourhoods: list[str]
