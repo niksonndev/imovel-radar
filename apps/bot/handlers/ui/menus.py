@@ -24,6 +24,7 @@ def ajuda_comandos_plain() -> str:
         "Comandos\n"
         "/start — boas-vindas e menu principal\n"
         "/novo_alerta — criar alerta de aluguel ou compra\n"
+        "/cancelar — sai do wizard de novo alerta\n"
         "/ajuda — esta mensagem"
     )
 

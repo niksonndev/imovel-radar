@@ -68,10 +68,12 @@ async def main_menu_callback(update: Update, context: CustomContext) -> None:
 
 
 def setup(app: Application) -> None:
-    # Handlers específicos de comando (devem estar antes de qualquer MessageHandler)
+    # ConversationHandler primeiro: com o usuário no meio do wizard, /start e
+    # /novo_alerta passam pelos fallbacks/entry (allow_reentry) e liberam o
+    # estado preso. Fora do wizard, os CommandHandlers abaixo atendem.
+    app.add_handler(new_alert_conversation())
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("ajuda", help_cmd))
-    app.add_handler(new_alert_conversation())
 
     # Handlers de callback específicos
     app.add_handler(CallbackQueryHandler(meus_alertas_callback, pattern=r"^menu_meus_alertas$"))

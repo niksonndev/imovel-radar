@@ -430,10 +430,23 @@ async def cancel_wiz(update: Update, context: CustomContext) -> int:
     return ConversationHandler.END
 
 
+async def start_fallback(update: Update, context: CustomContext) -> int:
+    """``/start`` durante o wizard: encerra a conversa e mostra o menu."""
+    assert update.effective_message is not None
+    _clear_wizard(context)
+    await update.effective_message.reply_text(
+        menus.start_welcome(),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=keyboards.main_menu_keyboard(),
+    )
+    return ConversationHandler.END
+
+
 def new_alert_conversation() -> ConversationHandler:
     return ConversationHandler(
         name="new_alert",
         persistent=True,
+        allow_reentry=True,
         entry_points=[
             CommandHandler("novo_alerta", new_alert_cmd),
             CallbackQueryHandler(new_alert_cmd, pattern="^novo_alerta$"),
@@ -457,5 +470,8 @@ def new_alert_conversation() -> ConversationHandler:
                 CallbackQueryHandler(wiz_confirm_cb, pattern="^wiz_confirm_"),
             ],
         },
-        fallbacks=[CommandHandler("cancelar", cancel_wiz)],
+        fallbacks=[
+            CommandHandler("cancelar", cancel_wiz),
+            CommandHandler("start", start_fallback),
+        ],
     )
