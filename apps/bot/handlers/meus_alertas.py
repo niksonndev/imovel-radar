@@ -11,7 +11,7 @@ import re
 from telegram import CallbackQuery, Update
 from telegram.constants import ParseMode
 
-from handlers.api_client import (
+from handlers.data import (
     delete_alert,
     get_alert_for_user,
     get_alerts_for_user,

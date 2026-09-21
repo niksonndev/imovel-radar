@@ -81,10 +81,9 @@ def setup(app: Application) -> None:
     )
     register_carousel_handlers(app)
 
-    # Nota: a garantia de que o usuário existe no scraper é feita de forma
+    # Nota: a garantia de que o usuário existe no Postgres é feita de forma
     # global, antes de qualquer handler, via RadarApplication.process_update
-    # (ver apps/bot/application.py). Não usamos um MessageHandler global para
-    # isso, pois no PTB ele interromperia o grupo após o primeiro match.
+    # (ver apps/bot/application.py).
 
 
 async def apply_bot_commands(app: Application) -> None:
