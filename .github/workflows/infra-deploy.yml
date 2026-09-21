@@ -1,13 +1,16 @@
-name: Infra Deploy (scraper lambda)
+name: Infra Deploy (scraper + bot lambdas)
 
-# Deploy da Lambda de coleta (scraper) via Terraform + EventBridge.
-# Gatilhos: mudanças em apps/scraper, infra/ ou no próprio workflow.
+# Deploy das lambdas (scraper de coleta + bot webhook/notificação) via Terraform.
+# Gatilhos: mudanças em apps/scraper, apps/bot, packages/shared-models,
+# infra/ ou no próprio workflow.
 
 on:
   push:
     branches: [main]
     paths:
       - 'apps/scraper/**'
+      - 'apps/bot/**'
+      - 'packages/shared-models/**'
       - 'infra/**'
       - '.github/workflows/infra-deploy.yml'
 
@@ -45,7 +48,7 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
-          cache-dependency-glob: 'apps/scraper/uv.lock'
+          cache-dependency-glob: '{apps/scraper/uv.lock,apps/bot/uv.lock}'
 
       - uses: hashicorp/setup-terraform@v3
 
@@ -58,6 +61,13 @@ jobs:
       - name: Read DATABASE_URL from SSM
         run: |
           echo "DATABASE_URL=$(aws ssm get-parameter --name /imovel-radar/prod/database_url --with-decryption --query Parameter.Value --output text)" >> "$GITHUB_ENV"
+
+      - name: Check Neon pooled URL
+        run: |
+          if [[ "$DATABASE_URL" == *"neon.tech"* && "$DATABASE_URL" != *"-pooler"* ]]; then
+            echo "::error::DATABASE_URL do Neon deve usar o endpoint pooled (host com -pooler)"
+            exit 1
+          fi
 
       - name: Install deps + tests (gate)
         working-directory: apps/scraper
@@ -74,7 +84,7 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
-      - name: Build Lambda zip
+      - name: Build scraper Lambda zip
         working-directory: apps/scraper
         run: |
           uv export --no-dev --frozen -o /tmp/requirements.txt
@@ -86,6 +96,24 @@ jobs:
           cp -r scheduler collector database dist/python/
           cd dist/python && zip -q -r ../lambda.zip .
 
+      - name: Bot lint + tests + Build bot Lambda zip
+        working-directory: apps/bot
+        run: |
+          uv python install
+          uv sync --frozen
+          uv run ruff check .
+          uv run pytest -q
+          uv export --no-dev --frozen -o /tmp/requirements-bot.txt
+          grep -vi 'shared-models' /tmp/requirements-bot.txt > /tmp/requirements-bot-no-shared.txt
+          mkdir -p dist/python
+          uv pip install --target dist/python -r /tmp/requirements-bot-no-shared.txt
+          cp -r ../../packages/shared-models/src/shared_models dist/python/shared_models
+          cp lambda_handler.py config.py application.py models.py persistence.py dist/python/
+          cp -r handlers jobs database dist/python/
+          cd dist/python && zip -q -r ../lambda.zip .
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:teste123@localhost:5432/imovel_radar
+
       - name: Terraform plan + apply
         working-directory: infra
         run: |
@@ -95,10 +123,12 @@ jobs:
             -backend-config="region=${{ env.AWS_REGION }}" \
             -backend-config="use_lockfile=true"
           terraform plan \
-            -var "zip_path=../apps/scraper/dist/lambda.zip" \
+            -var "scraper_zip_path=../apps/scraper/dist/lambda.zip" \
+            -var "bot_zip_path=../apps/bot/dist/lambda.zip" \
             -var "database_url=${{ env.DATABASE_URL }}"
           terraform apply -auto-approve \
-            -var "zip_path=../apps/scraper/dist/lambda.zip" \
+            -var "scraper_zip_path=../apps/scraper/dist/lambda.zip" \
+            -var "bot_zip_path=../apps/bot/dist/lambda.zip" \
             -var "database_url=${{ env.DATABASE_URL }}"
 
       - name: Post-deploy smoke (10 páginas)
@@ -115,3 +145,23 @@ jobs:
           # restaura o env padrão (SCRAPER_MAX_PAGES=100)
           aws lambda update-function-configuration --function-name "$FN" \
             --environment "Variables={DATABASE_URL=${{ env.DATABASE_URL }},LOG_LEVEL=INFO,SCRAPER_MAX_PAGES=100}" >/dev/null
+
+      - name: Post-deploy bot smoke (EventBridge notify)
+        run: |
+          FN="$(terraform -chdir=infra output -raw bot_lambda_function_name)"
+          aws lambda invoke \
+            --function-name "$FN" \
+            --cli-binary-format raw-in-base64-out \
+            --payload '{"source":"aws.events","detail-type":"Scheduled Event"}' \
+            /tmp/bot-invoke.json
+          cat /tmp/bot-invoke.json
+
+      - name: Set webhook (Telegram → API Gateway)
+        run: |
+          TOKEN=$(aws ssm get-parameter --name /imovel-radar/prod/telegram_bot_token --with-decryption --query Parameter.Value --output text)
+          WEBHOOK_URL="$(terraform -chdir=infra output -raw bot_webhook_url)"
+          SECRET="$(terraform -chdir=infra output -raw bot_webhook_secret)"
+          curl -s -X POST "https://api.telegram.org/bot${TOKEN}/setWebhook" \
+            -H 'Content-Type: application/json' \
+            -d "{\"url\": \"${WEBHOOK_URL}\", \"secret_token\": \"${SECRET}\", \"allowed_updates\": [\"message\", \"callback_query\"]}"
+          echo
