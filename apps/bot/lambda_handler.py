@@ -32,7 +32,7 @@ from telegram.ext import Application, ContextTypes
 import config
 from application import build_application
 from handlers.setup import apply_bot_commands
-from jobs.polling_job import notify_new_matches
+from jobs.polling_job import run_daily_notifications
 from models import CustomContext, UserData
 from persistence import DynamoDBPersistence
 
@@ -157,7 +157,7 @@ async def _handle_webhook(event: dict) -> dict:
 
 async def _handle_notify() -> None:
     app = await _get_application()
-    await notify_new_matches(app)
+    await run_daily_notifications(app)
     await app.update_persistence()
 
 

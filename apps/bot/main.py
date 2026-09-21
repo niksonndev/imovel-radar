@@ -18,7 +18,7 @@ from telegram.ext import Application, ContextTypes, PicklePersistence
 import config
 from application import build_application
 from handlers.setup import apply_bot_commands
-from jobs.polling_job import notify_new_matches
+from jobs.polling_job import run_daily_notifications
 from models import CustomContext, UserData
 
 ROOT = Path(__file__).resolve().parent
@@ -51,7 +51,7 @@ def start_polling(app: Application) -> None:
     assert job_queue is not None, "JobQueue indisponível — confirme o extra [job-queue] instalado"
 
     async def polling_wrapper(context: ContextTypes.DEFAULT_TYPE) -> None:
-        await notify_new_matches(context.application)
+        await run_daily_notifications(context.application)
 
     job_queue.run_repeating(
         polling_wrapper,
