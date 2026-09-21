@@ -82,18 +82,16 @@ def find_equivalent_alert(
     session: Session,
     *,
     chat_id: int,
-    alert_name: str | None,
     min_price: int | None,
     max_price: int | None,
     neighbourhoods: list[str] | None,
     listing_kind: ListingKind = "aluguel",
 ) -> Alert | None:
-    """Alerta já existente do usuário com os mesmos filtros (confirm idempotente)."""
+    """Alerta já existente do usuário com os mesmos filtros (nome ignorado)."""
     wanted = sorted(neighbourhoods or [])
     for alert in get_alerts_for_user(session, chat_id):
         if (
-            alert.alert_name == alert_name
-            and alert.listing_kind == listing_kind
+            alert.listing_kind == listing_kind
             and alert.min_price == min_price
             and alert.max_price == max_price
             and sorted(alert.neighbourhoods or []) == wanted
@@ -173,7 +171,17 @@ def get_unnotified_listings_for_user(session: Session, chat_id: int) -> list[Lis
 
 
 def mark_listings_notified(session: Session, pairs: list[tuple[int, int]]) -> None:
-    """Registra pares (alert_id, listing_id) como notificados."""
-    session.add_all(
-        [AlertMatch(alert_id=alert_id, listing_id=listing_id) for alert_id, listing_id in pairs]
+    """Registra pares (alert_id, listing_id) como notificados (idempotente)."""
+    if not pairs:
+        return
+    stmt = (
+        postgres_insert(AlertMatch)
+        .values(
+            [
+                {"alert_id": alert_id, "listing_id": listing_id}
+                for alert_id, listing_id in pairs
+            ]
+        )
+        .on_conflict_do_nothing(index_elements=["alert_id", "listing_id"])
     )
+    session.exec(stmt)  # type: ignore[call-overload]
