@@ -41,6 +41,7 @@ CAROUSEL_TTL_SECONDS = int(config.DYNAMODB_TTL_HOURS * 3600)
 
 
 class CarouselCard(TypedDict, total=False):
+    listing_id: int
     title: str
     price_value: int | None
     neighbourhood: str
@@ -60,6 +61,7 @@ def _listing_to_card(listing: Listing) -> CarouselCard:
     props = listing.properties if isinstance(listing.properties, dict) else {}
     images = listing.images or []
     return {
+        "listing_id": listing.listing_id,
         "title": listing.title or "",
         "price_value": listing.price_value,
         "neighbourhood": listing.neighbourhood or "",
@@ -96,6 +98,7 @@ def _carousel_keyboard(
     index: int,
     total: int,
     url: str | None,
+    listing_id: int | None = None,
 ) -> InlineKeyboardMarkup:
     nav_row: list[InlineKeyboardButton] = []
     if index > 0:
@@ -115,8 +118,15 @@ def _carousel_keyboard(
     rows: list[list[InlineKeyboardButton]] = []
     if nav_row:
         rows.append(nav_row)
+    action_row: list[InlineKeyboardButton] = []
     if isinstance(url, str) and url.startswith("http"):
-        rows.append([InlineKeyboardButton("🔗 Ver anúncio", url=url)])
+        action_row.append(InlineKeyboardButton("🔗 Ver anúncio", url=url))
+    if listing_id is not None:
+        action_row.append(
+            InlineKeyboardButton("👀 Acompanhar", callback_data=f"wch_{listing_id}")
+        )
+    if action_row:
+        rows.append(action_row)
     return InlineKeyboardMarkup(rows)
 
 
@@ -199,7 +209,9 @@ async def send_carousel(
     cards = [_listing_to_card(item) for item in listings]
     card = cards[0]
     caption = _card_caption(card, 0, total)
-    keyboard = _carousel_keyboard(carousel_id, 0, total, card.get("url"))
+    keyboard = _carousel_keyboard(
+        carousel_id, 0, total, card.get("url"), card.get("listing_id")
+    )
 
     message = await bot.send_photo(
         chat_id=chat_id,
@@ -267,7 +279,14 @@ async def carousel_nav_cb(update: Update, context: CustomContext) -> None:
     await query.answer()
 
     caption = _card_caption(card, new_index, total)  # type: ignore[arg-type]
-    keyboard = _carousel_keyboard(carousel_id, new_index, total, card.get("url"))
+    listing_id = card.get("listing_id")
+    keyboard = _carousel_keyboard(
+        carousel_id,
+        new_index,
+        total,
+        card.get("url"),
+        listing_id if isinstance(listing_id, int) else None,
+    )
 
     try:
         media = _media_source(card)  # type: ignore[arg-type]

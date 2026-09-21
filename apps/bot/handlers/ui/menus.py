@@ -6,9 +6,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from shared_models.tables import Alert
+from shared_models.tables import Alert, WatchedListingChange
 from shared_models.utils import format_brl
 from telegram.helpers import escape_markdown
+
+import config
 
 
 def start_welcome() -> str:
@@ -24,7 +26,7 @@ def ajuda_comandos_plain() -> str:
         "Comandos\n"
         "/start — boas-vindas e menu principal\n"
         "/novo_alerta — criar alerta de aluguel ou compra\n"
-        "/cancelar — sai do wizard de novo alerta\n"
+        "/cancelar — sai do wizard de novo alerta ou de acompanhar anúncio\n"
         "/ajuda — esta mensagem"
     )
 
@@ -137,7 +139,170 @@ def meus_alertas_view(alerts: list[Alert]) -> str:
 
 
 def menu_watchlist() -> str:
-    return "👀 *Acompanhar anúncio*\n\nEsta área ainda está em construção."
+    """Fallback curto; a listagem real usa ``watchlist_list_message``."""
+    return "👀 *Acompanhar anúncio*"
+
+
+def watchlist_erro() -> str:
+    return (
+        "👀 *Acompanhar anúncio*\n\n"
+        "Não consegui carregar seus acompanhamentos agora. Tente de novo em instantes."
+    )
+
+
+def _watchlist_format_one(row: WatchedListingChange) -> str:
+    listing = row.listing
+    title = escape_markdown(str(listing.title or "Sem título")[:80], version=1)
+    price = format_brl(listing.price_value)
+    nh = escape_markdown(str(listing.neighbourhood or "—"), version=1)
+    status = "✅ No ar" if listing.active else "❌ Fora do ar"
+    return f"*{title}*\n💰 {price} · 📍 {nh}\n{status}"
+
+
+def watchlist_list_message(
+    rows: list[WatchedListingChange],
+) -> tuple[str, list[WatchedListingChange]]:
+    cap = config.WATCHLIST_FREE_CAP
+    header = f"👀 *Acompanhar anúncio* ({len(rows)}/{cap})\n\n"
+    if not rows:
+        return (
+            header
+            + "Cole o link de um anúncio do OLX para acompanhar preço e status.\n"
+            "Também dá para acompanhar direto pelo carrossel de matches.",
+            [],
+        )
+
+    hint = "_Toque num anúncio abaixo para ver detalhes ou parar de acompanhar._\n\n"
+    blocks = [_watchlist_format_one(r) for r in rows]
+    max_len = 4080
+    visible_count = len(blocks)
+    while visible_count > 0:
+        body = "\n\n".join(blocks[:visible_count])
+        full = header + hint + body
+        omitted = len(rows) - visible_count
+        suffix = ""
+        if omitted > 0:
+            suffix = f"\n\n_… e mais {omitted} anúncio(s)._"
+        if len(full) + len(suffix) <= max_len:
+            return full + suffix, rows[:visible_count]
+        visible_count -= 1
+    return header + hint + "Não coube listar nesta mensagem.", []
+
+
+def watchlist_detail_view(row: WatchedListingChange) -> str:
+    listing = row.listing
+    title = escape_markdown(str(listing.title or "Sem título"), version=1)
+    price = format_brl(listing.price_value)
+    nh = escape_markdown(str(listing.neighbourhood or "—"), version=1)
+    status = "✅ No ar" if listing.active else "❌ Fora do ar"
+    url = listing.url or ""
+    url_line = f"\n🔗 {escape_markdown(url, version=1)}" if url else ""
+    return (
+        "👀 *Anúncio acompanhado*\n\n"
+        f"*{title}*\n"
+        f"💰 {price}\n"
+        f"📍 {nh}\n"
+        f"{status}"
+        f"{url_line}"
+    )
+
+
+def watchlist_url_prompt() -> str:
+    return (
+        "👀 *Adicionar anúncio*\n\n"
+        "Cole o link do anúncio no OLX (ex.: `https://al.olx.com.br/...-1525220692`).\n\n"
+        "O anúncio precisa já estar no nosso radar (coleta diária)."
+    )
+
+
+def watchlist_url_invalida() -> str:
+    return "Link inválido. Envie a URL completa do anúncio no OLX."
+
+
+def watchlist_listing_missing() -> str:
+    return (
+        "Esse anúncio ainda não está no nosso radar. "
+        "Ele entra após a coleta diária — tente de novo amanhã."
+    )
+
+
+def watchlist_cap_reached() -> str:
+    cap = config.WATCHLIST_FREE_CAP
+    return (
+        f"Você já acompanha {cap} anúncios (limite grátis). "
+        "Remova um para adicionar outro."
+    )
+
+
+def watchlist_duplicate() -> str:
+    return "Você já acompanha este anúncio."
+
+
+def watchlist_confirm_resumo(
+    *,
+    title: str,
+    price_value: int | None,
+    neighbourhood: str,
+) -> str:
+    esc_title = escape_markdown(title[:80], version=1)
+    esc_nh = escape_markdown(neighbourhood or "—", version=1)
+    return (
+        "🧾 *Confirmar acompanhamento*\n\n"
+        f"*{esc_title}*\n"
+        f"💰 {format_brl(price_value)}\n"
+        f"📍 {esc_nh}\n\n"
+        "Vou avisar se o preço mudar ou se o anúncio sair do ar."
+    )
+
+
+def watchlist_created() -> str:
+    return "✅ Anúncio adicionado! Aviso você se o preço mudar ou se sair do ar."
+
+
+def watchlist_cancelado() -> str:
+    return "Ok, não adicionei o anúncio."
+
+
+def watchlist_change_price_message(
+    *,
+    title: str,
+    old_price: int | None,
+    new_price: int | None,
+    url: str | None,
+) -> str:
+    esc_title = escape_markdown(title[:80], version=1)
+    body = (
+        "👀 *Mudança de preço*\n\n"
+        f"*{esc_title}*\n"
+        f"💰 {format_brl(old_price)} → {format_brl(new_price)}"
+    )
+    if url:
+        body += f"\n🔗 {escape_markdown(url, version=1)}"
+    return body
+
+
+def watchlist_change_removed_message(*, title: str, url: str | None) -> str:
+    esc_title = escape_markdown(title[:80], version=1)
+    body = (
+        "👀 *Anúncio fora do ar*\n\n"
+        f"*{esc_title}*\n"
+        "Esse anúncio saiu do radar (provavelmente removido ou vendido)."
+    )
+    if url:
+        body += f"\n🔗 {escape_markdown(url, version=1)}"
+    return body
+
+
+def watchlist_change_reactivated_message(*, title: str, url: str | None) -> str:
+    esc_title = escape_markdown(title[:80], version=1)
+    body = (
+        "👀 *Anúncio de volta*\n\n"
+        f"*{esc_title}*\n"
+        "Esse anúncio voltou a aparecer no radar."
+    )
+    if url:
+        body += f"\n🔗 {escape_markdown(url, version=1)}"
+    return body
 
 
 # —— Wizard novo alerta ——

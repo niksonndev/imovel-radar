@@ -4,7 +4,7 @@ Teclados inline do Telegram para o menu principal e para o wizard de alerta.
 
 from __future__ import annotations
 
-from shared_models.tables import Alert
+from shared_models.tables import Alert, WatchedListingChange
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 NEIGHBORHOODS_PAGE_SIZE = 12
@@ -191,3 +191,62 @@ def meus_alertas_edit_stub_keyboard(alert_id: int) -> InlineKeyboardMarkup:
             [InlineKeyboardButton("⬅️ Voltar ao alerta", callback_data=f"mal_p_{alert_id}")],
         ]
     )
+
+
+def _watchlist_pick_button_label(row: WatchedListingChange) -> str:
+    title = str(row.listing.title or "Sem título").strip() or "Sem título"
+    prefix = "▶ "
+    max_name = 64 - len(prefix)
+    return prefix + title[:max_name]
+
+
+def watchlist_list_keyboard(
+    rows: list[WatchedListingChange],
+    *,
+    can_add: bool,
+) -> InlineKeyboardMarkup:
+    button_rows: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                _watchlist_pick_button_label(row),
+                callback_data=f"wl_p_{row.watch.id}",
+            )
+        ]
+        for row in rows
+        if row.watch.id is not None
+    ]
+    if can_add:
+        button_rows.append(
+            [InlineKeyboardButton("➕ Adicionar por link", callback_data="wl_add")]
+        )
+    button_rows.append([InlineKeyboardButton("🏠 Menu principal", callback_data="wl_m")])
+    return InlineKeyboardMarkup(button_rows)
+
+
+def watchlist_empty_keyboard(*, can_add: bool = True) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if can_add:
+        rows.append([InlineKeyboardButton("➕ Adicionar por link", callback_data="wl_add")])
+    rows.append([InlineKeyboardButton("🏠 Menu principal", callback_data="wl_m")])
+    return InlineKeyboardMarkup(rows)
+
+
+def watchlist_detail_keyboard(watch_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🗑️ Parar de acompanhar", callback_data=f"wl_rm_{watch_id}")],
+            [InlineKeyboardButton("⬅️ Voltar à lista", callback_data="wl_b")],
+        ]
+    )
+
+
+def watchlist_confirm_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("✅ Confirmar", callback_data="wl_confirm_yes"),
+                InlineKeyboardButton("❌ Cancelar", callback_data="wl_confirm_no"),
+            ]
+        ]
+    )
+

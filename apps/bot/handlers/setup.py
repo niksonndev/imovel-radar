@@ -16,6 +16,12 @@ from handlers.carousel import register_handlers as register_carousel_handlers
 from handlers.create_new_alert import new_alert_conversation
 from handlers.meus_alertas import meus_alertas_actions_callback, meus_alertas_callback
 from handlers.ui import keyboards, menus
+from handlers.watchlist import (
+    carousel_watch_callback,
+    watchlist_actions_callback,
+    watchlist_add_conversation,
+    watchlist_menu_callback,
+)
 from models import CustomContext
 
 logger = logging.getLogger(__name__)
@@ -51,7 +57,6 @@ async def main_menu_callback(update: Update, context: CustomContext) -> None:
     await query.answer()
 
     handlers: dict[str, tuple[str, bool]] = {
-        "menu_watchlist": (menus.menu_watchlist(), True),
         "menu_ajuda": (menus.ajuda_comandos_plain(), False),
     }
     text, markdown = handlers.get(
@@ -72,15 +77,19 @@ def setup(app: Application) -> None:
     # /novo_alerta passam pelos fallbacks/entry (allow_reentry) e liberam o
     # estado preso. Fora do wizard, os CommandHandlers abaixo atendem.
     app.add_handler(new_alert_conversation())
+    app.add_handler(watchlist_add_conversation())
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("ajuda", help_cmd))
 
     # Handlers de callback específicos
     app.add_handler(CallbackQueryHandler(meus_alertas_callback, pattern=r"^menu_meus_alertas$"))
     app.add_handler(CallbackQueryHandler(meus_alertas_actions_callback, pattern=r"^mal_"))
+    app.add_handler(CallbackQueryHandler(watchlist_menu_callback, pattern=r"^menu_watchlist$"))
     app.add_handler(
-        CallbackQueryHandler(main_menu_callback, pattern=r"^(menu_watchlist|menu_ajuda)$")
+        CallbackQueryHandler(watchlist_actions_callback, pattern=r"^wl_(p_|rm_|m$|b$)")
     )
+    app.add_handler(CallbackQueryHandler(carousel_watch_callback, pattern=r"^wch_\d+$"))
+    app.add_handler(CallbackQueryHandler(main_menu_callback, pattern=r"^menu_ajuda$"))
     register_carousel_handlers(app)
 
     # Nota: a garantia de que o usuário existe no Postgres é feita de forma
