@@ -1,7 +1,8 @@
 """
 Wizard multi-etapas para criar um alerta de aluguel (comando ``/novo_alerta``).
 
-Ao confirmar, chama a API do scraper para criar o alerta e buscar matches.
+Ao confirmar, grava o alerta direto no Postgres compartilhado (ADR 0005)
+e busca matches.
 """
 
 from __future__ import annotations
@@ -9,8 +10,7 @@ from __future__ import annotations
 import logging
 import re
 
-from shared_models.api_schemas import CreateAlertRequest, NotifiedPair
-from shared_models.models import Listing
+from shared_models.tables import Listing
 from shared_models.utils import format_brl
 from telegram import Message, Update
 from telegram.constants import ParseMode
@@ -22,13 +22,13 @@ from telegram.ext import (
     filters,
 )
 
-from handlers.api_client import (
+from handlers.carousel import send_carousel
+from handlers.data import (
     create_alert,
     get_neighbourhoods,
     get_unnotified_listings,
     mark_listings_notified,
 )
-from handlers.carousel import send_carousel
 from handlers.ui import keyboards, menus
 from models import (
     CreateAlertDraft,
@@ -277,82 +277,98 @@ async def wiz_name(update: Update, context: CustomContext) -> int:
     return CONFIRM
 
 
+def _clear_wizard(context: CustomContext) -> None:
+    assert context.user_data is not None
+    context.user_data.pop("create_alert_draft", None)
+    context.user_data.pop("create_alert_wizard_state", None)
+
+
 async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
     query = update.callback_query
     assert query is not None
     assert update.effective_user is not None
+    assert context.user_data is not None
     await query.answer()
-    draft = _get_draft(context)
 
     if query.data == "wiz_confirm_no":
+        _clear_wizard(context)
         await query.message.reply_text(  # type: ignore[union-attr]
             "Okay — alerta não salvo.",
             reply_markup=keyboards.main_menu_keyboard(),
         )
         return ConversationHandler.END
 
+    if "create_alert_draft" not in context.user_data:
+        await query.message.reply_text(  # type: ignore[union-attr]
+            "Este alerta já foi salvo (ou a sessão expirou).",
+            reply_markup=keyboards.main_menu_keyboard(),
+        )
+        return ConversationHandler.END
+
+    draft = _get_draft(context)
+    wizard_state = _get_wizard_state(context)
+    if wizard_state.get("confirming"):
+        return CONFIRM
+    wizard_state["confirming"] = True
+
     user = update.effective_user
     try:
-        req = CreateAlertRequest(
-            chat_id=user.id,
-            alert_name=draft["alert_name"],  # type: ignore[typeddict-item]
-            min_price=draft["min_price"],  # type: ignore[typeddict-item]
-            max_price=draft["max_price"],  # type: ignore[typeddict-item]
-            neighbourhoods=draft["neighbourhoods"],  # type: ignore[typeddict-item]
-        )
-        response = await create_alert(req)
-        alert_id = response.id
-
-        await query.message.reply_text("⏳ Procurando imóveis que combinam com seu alerta…")  # type: ignore[union-attr]
-
-        # Reutiliza listings não notificados do usuário e filtra por este alerta.
-        unnotified_resp = await get_unnotified_listings(user.id)
-        listings: list[Listing] = [
-            item for item in unnotified_resp.listings if item.alert_id == alert_id
-        ]
-
-        if not listings:
-            await query.message.reply_text(  # type: ignore[union-attr]
-                menus.seed_nenhum_imovel(),
-                reply_markup=keyboards.main_menu_keyboard(),
+        alert_id = draft.get("created_alert_id")
+        if alert_id is None:
+            alert_id = await create_alert(
+                chat_id=user.id,
+                alert_name=draft["alert_name"],  # type: ignore[typeddict-item]
+                min_price=draft.get("min_price"),
+                max_price=draft.get("max_price"),
+                neighbourhoods=draft["neighbourhoods"],  # type: ignore[typeddict-item]
             )
-        else:
-            await send_carousel(
-                context.application.bot,
-                user.id,
-                listings,
-                str(alert_id),
-                context.application.bot_data,
-            )
+            draft["created_alert_id"] = alert_id
 
-            await query.message.reply_text(  # type: ignore[union-attr]
-                menus.seed_alert_created(),
-                reply_markup=keyboards.main_menu_keyboard(),
-            )
+        if not wizard_state.get("seed_done"):
+            await query.message.reply_text("⏳ Procurando imóveis que combinam com seu alerta…")  # type: ignore[union-attr]
 
-        # Marcar listings como notificados
-        if listings:
-            pairs = [
-                NotifiedPair(alert_id=alert_id, listing_id=item.listing_id) for item in listings
-            ]
-            await mark_listings_notified(user.id, pairs)
+            rows = await get_unnotified_listings(user.id)
+            listings: list[Listing] = [row.listing for row in rows if row.alert_id == alert_id]
+
+            if not listings:
+                await query.message.reply_text(  # type: ignore[union-attr]
+                    menus.seed_nenhum_imovel(),
+                    reply_markup=keyboards.main_menu_keyboard(),
+                )
+            else:
+                await send_carousel(
+                    context.application.bot,
+                    user.id,
+                    listings,
+                    str(alert_id),
+                    context.application.bot_data,
+                )
+
+                await query.message.reply_text(  # type: ignore[union-attr]
+                    menus.seed_alert_created(),
+                    reply_markup=keyboards.main_menu_keyboard(),
+                )
+                pairs = [(alert_id, item.listing_id) for item in listings]
+                await mark_listings_notified(user.id, pairs)
+
+            wizard_state["seed_done"] = True
 
     except Exception:
-        logger.exception("Falha ao criar alerta via API")
+        wizard_state["confirming"] = False
+        logger.exception("Falha ao salvar alerta no banco")
         await query.message.reply_text(  # type: ignore[union-attr]
             "Não foi possível salvar o alerta. Tente novamente.",
             reply_markup=keyboards.main_menu_keyboard(),
         )
         return ConversationHandler.END
 
+    _clear_wizard(context)
     return ConversationHandler.END
 
 
 async def cancel_wiz(update: Update, context: CustomContext) -> int:
-    assert context.user_data is not None
     assert update.effective_message is not None
-    context.user_data.pop("create_alert_draft", None)
-    context.user_data.pop("create_alert_wizard_state", None)
+    _clear_wizard(context)
     await update.effective_message.reply_text(
         "Criação do alerta cancelada.",
         reply_markup=keyboards.main_menu_keyboard(),
@@ -362,6 +378,8 @@ async def cancel_wiz(update: Update, context: CustomContext) -> int:
 
 def new_alert_conversation() -> ConversationHandler:
     return ConversationHandler(
+        name="new_alert",
+        persistent=True,
         entry_points=[
             CommandHandler("novo_alerta", new_alert_cmd),
             CallbackQueryHandler(new_alert_cmd, pattern="^novo_alerta$"),

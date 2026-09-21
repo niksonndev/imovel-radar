@@ -21,6 +21,7 @@ class CreateAlertDraft(TypedDict, total=False):
     min_price: int
     max_price: int
     neighbourhoods: list[str]
+    created_alert_id: int
 
 
 class CreateAlertWizardState(TypedDict, total=False):
@@ -29,3 +30,5 @@ class CreateAlertWizardState(TypedDict, total=False):
     awaiting: Literal["price_min", "price_max"]
     neighbourhood_options: list[str]
     neighbourhood_page: int
+    confirming: bool
+    seed_done: bool

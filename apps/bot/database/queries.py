@@ -14,10 +14,12 @@ from sqlmodel import Session, select
 
 # ── Users (dona: bot) ──────────────────────────────────────────────────────
 def ensure_user(session: Session, chat_id: int) -> bool:
-    """Garante a existência do usuário; cria se necessário (idempotente)."""
+    """Garante a existência do usuário; cria se necessário (idempotente).
+
+    Não commita — o chamador decide quando persistir.
+    """
     stmt = postgres_insert(User).values(chat_id=chat_id).on_conflict_do_nothing()
     result = session.exec(stmt)
-    session.commit()
     return result.rowcount is not None  # True mesmo se nada inserido
 
 
@@ -64,6 +66,28 @@ def create_alert(
     if alert.id is None:
         raise RuntimeError("Falha ao obter ID do alerta inserido")
     return alert.id
+
+
+def find_equivalent_alert(
+    session: Session,
+    *,
+    chat_id: int,
+    alert_name: str | None,
+    min_price: int | None,
+    max_price: int | None,
+    neighbourhoods: list[str] | None,
+) -> Alert | None:
+    """Alerta já existente do usuário com os mesmos filtros (confirm idempotente)."""
+    wanted = sorted(neighbourhoods or [])
+    for alert in get_alerts_for_user(session, chat_id):
+        if (
+            alert.alert_name == alert_name
+            and alert.min_price == min_price
+            and alert.max_price == max_price
+            and sorted(alert.neighbourhoods or []) == wanted
+        ):
+            return alert
+    return None
 
 
 def get_alerts_for_user(session: Session, chat_id: int) -> list[Alert]:
