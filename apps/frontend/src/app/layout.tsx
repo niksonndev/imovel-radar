@@ -3,7 +3,7 @@ import { GoogleTagManager } from "@next/third-parties/google";
 import { Archivo_Black, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 
 const GTM_ID = "GTM-WDVXQDFF";
 
@@ -26,7 +26,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: SITE_NAME,
+    default: SITE_TITLE,
     template: `%s | ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
@@ -37,8 +37,10 @@ export const metadata: Metadata = {
     "alertas de imóveis",
     "Telegram",
     "aluguel Maceió",
+    "apartamento à venda Maceió",
     "casas",
     "apartamentos",
+    "Pix",
   ],
   alternates: {
     canonical: "/",
@@ -48,12 +50,12 @@ export const metadata: Metadata = {
     locale: "pt_BR",
     url: "/",
     siteName: SITE_NAME,
-    title: SITE_NAME,
+    title: SITE_TITLE,
     description: SITE_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title: SITE_NAME,
+    title: SITE_TITLE,
     description: SITE_DESCRIPTION,
   },
 };
