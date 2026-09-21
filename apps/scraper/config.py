@@ -4,9 +4,23 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def normalize_database_url(url: str) -> str:
+    """Garante o dialeto ``postgresql+psycopg`` (psycopg3).
+
+    SQLAlchemy trata ``postgresql://`` / ``postgres://`` como psycopg2, mas
+    este app depende só de ``psycopg[binary]``. URLs do SSM/Neon costumam
+    vir sem o sufixo ``+psycopg``.
+    """
+    for prefix in ("postgresql+psycopg2://", "postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix) :]
+    return url
+
+
 # URL de conexão do Postgres. Em produção, defina DATABASE_URL (ex.: Neon).
 # O default aponta para o container local de desenvolvimento (pg-local).
-DATABASE_URL = (
+DATABASE_URL = normalize_database_url(
     os.getenv("DATABASE_URL", "").strip()
     or "postgresql+psycopg://postgres:teste123@localhost:5432/imovel_radar"
 )

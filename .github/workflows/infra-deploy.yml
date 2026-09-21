@@ -62,7 +62,16 @@ jobs:
 
       - name: Read DATABASE_URL from SSM
         run: |
-          echo "DATABASE_URL=$(aws ssm get-parameter --name /imovel-radar/prod/database_url --with-decryption --query Parameter.Value --output text)" >> "$GITHUB_ENV"
+          RAW="$(aws ssm get-parameter --name /imovel-radar/prod/database_url --with-decryption --query Parameter.Value --output text)"
+          # SQLAlchemy default dialect is psycopg2; apps depend on psycopg (v3).
+          case "$RAW" in
+            postgresql+psycopg://*) DATABASE_URL="$RAW" ;;
+            postgresql+psycopg2://*) DATABASE_URL="postgresql+psycopg://${RAW#postgresql+psycopg2://}" ;;
+            postgresql://*) DATABASE_URL="postgresql+psycopg://${RAW#postgresql://}" ;;
+            postgres://*) DATABASE_URL="postgresql+psycopg://${RAW#postgres://}" ;;
+            *) DATABASE_URL="$RAW" ;;
+          esac
+          echo "DATABASE_URL=$DATABASE_URL" >> "$GITHUB_ENV"
 
       - name: Check Neon pooled URL
         run: |

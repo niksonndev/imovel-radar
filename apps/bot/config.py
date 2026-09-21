@@ -7,9 +7,23 @@ load_dotenv()
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
+
+def normalize_database_url(url: str) -> str:
+    """Garante o dialeto ``postgresql+psycopg`` (psycopg3).
+
+    SQLAlchemy trata ``postgresql://`` / ``postgres://`` como psycopg2, mas
+    este app depende só de ``psycopg[binary]``. URLs do SSM/Neon costumam
+    vir sem o sufixo ``+psycopg``.
+    """
+    for prefix in ("postgresql+psycopg2://", "postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix) :]
+    return url
+
+
 # URL do Postgres/Neon compartilhado (ADR 0005) — a bot acessa o banco direto.
 # Em produção use a connection string *pooled* do Neon (host com ``-pooler``).
-DATABASE_URL = (
+DATABASE_URL = normalize_database_url(
     os.getenv("DATABASE_URL", "").strip()
     or "postgresql+psycopg://postgres:teste123@localhost:5432/imovel_radar"
 )
