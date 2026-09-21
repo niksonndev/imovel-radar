@@ -2,7 +2,7 @@
 
 Telegram bot + scraper for monitoring real-estate listings on OLX Maceió. The scraper gathers listings daily, and the bot notifies users when new properties match their registered alerts.
 
-![Demo: `/start` and main menu](assets/demo.jpg)
+![Demo: `/start` and main menu](assets/imovel-radar-demo.gif)
 
 ## Stack
 
