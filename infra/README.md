@@ -50,7 +50,7 @@ ou thumbprint de GitHub é rotacionado — crie seguindo a doc oficial do GitHub
 ## Deploy automático
 
 `.github/workflows/infra-deploy.yml`: testes → migrations (gate bloqueante) →
-build do zip → `terraform plan`/`apply` → smoke pós-deploy (10 páginas).
+build do zip → `terraform plan`/`apply` → smoke pós-deploy (5 páginas).
 
 > ATENÇÃO: `database_url` aparece no state (projeto pessoal); o CI o passa por
 > `-var`, então não fica hardcoded nos arquivos.

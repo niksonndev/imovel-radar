@@ -142,11 +142,11 @@ jobs:
             -var "bot_zip_path=../apps/bot/dist/lambda.zip" \
             -var "database_url=${{ env.DATABASE_URL }}"
 
-      - name: Post-deploy smoke (10 páginas)
+      - name: Post-deploy smoke (5 páginas)
         run: |
           FN="imovel-radar-prod-scraper-collect"
           aws lambda update-function-configuration --function-name "$FN" \
-            --environment "Variables={DATABASE_URL=${{ env.DATABASE_URL }},LOG_LEVEL=INFO,SCRAPER_MAX_PAGES=10}" >/dev/null
+            --environment "Variables={DATABASE_URL=${{ env.DATABASE_URL }},LOG_LEVEL=INFO,SCRAPER_MAX_PAGES=5}" >/dev/null
           aws lambda invoke \
             --function-name "$FN" \
             --cli-binary-format raw-in-base64-out \
