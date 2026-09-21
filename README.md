@@ -2,6 +2,8 @@
 
 Telegram bot + scraper for monitoring real-estate listings on OLX Maceió. The scraper gathers listings daily, and the bot notifies users when new properties match their registered alerts.
 
+**Monetization:** freemium (1 free alert) + **Radar Pro via Pix** — see [`docs/adr/freemium-pix-monetization.md`](docs/adr/freemium-pix-monetization.md). Public pricing copy lives in `apps/frontend/src/content/page-content.ts`.
+
 ![Demo: `/start` and main menu](assets/imovel-radar-demo.gif)
 
 ## Stack
