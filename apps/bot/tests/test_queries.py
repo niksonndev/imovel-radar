@@ -214,7 +214,8 @@ def test_delete_alert_clears_alert_matches(session: Session) -> None:
     queries.mark_listings_notified(session, [(alert_id, 20)])
     session.commit()
 
-    assert session.exec(select(AlertMatch).where(AlertMatch.alert_id == alert_id)).first() is not None
+    match = session.exec(select(AlertMatch).where(AlertMatch.alert_id == alert_id)).first()
+    assert match is not None
     assert queries.delete_alert_for_user(session, 22, alert_id) is True
     session.commit()
 
@@ -248,9 +249,8 @@ def test_delete_alert_clears_alert_matches(session: Session) -> None:
     session.commit()
     tab_alert = queries.get_alert_for_user(session, 22, tab_id)
     assert tab_alert is not None
-    assert [m.listing_id for m in queries.get_unnotified_listings_for_alert(session, tab_alert)] == [
-        20
-    ]
+    unnotified = queries.get_unnotified_listings_for_alert(session, tab_alert)
+    assert [m.listing_id for m in unnotified] == [20]
 
 
 def test_ensure_user_is_idempotent(session: Session) -> None:
@@ -292,7 +292,13 @@ def test_large_telegram_chat_id_fits_bigint(session: Session) -> None:
     assert found.chat_id == chat_id
 
 
-def _add_listing(session: Session, listing_id: int, *, price: int = 1500, active: bool = True) -> None:
+def _add_listing(
+    session: Session,
+    listing_id: int,
+    *,
+    price: int = 1500,
+    active: bool = True,
+) -> None:
     session.add(
         Listing(
             listing_id=listing_id,
