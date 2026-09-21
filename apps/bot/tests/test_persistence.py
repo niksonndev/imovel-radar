@@ -13,28 +13,69 @@ from persistence import (
 )
 
 
+class FakePaginator:
+    def __init__(self, table: FakeTable) -> None:
+        self._table = table
+
+    def paginate(self, **kwargs):
+        filter_expr = kwargs.get("FilterExpression")
+        names = kwargs.get("ExpressionAttributeNames") or {}
+        values = kwargs.get("ExpressionAttributeValues") or {}
+        # Exige o alias — o bug de produção era ``store`` sem ExpressionAttributeNames.
+        assert filter_expr == "#store = :s", filter_expr
+        assert names.get("#store") == "store", names
+        expected = values[":s"]
+        items = [
+            dict(item)
+            for (_chat_id, store), item in self._table.items.items()
+            if store == expected
+        ]
+        yield {"Items": items}
+
+
+class FakeClient:
+    def __init__(self, table: FakeTable) -> None:
+        self._table = table
+
+    def get_paginator(self, name: str) -> FakePaginator:
+        assert name == "scan"
+        return FakePaginator(self._table)
+
+
+class FakeMeta:
+    def __init__(self, table: FakeTable) -> None:
+        self.client = FakeClient(table)
+
+
 class FakeTable:
-    """Tabela DynamoDB mínima em memória para OCC + get/put."""
+    """Tabela DynamoDB mínima em memória para OCC + get/put/scan."""
 
     def __init__(self) -> None:
         self.items: dict[tuple[int, str], dict] = {}
+        self.meta = FakeMeta(self)
 
     def get_item(self, Key: dict) -> dict:
         item = self.items.get((Key["chat_id"], Key["store"]))
         return {"Item": dict(item)} if item is not None else {}
 
     def put_item(
-        self, Item: dict, ConditionExpression: str, ExpressionAttributeValues=None
+        self,
+        Item: dict,
+        ConditionExpression: str,
+        ExpressionAttributeValues=None,
+        ExpressionAttributeNames=None,
     ) -> None:
+        names = ExpressionAttributeNames or {}
+        assert names.get("#version") == "version", names
         key = (Item["chat_id"], Item["store"])
         existing = self.items.get(key)
-        if ConditionExpression == "attribute_not_exists(version)":
+        if ConditionExpression == "attribute_not_exists(#version)":
             if existing is not None:
                 raise ClientError(
                     {"Error": {"Code": "ConditionalCheckFailedException", "Message": "exists"}},
                     "PutItem",
                 )
-        elif ConditionExpression == "version = :expected":
+        elif ConditionExpression == "#version = :expected":
             expected = (ExpressionAttributeValues or {}).get(":expected")
             if existing is None or existing.get("version") != expected:
                 raise ClientError(
@@ -107,3 +148,23 @@ def test_update_conversation_encodes_tuple_keys() -> None:
     loaded = _run(pers.get_conversations("new_alert"))
     assert loaded[key] == 2
     assert table.items[(0, "conversations")]["version"] == 1
+
+
+def test_get_user_data_scans_with_store_alias() -> None:
+    table = FakeTable()
+    pers = DynamoDBPersistence(table=table)
+    _run(pers.update_user_data(7, {"a": 1}))
+    _run(pers.update_chat_data(7, {"ignored": True}))
+
+    loaded = _run(pers.get_user_data())
+    assert loaded == {7: {"a": 1}}
+
+
+def test_get_chat_data_scans_with_store_alias() -> None:
+    table = FakeTable()
+    pers = DynamoDBPersistence(table=table)
+    _run(pers.update_chat_data(9, {"b": 2}))
+    _run(pers.update_user_data(9, {"ignored": True}))
+
+    loaded = _run(pers.get_chat_data())
+    assert loaded == {9: {"b": 2}}

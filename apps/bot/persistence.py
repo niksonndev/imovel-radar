@@ -124,13 +124,16 @@ class DynamoDBPersistence(BasePersistence[dict[Any, Any], dict[Any, Any], dict[A
         essa versão e grava ``N + 1``. Em conflito relê e tenta de novo (a
         escrita do chamador é o estado completo mais recente — vence).
         """
+        # ``store`` / ``version`` são palavras reservadas do DynamoDB — aliases
+        # via ExpressionAttributeNames em Filter/ConditionExpression.
+        expr_names = {"#version": "version"}
         for _ in range(_MAX_RETRIES):
             if version is None:
-                condition = "attribute_not_exists(version)"
+                condition = "attribute_not_exists(#version)"
                 expr_values: dict[str, Any] | None = None
                 new_version = 1
             else:
-                condition = "version = :expected"
+                condition = "#version = :expected"
                 expr_values = {":expected": version}
                 new_version = int(version) + 1
 
@@ -146,6 +149,7 @@ class DynamoDBPersistence(BasePersistence[dict[Any, Any], dict[Any, Any], dict[A
             put_kwargs: dict[str, Any] = {
                 "Item": item,
                 "ConditionExpression": condition,
+                "ExpressionAttributeNames": expr_names,
             }
             if expr_values is not None:
                 put_kwargs["ExpressionAttributeValues"] = expr_values
@@ -167,15 +171,20 @@ class DynamoDBPersistence(BasePersistence[dict[Any, Any], dict[Any, Any], dict[A
             chat_id, store, _MAX_RETRIES,
         )
 
+    def _scan_by_store(self, store: str):
+        """Scan filtrando por SK ``store`` (alias por ser keyword reservada)."""
+        paginator = self._table.meta.client.get_paginator("scan")
+        return paginator.paginate(
+            TableName=self._table_name,
+            FilterExpression="#store = :s",
+            ExpressionAttributeNames={"#store": "store"},
+            ExpressionAttributeValues={":s": store},
+        )
+
     # ── BasePersistence ─────────────────────────────────────────────────────
     async def get_user_data(self) -> dict[int, dict[Any, Any]]:
         result: dict[int, dict[Any, Any]] = {}
-        paginator = self._table.meta.client.get_paginator("scan")
-        for page in paginator.paginate(
-            TableName=self._table_name,
-            FilterExpression="store = :s",
-            ExpressionAttributeValues={":s": "user_data"},
-        ):
+        for page in self._scan_by_store("user_data"):
             for item in page.get("Items", []):
                 try:
                     result[int(item["chat_id"])] = _decode(item.get("data"))
@@ -185,12 +194,7 @@ class DynamoDBPersistence(BasePersistence[dict[Any, Any], dict[Any, Any], dict[A
 
     async def get_chat_data(self) -> dict[int, dict[Any, Any]]:
         result: dict[int, dict[Any, Any]] = {}
-        paginator = self._table.meta.client.get_paginator("scan")
-        for page in paginator.paginate(
-            TableName=self._table_name,
-            FilterExpression="store = :s",
-            ExpressionAttributeValues={":s": "chat_data"},
-        ):
+        for page in self._scan_by_store("chat_data"):
             for item in page.get("Items", []):
                 try:
                     result[int(item["chat_id"])] = _decode(item.get("data"))
