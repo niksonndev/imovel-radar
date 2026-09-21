@@ -1,8 +1,9 @@
 """
-Busca listagem OLX, extrai anúncios via RSC streaming (App Router), acha o
-primeiro anúncio (listId/adId numérico) e imprime + grava em debug_ad.json;
-aplica normalize_olx_listing e grava parsed_debug_ad.json.
-Uso: python -m scripts.extract_ad
+Busca listagem OLX de venda (Maceió), extrai anúncios via RSC streaming
+(App Router), acha o primeiro anúncio (listId/adId numérico) e imprime +
+grava fixtures; aplica normalize_olx_listing e grava o parsed.
+
+Uso: python -m scripts.extract_ad_venda
 """
 
 from __future__ import annotations
@@ -24,10 +25,10 @@ if str(ROOT) not in sys.path:
 FIXTURES = ROOT / "tests" / "fixtures"
 FIXTURES.mkdir(parents=True, exist_ok=True)
 
-URL = "https://www.olx.com.br/imoveis/aluguel/estado-al/alagoas/maceio"
+URL = "https://www.olx.com.br/imoveis/venda/estado-al/alagoas/maceio"
 
-OUT_JSON = FIXTURES / "raw_olx_ad.json"
-OUT_PARSED = FIXTURES / "parsed_olx_ad.json"
+OUT_JSON = FIXTURES / "raw_olx_ad_venda.json"
+OUT_PARSED = FIXTURES / "parsed_olx_ad_venda.json"
 
 
 def _is_numeric_id(val: Any) -> bool:
@@ -67,6 +68,20 @@ def _listing_debug_view(listing: Any) -> dict[str, Any]:
     return dict(listing)
 
 
+def _print_structure_summary(ad: dict[str, Any]) -> None:
+    print("=== top-level keys ===", flush=True)
+    print(sorted(ad.keys()), flush=True)
+
+    props = ad.get("properties")
+    print("=== properties (name → value) ===", flush=True)
+    if isinstance(props, list):
+        for prop in props:
+            if isinstance(prop, dict) and prop.get("name") is not None:
+                print(f"  {prop.get('name')}: {prop.get('value')}", flush=True)
+    else:
+        print("  (ausente ou não é lista)", flush=True)
+
+
 def main() -> None:
     scraper = cloudscraper.create_scraper()
     r = scraper.get(
@@ -86,6 +101,8 @@ def main() -> None:
     if ad is None:
         raise SystemExit("Nenhum objeto com listId ou adId numérico encontrado")
 
+    _print_structure_summary(ad)
+
     # Primeiro dump: payload cru encontrado no JSON de hidratação do front.
     formatted = json.dumps(ad, indent=2, ensure_ascii=False)
     print(formatted)
@@ -93,7 +110,7 @@ def main() -> None:
     print(f"Salvo: {OUT_JSON}", flush=True)
 
     # Segundo dump: payload transformado para o formato usado internamente no projeto.
-    parsed = normalize_olx_listing(ad, listing_kind="aluguel")
+    parsed = normalize_olx_listing(ad, listing_kind="venda")
     parsed_text = json.dumps(parsed, indent=2, ensure_ascii=False)
     OUT_PARSED.write_text(parsed_text + "\n", encoding="utf-8")
     print(json.dumps(_listing_debug_view(parsed), indent=2, ensure_ascii=False))

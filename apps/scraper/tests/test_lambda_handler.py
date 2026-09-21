@@ -10,7 +10,8 @@ import lambda_handler
 
 
 def _patch_run(monkeypatch: pytest.MonkeyPatch, result: Any) -> None:
-    async def _fake() -> Any:
+    async def _fake(event=None, *, get_remaining_ms=None) -> Any:
+        del event, get_remaining_ms
         if isinstance(result, Exception):
             raise result
         return result
@@ -41,3 +42,46 @@ def test_lambda_handler_accepts_eventbridge_event(monkeypatch: pytest.MonkeyPatc
     result = lambda_handler.lambda_handler(event)
 
     assert result["success"] == 1
+
+
+def test_next_payload_continues_same_kind() -> None:
+    nxt = lambda_handler._next_payload_after_chunk(
+        {
+            "listing_kind": "venda",
+            "completed": False,
+            "next_page": 51,
+            "run_started_at": "2026-01-01T00:00:00+00:00",
+        }
+    )
+    assert nxt == {
+        "listing_kind": "venda",
+        "start_page": 51,
+        "run_started_at": "2026-01-01T00:00:00+00:00",
+    }
+
+
+def test_next_payload_starts_venda_after_aluguel_complete() -> None:
+    nxt = lambda_handler._next_payload_after_chunk(
+        {
+            "listing_kind": "aluguel",
+            "completed": True,
+            "next_page": None,
+            "run_started_at": "2026-01-01T00:00:00+00:00",
+        }
+    )
+    assert nxt is not None
+    assert nxt["listing_kind"] == "venda"
+    assert nxt["start_page"] == 1
+    assert nxt["run_started_at"] is None
+
+
+def test_next_payload_none_when_venda_complete() -> None:
+    nxt = lambda_handler._next_payload_after_chunk(
+        {
+            "listing_kind": "venda",
+            "completed": True,
+            "next_page": None,
+            "run_started_at": "2026-01-01T00:00:00+00:00",
+        }
+    )
+    assert nxt is None

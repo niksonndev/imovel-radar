@@ -2,17 +2,19 @@
 Normaliza um dict bruto de anúncio da OLX (nó do array "ads" extraído do
 payload RSC streaming) para um formato fixo com apenas: listing_id, url,
 title, price_value, old_price, municipality, neighbourhood, properties,
-category, images.
+category, images, listing_kind.
 """
 
 from __future__ import annotations
 
 import re
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
 from shared_models.utils import money_to_int
 
-__all__ = ["RawAd", "normalize_olx_listing"]
+__all__ = ["ListingKind", "RawAd", "normalize_olx_listing"]
+
+ListingKind = Literal["aluguel", "venda"]
 
 
 class RawAd(TypedDict):
@@ -28,6 +30,7 @@ class RawAd(TypedDict):
     properties: dict[str, Any]
     category: str
     images: list[str]
+    listing_kind: ListingKind
 
 
 def _normalize_property_value(name: str, value: Any) -> Any:
@@ -41,7 +44,11 @@ def _normalize_property_value(name: str, value: Any) -> Any:
     return value
 
 
-def normalize_olx_listing(raw: dict[str, Any]) -> RawAd:
+def normalize_olx_listing(
+    raw: dict[str, Any],
+    *,
+    listing_kind: ListingKind = "aluguel",
+) -> RawAd:
     title_raw = raw.get("title") or raw.get("subject") or ""
     title = str(title_raw)[:500] if title_raw else ""
     location = raw["locationDetails"]
@@ -71,4 +78,5 @@ def normalize_olx_listing(raw: dict[str, Any]) -> RawAd:
         "properties": properties_dict,
         "category": str(raw.get("category") or raw.get("categoryName") or ""),
         "images": images_list,
+        "listing_kind": listing_kind,
     }

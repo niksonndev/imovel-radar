@@ -4,6 +4,7 @@ from collections.abc import Iterator
 
 import pytest
 import shared_models.tables  # noqa: F401  (registra as tabelas no SQLModel.metadata)
+from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, SQLModel
 
@@ -14,7 +15,13 @@ from database import make_engine
 @pytest.fixture(scope="session")
 def engine() -> Engine:
     """Engine Postgres compartilhada entre os testes (usa DATABASE_URL)."""
-    return make_engine(config.DATABASE_URL)
+    eng = make_engine(config.DATABASE_URL)
+    try:
+        with eng.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception as exc:
+        pytest.skip(f"Postgres indisponível: {exc}")
+    return eng
 
 
 @pytest.fixture()
