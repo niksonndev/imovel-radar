@@ -9,8 +9,7 @@ import {
   SECTION_CTA_LABEL,
   TELEGRAM_BOT_URL,
 } from "@/content/page-content";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { TrackedCta } from "@/components/tracked-cta";
 
 const steps = [
   {
@@ -41,7 +40,6 @@ export function HowItWorks() {
         <div className="flex w-full flex-col gap-8">
           {steps.map((step, index) => (
             <div key={step.number} className="flex gap-5">
-              {/* Number indicator */}
               <div className="flex flex-col items-center">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary font-mono text-sm font-bold text-primary-foreground">
                   {step.number}
@@ -51,7 +49,6 @@ export function HowItWorks() {
                 )}
               </div>
 
-              {/* Step content */}
               <div className="reveal-on-scroll flex flex-col gap-1 pb-8">
                 <h3 className="font-heading text-lg text-white">
                   {step.title}
@@ -64,14 +61,13 @@ export function HowItWorks() {
           ))}
         </div>
 
-        <a
+        <TrackedCta
           href={TELEGRAM_BOT_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={cn(buttonVariants({ variant: "default", size: "lg" }), "btn-shine")}
+          ctaId="how_it_works"
+          className="btn-shine"
         >
           {SECTION_CTA_LABEL}
-        </a>
+        </TrackedCta>
       </div>
     </section>
   );

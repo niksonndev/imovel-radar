@@ -4,9 +4,7 @@ import {
   CTA_BUTTON_LABEL,
   TELEGRAM_BOT_URL,
 } from "@/content/page-content";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { Send } from "lucide-react";
+import { TrackedCta } from "@/components/tracked-cta";
 
 export function CTASection() {
   return (
@@ -16,22 +14,17 @@ export function CTASection() {
           {CTA_HEADLINE}
         </h2>
 
-        <p className="max-w-lg text-lg leading-relaxed text-primary-foreground">
+        <p className="max-w-lg text-lg leading-relaxed text-primary-foreground/90">
           {CTA_SUBHEADLINE}
         </p>
 
-        <a
+        <TrackedCta
           href={TELEGRAM_BOT_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={cn(
-            buttonVariants({ variant: "default", size: "lg" }),
-            "mt-2 h-11 px-6 text-base bg-white text-primary hover:bg-white/90"
-          )}
+          ctaId="final_cta"
+          className="mt-2 h-11 px-6 text-base bg-white text-primary hover:bg-white/90"
         >
-          <Send className="size-4" data-icon="inline-start" />
           {CTA_BUTTON_LABEL}
-        </a>
+        </TrackedCta>
       </div>
     </section>
   );
