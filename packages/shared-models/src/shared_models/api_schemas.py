@@ -1,6 +1,8 @@
-"""Schemas de request/response para a API HTTP do scraper.
+"""Schemas de request/response da antiga API HTTP do scraper.
 
-Todos os modelos usam ``extra="forbid"`` para rejeitar campos desconhecidos.
+Deprecated (ADR 0005): a bot acessa o Postgres direto; os endpoints
+users/alerts/matches foram removidos. Não importe este módulo em código novo.
+Modelos de domínio: ``shared_models.models``. Table models: ``shared_models.tables``.
 """
 
 from __future__ import annotations
@@ -74,7 +76,6 @@ class NotifiedPair(BaseModel):
 
     alert_id: int
     listing_id: int
-
 
 
 class MatchesResponse(BaseModel):
