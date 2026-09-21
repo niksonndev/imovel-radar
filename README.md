@@ -71,11 +71,13 @@ EventBridge → scraper Lambda → job_daily()
 ### Notification flow (EventBridge daily 2h after scrape / JobQueue in local polling)
 
 ```text
-notify_new_matches()
-  → SELECT users
-  → unnotified listings por alerta
-  → send_carousel()
-  → INSERT alert_matches
+run_daily_notifications()
+  → notify_new_matches()
+      → SELECT users / unnotified listings por alerta
+      → send_carousel() / INSERT alert_matches
+  → notify_watched_changes()
+      → diffs em watched_listings vs listing
+      → mensagem de preço/status / update baselines
 ```
 
 ### `/novo_alerta` wizard flow

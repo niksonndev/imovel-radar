@@ -15,10 +15,12 @@ Telegram bot that monitors real estate listings and notifies users via configura
 
 ## Architecture (layers)
 
-- bot → Neon Postgres (`users` / `alerts` / `alert_matches` writes; `listing` reads)
+- bot → Neon Postgres (`users` / `alerts` / `alert_matches` / `watched_listings`
+  writes; `listing` reads)
 - scraper writes `listing` only
 - `handlers/`, `jobs/`, `models.py` stay separated
-- `models.py` centralizes TypedDicts (`CreateAlertDraft`, `CreateAlertWizardState`, `UserData`)
+- `models.py` centraliza TypedDicts (`CreateAlertDraft`, `CreateAlertWizardState`,
+  `WatchlistDraft`, `UserData`)
 - `CustomContext` is the standard handler context
 
 ## What to avoid

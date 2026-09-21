@@ -26,10 +26,13 @@ def test_parse_nav_callback_absolute_index() -> None:
 
 
 def test_keyboard_encodes_target_index() -> None:
-    kb = _carousel_keyboard("99", 1, 3, "https://example.com/ad")
+    kb = _carousel_keyboard("99", 1, 3, "https://example.com/ad", listing_id=1525220692)
     row = kb.inline_keyboard[0]
     assert row[0].callback_data == "crs_99_0"
     assert row[1].callback_data == "crs_99_2"
+    actions = kb.inline_keyboard[1]
+    assert actions[0].url == "https://example.com/ad"
+    assert actions[1].callback_data == "wch_1525220692"
 
 
 def test_listing_to_card_is_slim() -> None:
@@ -46,6 +49,7 @@ def test_listing_to_card_is_slim() -> None:
     )
     card = _listing_to_card(listing)  # type: ignore[arg-type]
     assert set(card) == {
+        "listing_id",
         "title",
         "price_value",
         "neighbourhood",
@@ -56,6 +60,7 @@ def test_listing_to_card_is_slim() -> None:
         "size",
         "real_estate_type",
     }
+    assert card["listing_id"] == 1
     assert card["image_url"] == "https://img/1.jpg"
     assert card["file_id"] is None
     assert "first_seen_at" not in card
@@ -83,6 +88,7 @@ def test_photo_file_id_from_message() -> None:
 
 def test_send_carousel_stores_slim_cards_and_file_id() -> None:
     listing = SimpleNamespace(
+        listing_id=99,
         title="Casa",
         price_value=2000,
         neighbourhood="Jatiúca",

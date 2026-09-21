@@ -290,3 +290,120 @@ def test_large_telegram_chat_id_fits_bigint(session: Session) -> None:
     assert found is not None
     assert found.id == alert_id
     assert found.chat_id == chat_id
+
+
+def _add_listing(session: Session, listing_id: int, *, price: int = 1500, active: bool = True) -> None:
+    session.add(
+        Listing(
+            listing_id=listing_id,
+            url=f"https://al.olx.com.br/alagoas/imoveis/x-{listing_id}",
+            title=f"Imovel {listing_id}",
+            price_value=price,
+            municipality="Maceió",
+            neighbourhood="Jatiúca",
+            category="Apartamentos",
+            images=[f"https://img/{listing_id}.webp"],
+            properties={},
+            listing_kind="aluguel",
+            active=active,
+        )
+    )
+
+
+def test_create_watch_sets_baselines_and_duplicate(session: Session, monkeypatch) -> None:
+    monkeypatch.setattr("config.WATCHLIST_FREE_CAP", 2)
+    session.add(User(chat_id=501))
+    _add_listing(session, 5010, price=1800)
+    session.commit()
+
+    status, watch_id = queries.create_watch(session, chat_id=501, listing_id=5010)
+    session.commit()
+    assert status == "created"
+    assert watch_id is not None
+
+    row = queries.get_watch_for_user(session, 501, watch_id)
+    assert row is not None
+    assert row.watch.last_known_price == 1800
+    assert row.watch.last_known_active is True
+
+    status2, dup_id = queries.create_watch(session, chat_id=501, listing_id=5010)
+    assert status2 == "duplicate"
+    assert dup_id == watch_id
+
+
+def test_create_watch_cap_and_missing(session: Session, monkeypatch) -> None:
+    monkeypatch.setattr("config.WATCHLIST_FREE_CAP", 2)
+    session.add(User(chat_id=502))
+    _add_listing(session, 5021, price=1000)
+    _add_listing(session, 5022, price=1100)
+    _add_listing(session, 5023, price=1200)
+    session.commit()
+
+    assert queries.create_watch(session, chat_id=502, listing_id=999999)[0] == "listing_missing"
+
+    s1, _ = queries.create_watch(session, chat_id=502, listing_id=5021)
+    s2, _ = queries.create_watch(session, chat_id=502, listing_id=5022)
+    session.commit()
+    assert s1 == "created"
+    assert s2 == "created"
+    assert queries.count_watches_for_user(session, 502) == 2
+
+    s3, wid = queries.create_watch(session, chat_id=502, listing_id=5023)
+    assert s3 == "cap_reached"
+    assert wid is None
+
+
+def test_changed_watches_and_baseline_update(session: Session, monkeypatch) -> None:
+    monkeypatch.setattr("config.WATCHLIST_FREE_CAP", 2)
+    session.add(User(chat_id=503))
+    _add_listing(session, 5030, price=2000, active=True)
+    session.commit()
+
+    status, watch_id = queries.create_watch(session, chat_id=503, listing_id=5030)
+    session.commit()
+    assert status == "created"
+    assert watch_id is not None
+    assert queries.get_changed_watches(session) == []
+
+    listing = queries.get_listing(session, 5030)
+    assert listing is not None
+    listing.price_value = 1700
+    session.add(listing)
+    session.commit()
+
+    changed = queries.get_changed_watches(session)
+    assert len(changed) == 1
+    assert changed[0].watch.id == watch_id
+    assert changed[0].listing.price_value == 1700
+
+    queries.update_watch_baselines(session, [(watch_id, 1700, True)])
+    session.commit()
+    assert queries.get_changed_watches(session) == []
+
+    listing = queries.get_listing(session, 5030)
+    assert listing is not None
+    listing.active = False
+    session.add(listing)
+    session.commit()
+
+    changed2 = queries.get_changed_watches(session)
+    assert len(changed2) == 1
+    assert changed2[0].listing.active is False
+
+    queries.update_watch_baselines(session, [(watch_id, 1700, False)])
+    session.commit()
+    assert queries.get_changed_watches(session) == []
+
+
+def test_delete_watch_for_user(session: Session, monkeypatch) -> None:
+    monkeypatch.setattr("config.WATCHLIST_FREE_CAP", 2)
+    session.add(User(chat_id=504))
+    _add_listing(session, 5040)
+    session.commit()
+    _, watch_id = queries.create_watch(session, chat_id=504, listing_id=5040)
+    session.commit()
+    assert watch_id is not None
+    assert queries.delete_watch_for_user(session, 504, watch_id) is True
+    session.commit()
+    assert queries.get_watches_for_user(session, 504) == []
+    assert queries.delete_watch_for_user(session, 504, watch_id) is False
