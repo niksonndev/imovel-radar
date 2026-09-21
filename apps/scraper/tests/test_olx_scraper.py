@@ -126,3 +126,52 @@ def test_search_listings_window_sets_next_page(monkeypatch) -> None:
     assert chunk.listing_kind == "venda"
     assert len(chunk.listings) == 2
     assert all(ad["listing_kind"] == "venda" for ad in chunk.listings)
+
+
+def test_search_listings_hard_cap_does_not_mark_completed(monkeypatch) -> None:
+    """SCRAPER_MAX_PAGES não pode setar completed=True (evita mass-deactivate)."""
+    page_calls: list[str] = []
+
+    async def fake_fetch(url: str, headers=None) -> str:
+        page_calls.append(url)
+        return "<html></html>"
+
+    async def fake_close() -> None:
+        return None
+
+    def fake_extract(html: str, *, listing_kind="aluguel"):
+        n = len(page_calls)
+        return [
+            {
+                "listing_id": n,
+                "url": f"https://ex/{n}",
+                "title": f"t{n}",
+                "price_value": 100,
+                "old_price": None,
+                "municipality": "Maceió",
+                "neighbourhood": "Centro",
+                "properties": {},
+                "category": "Casas",
+                "images": ["https://img/x.webp"],
+                "listing_kind": listing_kind,
+            }
+        ]
+
+    monkeypatch.setattr(olx_scraper, "fetch", fake_fetch)
+    monkeypatch.setattr(olx_scraper, "close", fake_close)
+    monkeypatch.setattr(olx_scraper, "extract_listings_from_search_page", fake_extract)
+    monkeypatch.setattr(olx_scraper.config, "SCRAPER_PAGES_PER_INVOKE", 50)
+    monkeypatch.setattr(olx_scraper.config, "SCRAPER_MAX_PAGES", 5)
+
+    chunk = asyncio.run(
+        olx_scraper.search_listings(
+            "https://www.olx.com.br/imoveis/aluguel/estado-al/alagoas/maceio",
+            listing_kind="aluguel",
+            start_page=1,
+        )
+    )
+
+    assert len(page_calls) == 5
+    assert chunk.completed is False
+    assert chunk.next_page is None
+    assert len(chunk.listings) == 5

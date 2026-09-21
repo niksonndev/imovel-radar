@@ -392,10 +392,23 @@ async def search_listings(
             pages_in_window += 1
             page += 1
         else:
+            # while-else: loop ended without break.
             if not completed and page <= hard_cap:
+                # Janela (PAGES_PER_INVOKE) esgotada — há mais páginas.
                 next_page = page
             elif page > hard_cap:
-                completed = True
+                # Hard cap (SCRAPER_MAX_PAGES) — NÃO marcar completed.
+                # completed=True dispara deactivate_missing_listings e apagaria
+                # o corpus (ex.: smoke CI com MAX_PAGES=5). Só completed=True
+                # quando o OLX realmente acaba (página vazia / sem ads novos).
+                logger.warning(
+                    "Parou no hard cap SCRAPER_MAX_PAGES=%s (próxima seria %s, kind=%s) "
+                    "— sem completed/deactivate",
+                    hard_cap,
+                    page,
+                    listing_kind,
+                )
+                next_page = None
     finally:
         _cycle_headers = None
         await close()

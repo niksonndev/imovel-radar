@@ -45,7 +45,9 @@ sem gerar `debug_last_response.html`. Quebras reais de parse continuam lançando
 `ParseError` (com traceback e dump de debug).
 
 Salvaguardas adicionais:
-- `SCRAPER_MAX_PAGES` (padrão 100) limita o número de páginas iteradas, evitando loops infinitos.
+- `SCRAPER_MAX_PAGES` (padrão 500) limita o número de páginas iteradas, evitando loops infinitos.
+  Atingir o cap **não** marca a coleta como `completed` (não dispara
+  `deactivate_missing_listings`) — só o fim real do OLX (página vazia / sem ads novos).
 - Parada antecipada quando uma página não traz nenhum `listId` novo.
 
 ## Classes
