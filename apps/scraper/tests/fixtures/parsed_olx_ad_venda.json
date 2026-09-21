@@ -1,0 +1,33 @@
+{
+  "listing_id": 1537459281,
+  "url": "https://al.olx.com.br/alagoas/imoveis/casa-benedito-bentes-160-mil-1537459281",
+  "title": "CASA BENEDITO BENTES 160 MIL ",
+  "price_value": 160000,
+  "old_price": null,
+  "municipality": "Maceió",
+  "neighbourhood": "Benedito Bentes",
+  "properties": {
+    "category": "Casas",
+    "real_estate_type": "Venda - casa em rua pública",
+    "condominio": 0,
+    "iptu": 0,
+    "size": 90,
+    "rooms": 2,
+    "bathrooms": 3,
+    "garage_spaces": 1,
+    "re_types": "Padrão"
+  },
+  "category": "Casas",
+  "listing_kind": "venda",
+  "images": [
+    "https://img.olx.com.br/images/11/111660921744161.webp",
+    "https://img.olx.com.br/images/12/125633685979901.webp",
+    "https://img.olx.com.br/images/13/130646681392657.webp",
+    "https://img.olx.com.br/images/14/141624923111471.webp",
+    "https://img.olx.com.br/images/16/163652321585841.webp",
+    "https://img.olx.com.br/images/17/171655562829273.webp",
+    "https://img.olx.com.br/images/19/197689680229698.webp",
+    "https://img.olx.com.br/images/21/215683800654326.webp",
+    "https://img.olx.com.br/images/22/228662444814081.webp"
+  ]
+}

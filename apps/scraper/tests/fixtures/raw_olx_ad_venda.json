@@ -1,0 +1,144 @@
+{
+  "subject": "CASA BENEDITO BENTES 160 MIL ",
+  "priceValue": "R$ 160.000",
+  "oldPrice": null,
+  "professionalAd": false,
+  "listId": 1537459281,
+  "lastBumpAgeSecs": "0",
+  "categoryName": "Casas",
+  "fixedOnTop": false,
+  "isFavorited": false,
+  "hasRealEstateHighlight": false,
+  "priceReductionBadge": false,
+  "view360": {
+    "url": null
+  },
+  "images": [
+    {
+      "original": "https://img.olx.com.br/images/11/111660921744161.jpg",
+      "originalWebp": "https://img.olx.com.br/images/11/111660921744161.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/12/125633685979901.jpg",
+      "originalWebp": "https://img.olx.com.br/images/12/125633685979901.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/13/130646681392657.jpg",
+      "originalWebp": "https://img.olx.com.br/images/13/130646681392657.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/14/141624923111471.jpg",
+      "originalWebp": "https://img.olx.com.br/images/14/141624923111471.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/16/163652321585841.jpg",
+      "originalWebp": "https://img.olx.com.br/images/16/163652321585841.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/17/171655562829273.jpg",
+      "originalWebp": "https://img.olx.com.br/images/17/171655562829273.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/19/197689680229698.jpg",
+      "originalWebp": "https://img.olx.com.br/images/19/197689680229698.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/21/215683800654326.jpg",
+      "originalWebp": "https://img.olx.com.br/images/21/215683800654326.webp"
+    },
+    {
+      "original": "https://img.olx.com.br/images/22/228662444814081.jpg",
+      "originalWebp": "https://img.olx.com.br/images/22/228662444814081.webp"
+    }
+  ],
+  "videoCount": 0,
+  "location": "Maceió, Benedito Bentes",
+  "properties": [
+    {
+      "name": "category",
+      "value": "Casas",
+      "label": "Categoria"
+    },
+    {
+      "name": "real_estate_type",
+      "value": "Venda - casa em rua pública",
+      "label": "Tipo"
+    },
+    {
+      "name": "condominio",
+      "value": "R$ 0",
+      "label": "Condomínio"
+    },
+    {
+      "name": "iptu",
+      "value": "R$ 0",
+      "label": "IPTU"
+    },
+    {
+      "name": "size",
+      "value": "90m²",
+      "label": "Área construída"
+    },
+    {
+      "name": "rooms",
+      "value": "2",
+      "label": "Quartos"
+    },
+    {
+      "name": "bathrooms",
+      "value": "3",
+      "label": "Banheiros"
+    },
+    {
+      "name": "garage_spaces",
+      "value": "1",
+      "label": "Vagas na garagem"
+    },
+    {
+      "name": "re_types",
+      "value": "Padrão",
+      "label": "Tipo"
+    }
+  ],
+  "searchCategoryLevelZero": 1000,
+  "searchCategoryLevelOne": 1001,
+  "olxPay": {
+    "enabled": false,
+    "dynamicBadgeProps": [],
+    "transactionalBadges": [],
+    "installments": [],
+    "transactionalSellerRating": null,
+    "transactionalSellerName": "Ferreira"
+  },
+  "zapDetails": null,
+  "matchingAds": null,
+  "olxDelivery": {
+    "enabled": false
+  },
+  "vehicleTags": [],
+  "carSpecificData": null,
+  "price": "R$ 160.000",
+  "userGoogleReviewsVisible": false,
+  "userGoogleRating": null,
+  "isFeatured": false,
+  "listingCategoryId": "1001",
+  "isChatEnabled": true,
+  "url": "https://al.olx.com.br/alagoas/imoveis/casa-benedito-bentes-160-mil-1537459281",
+  "date": 1789995282,
+  "imageCount": 9,
+  "category": "Casas",
+  "position": 0,
+  "isOnline": true,
+  "olxPayBadgeEnabled": false,
+  "olxDeliveryBadgeEnabled": false,
+  "installments": false,
+  "vehicleReportEnabled": false,
+  "vehicleHasInspectionReport": false,
+  "vehiclePills": null,
+  "locationDetails": {
+    "municipality": "Maceió",
+    "ddd": "82",
+    "neighbourhood": "Benedito Bentes",
+    "uf": "AL"
+  }
+}

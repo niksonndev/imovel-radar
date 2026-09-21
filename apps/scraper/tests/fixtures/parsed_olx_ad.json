@@ -17,6 +17,7 @@
     "re_types": "Casa de condomínio"
   },
   "category": "Casas",
+  "listing_kind": "aluguel",
   "images": [
     "https://img.olx.com.br/images/13/135644072067158.webp",
     "https://img.olx.com.br/images/15/151601077048686.webp",

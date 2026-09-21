@@ -15,7 +15,7 @@ modelos Pydantic de domínio (``shared_models.models``). Importe de
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 from sqlalchemy import (
     JSON,
@@ -31,16 +31,33 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, SQLModel
 
+ListingKind = Literal["aluguel", "venda"]
+
 
 class Listing(SQLModel, table=True):
     """An OLX listing in the ``listing`` table (read-only pela bot)."""
 
     __tablename__ = "listing"  # type: ignore
+    __table_args__ = (
+        CheckConstraint(
+            "listing_kind IN ('aluguel', 'venda')",
+            name="ck_listing_listing_kind",
+        ),
+    )
 
     listing_id: int = Field(primary_key=True)
     active: bool = Field(
         default=True,
         sa_column=Column("active", Boolean, nullable=False, server_default=text("true")),
+    )
+    listing_kind: ListingKind = Field(
+        default="aluguel",
+        sa_column=Column(
+            "listing_kind",
+            Text,
+            nullable=False,
+            server_default=text("'aluguel'"),
+        ),
     )
     url: str
     title: str
@@ -92,6 +109,10 @@ class Alert(SQLModel, table=True):
             "min_price IS NOT NULL OR max_price IS NOT NULL",
             name="ck_alert_price_range",
         ),
+        CheckConstraint(
+            "listing_kind IN ('aluguel', 'venda')",
+            name="ck_alert_listing_kind",
+        ),
     )
 
     id: int | None = Field(default=None, primary_key=True)
@@ -99,6 +120,15 @@ class Alert(SQLModel, table=True):
         sa_column=Column("chat_id", BigInteger, ForeignKey("users.chat_id"), nullable=False)
     )
     alert_name: str | None = Field(default=None, sa_column=Column("alert_name", Text))
+    listing_kind: ListingKind = Field(
+        default="aluguel",
+        sa_column=Column(
+            "listing_kind",
+            Text,
+            nullable=False,
+            server_default=text("'aluguel'"),
+        ),
+    )
     min_price: int | None = None
     max_price: int | None = None
     neighbourhoods: list[str] | None = Field(default=None, sa_column=Column("neighbourhoods", JSON))
