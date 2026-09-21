@@ -74,6 +74,9 @@ def get_bot_token() -> str:
     return _resolve_token()
 
 
+# Cap free de anúncios acompanhados (ADR freemium). Pro pode subir depois.
+WATCHLIST_FREE_CAP = int(os.getenv("WATCHLIST_FREE_CAP", "2"))
+
 # ── Dev local ────────────────────────────────────────────────────────────────
 # Persistência por arquivo SOLO para dev (pnpm run dev). No serverless se usa
 # DynamoDB (ADR 0006).

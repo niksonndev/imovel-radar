@@ -1,7 +1,8 @@
 """SQLModel table models do Postgres compartilhado — fonte única do schema físico.
 
-Usados por scraper e bot (ADR 0005): a bot é dona de ``users``, ``alerts`` e
-``alert_matches`` e lê ``listing`` (read-only); o scraper é dono de ``listing``.
+Usados por scraper e bot (ADR 0005): a bot é dona de ``users``, ``alerts``,
+``alert_matches`` e ``watched_listings`` e lê ``listing`` (read-only); o scraper
+é dono de ``listing``.
 
 Atenção: as classes registram-se num ``SQLModel.metadata`` global compartilhado.
 Mudanças de schema vão **exclusivamente** por migrations Alembic (apps/scraper/alembic)
@@ -26,6 +27,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -161,8 +163,52 @@ class AlertMatch(SQLModel, table=True):
     )
 
 
+class WatchedListing(SQLModel, table=True):
+    """User subscription to a specific listing (dona: bot).
+
+    Baselines (``last_known_price`` / ``last_known_active``) are set on create
+    from the current listing row so the first notify only fires on a later change.
+    """
+
+    __tablename__ = "watched_listings"  # type: ignore
+    __table_args__ = (
+        UniqueConstraint(
+            "chat_id",
+            "listing_id",
+            name="uq_watched_listings_chat_listing",
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    chat_id: int = Field(
+        sa_column=Column("chat_id", BigInteger, ForeignKey("users.chat_id"), nullable=False)
+    )
+    listing_id: int = Field(foreign_key="listing.listing_id")
+    last_known_price: int | None = None
+    last_known_active: bool = Field(
+        default=True,
+        sa_column=Column(
+            "last_known_active",
+            Boolean,
+            nullable=False,
+            server_default=text("true"),
+        ),
+    )
+    created_at: datetime | None = Field(
+        default=None,
+        sa_column=Column("created_at", DateTime(timezone=True), server_default=func.now()),
+    )
+
+
 class ListingAlertMatch(NamedTuple):
     """A listing plus the alert it matched."""
 
     listing: Listing
     alert_id: int
+
+
+class WatchedListingChange(NamedTuple):
+    """A watched row plus its current listing (used for price/active diffs)."""
+
+    watch: WatchedListing
+    listing: Listing

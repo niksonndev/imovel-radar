@@ -26,6 +26,7 @@ Monetize with **freemium + Pix**:
 ### Free tier (acquisition)
 
 - 1 active alert
+- Up to **2** watched listings (“Acompanhar anúncio” — price change + deactivation)
 - Daily digest (current scraper + notify schedule)
 - Full match carousel for that alert
 - CTA on the site: “Comece grátis” (not “sem limite”)
@@ -38,9 +39,11 @@ frontend content / future billing config).
 Included:
 
 - Up to **5** active alerts
+- Higher watched-listing cap (exact limit set when billing ships)
 - **Faster updates** (multiple scrapes/day when infrastructure supports it;
   until then, Pro is sold as priority matching + multi-alert)
-- **Price-drop alerts** (`old_price` → lower `price_value`)
+- **Price-drop alerts** on filter matches (`old_price` → lower `price_value`)
+  in addition to per-listing watch notifications
 - Filters beyond the free defaults (e.g. particular-only / with photos when
   scrapable)
 - Pix checkout (recurring monthly); cancellation in-bot or via support

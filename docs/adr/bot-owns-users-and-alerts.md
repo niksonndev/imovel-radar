@@ -27,19 +27,21 @@ Three concrete facts drive this decision:
 
 ## Decision
 
-The bot becomes the **direct owner** of the `users`, `alerts` and
-`alert_matches` tables in the shared Postgres (Neon), and **reads** `listing`
-directly (read-only) to compute unnotified listings for notifications.
+The bot becomes the **direct owner** of the `users`, `alerts`,
+`alert_matches` and `watched_listings` tables in the shared Postgres (Neon),
+and **reads** `listing` directly (read-only) to compute unnotified listings
+and watchlist diffs for notifications.
 
 The scraper keeps the write side of `listing` (scraping, parsing, upsert) and
 the scheduler. The ownership matrix is explicit — **one writer per table**:
 
-| Table          | Writer  | Reader            |
-|----------------|---------|-------------------|
-| `listing`      | scraper | scraper, bot      |
-| `users`        | bot     | bot, scraper      |
-| `alerts`       | bot     | bot, scraper      |
-| `alert_matches`| bot     | bot               |
+| Table              | Writer  | Reader            |
+|--------------------|---------|-------------------|
+| `listing`          | scraper | scraper, bot      |
+| `users`            | bot     | bot, scraper      |
+| `alerts`           | bot     | bot, scraper      |
+| `alert_matches`    | bot     | bot               |
+| `watched_listings` | bot     | bot               |
 
 Consequences of this decision, deliberately:
 
