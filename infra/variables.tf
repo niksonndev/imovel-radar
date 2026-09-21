@@ -54,8 +54,8 @@ variable "database_url" {
 }
 
 variable "scraper_max_pages" {
-  description = "Limite de páginas do OLX por coleta (default hardcoded do config.py)"
-  default     = 100
+  description = "Limite de páginas do OLX por kind (default alinhado a config.py)"
+  default     = 500
 }
 
 variable "scraper_cron" {

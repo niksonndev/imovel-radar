@@ -26,15 +26,38 @@ data "aws_iam_policy_document" "scraper_lambda_ssm" {
   }
 }
 
+data "aws_caller_identity" "current" {}
+
+data "aws_iam_policy_document" "scraper_lambda_self_invoke" {
+  statement {
+    actions = ["lambda:InvokeFunction"]
+    # ARN por nome evita ciclo Terraform (policy ↔ function).
+    resources = [
+      "arn:aws:lambda:${var.region}:${data.aws_caller_identity.current.account_id}:function:${var.project}-${var.environment}-scraper-collect"
+    ]
+  }
+}
+
 resource "aws_iam_policy" "scraper_lambda_ssm" {
   name        = "${var.project}-${var.environment}-scraper-collect-ssm"
   description = "Permite a Lambda ler o connection string do banco (SSM)"
   policy      = data.aws_iam_policy_document.scraper_lambda_ssm.json
 }
 
+resource "aws_iam_policy" "scraper_lambda_self_invoke" {
+  name        = "${var.project}-${var.environment}-scraper-collect-self-invoke"
+  description = "Permite a Lambda auto-invocar para continuar chunks de coleta"
+  policy      = data.aws_iam_policy_document.scraper_lambda_self_invoke.json
+}
+
 resource "aws_iam_role_policy_attachment" "scraper_lambda_ssm" {
   role       = aws_iam_role.scraper_lambda.name
   policy_arn = aws_iam_policy.scraper_lambda_ssm.arn
+}
+
+resource "aws_iam_role_policy_attachment" "scraper_lambda_self_invoke" {
+  role       = aws_iam_role.scraper_lambda.name
+  policy_arn = aws_iam_policy.scraper_lambda_self_invoke.arn
 }
 
 # ── Lambda function ────────────────────────────────────────────────────────
@@ -68,6 +91,10 @@ resource "aws_cloudwatch_event_rule" "collect_schedule" {
 resource "aws_cloudwatch_event_target" "collect_schedule" {
   rule = aws_cloudwatch_event_rule.collect_schedule.name
   arn  = aws_lambda_function.collect.arn
+  input = jsonencode({
+    listing_kind = "aluguel"
+    start_page   = 1
+  })
 }
 
 resource "aws_lambda_permission" "collect_schedule" {
