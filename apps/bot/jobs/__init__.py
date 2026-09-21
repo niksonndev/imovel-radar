@@ -1,1 +1,1 @@
-"""Job de polling que verifica matches novos no scraper a cada 1 hora."""
+"""Job de notificação de matches novos (EventBridge diário em prod; JobQueue local)."""

@@ -3,7 +3,7 @@
 Dois gatilhos possíveis (ADR 0004):
   * API Gateway (webhook) — evento com ``body`` contendo o JSON do Telegram.
     ``Update.de_json`` -> ``Application.process_update`` (sem long-running).
-  * EventBridge (notificação horária) — evento com ``source == "aws.events"``;
+  * EventBridge (notificação diária, 2h após o scrape) — evento com ``source == "aws.events"``;
     re-executa o job de notificação (lê do Postgres, envia carrosséis).
 
 Quente-reuso: a ``Application`` é construída/inicializada uma vez por instância

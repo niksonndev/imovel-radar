@@ -124,7 +124,7 @@ resource "aws_lambda_permission" "bot_webhook_apigw" {
   source_arn = "${aws_apigatewayv2_api.bot_webhook.execution_arn}/*/*"
 }
 
-# ── EventBridge — notificação horária (EventBridge → bot Lambda) ───────────
+# ── EventBridge — notificação diária 2h após scrape (EventBridge → bot Lambda) ─
 resource "aws_cloudwatch_event_rule" "bot_notify" {
   name                = "${var.project}-${var.environment}-bot-notify"
   schedule_expression = var.bot_notify_cron

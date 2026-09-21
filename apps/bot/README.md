@@ -13,7 +13,7 @@ usando polling + PicklePersistence.
 - **Carrossel** — cards enxutos em `bot_data`; navegação por índice no
   callback (`crs_{id}_{index}`) sem rewrite a cada clique; `file_id` do
   Telegram para fotos rápidas após a 1ª visita.
-- **Notificação horária** — EventBridge → Lambda.
+- **Notificação diária** — EventBridge (10:00 Maceió, 2h após o scrape) → Lambda.
 
 ## Configuração (`.env`)
 

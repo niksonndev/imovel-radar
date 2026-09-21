@@ -1,8 +1,9 @@
 """
 Job de notificação que verifica listings não notificados e envia carrosséis.
 
-Re-homeado para rodar via EventBridge (ADR 0004) ou no dev via JobQueue. Lê os
-chat_ids diretamente do Postgres (ADR 0005) — não usa mais app.bot_data.
+Re-homeado para rodar via EventBridge diário (2h após o scrape; ADR 0004) ou
+no dev via JobQueue. Lê os chat_ids diretamente do Postgres (ADR 0005) — não
+usa mais app.bot_data.
 """
 
 from __future__ import annotations

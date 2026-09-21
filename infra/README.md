@@ -80,7 +80,7 @@ Recursos (o `terraform apply` cria/provisiona):
   `TELEGRAM_WEBHOOK_SECRET`, `LOG_LEVEL`.
 - **API Gateway** `imovel-radar-prod-bot-webhook-api` — HTTP API com rota
   `POST /webhook`, integração AWS_PROXY (timeout 29 s). URL no output.
-- **EventBridge** `imovel-radar-prod-bot-notify` — cron horário → Lambda.
+- **EventBridge** `imovel-radar-prod-bot-notify` — `cron(0 13 * * ? *)` (10:00 Maceió, 2h após o scrape) → Lambda.
 - **Logs + alarme CloudWatch** do webhook/notificação.
 
 ### Zip separados (scraper vs bot)

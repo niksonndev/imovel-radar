@@ -84,8 +84,8 @@ variable "conversation_ttl_hours" {
 }
 
 variable "bot_notify_cron" {
-  description = "Cron do EventBridge para o job de notificação do bot (UTC) — 1x/hora"
-  default     = "cron(0 * * * ? *)"
+  description = "Cron do EventBridge para o job de notificação do bot (UTC) — 10:00 America/Maceio = 2h após scraper_cron"
+  default     = "cron(0 13 * * ? *)"
 }
 
 variable "bot_memory" {

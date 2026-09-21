@@ -40,7 +40,7 @@ imovel-radar/
 ## Architecture / Flow
 
 ```text
-  EventBridge (diário)          EventBridge (horário)
+  EventBridge (08:00 Maceió)    EventBridge (10:00 Maceió)
           │                              │
           ▼                              ▼
   Scraper Lambda                   Bot Lambda
@@ -66,7 +66,7 @@ EventBridge → scraper Lambda → job_daily()
   → upsert listing
 ```
 
-### Notification flow (EventBridge hourly / JobQueue in local polling)
+### Notification flow (EventBridge daily 2h after scrape / JobQueue in local polling)
 
 ```text
 notify_new_matches()
