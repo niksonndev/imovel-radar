@@ -74,8 +74,17 @@ def get_bot_token() -> str:
     return _resolve_token()
 
 
-# Cap free de anúncios acompanhados (ADR freemium). Pro pode subir depois.
+# Caps freemium / Radar Pro (ADR freemium + Stars checkout).
 WATCHLIST_FREE_CAP = int(os.getenv("WATCHLIST_FREE_CAP", "2"))
+WATCHLIST_PRO_CAP = int(os.getenv("WATCHLIST_PRO_CAP", "10"))
+ALERT_FREE_CAP = int(os.getenv("ALERT_FREE_CAP", "1"))
+ALERT_PRO_CAP = int(os.getenv("ALERT_PRO_CAP", "5"))
+
+# Radar Pro — Telegram Stars (XTR), com âncora em BRL na copy.
+PRO_STARS_AMOUNT = int(os.getenv("PRO_STARS_AMOUNT", "200"))
+PRO_PRICE_BRL_LABEL = os.getenv("PRO_PRICE_BRL_LABEL", "R$ 19,90").strip() or "R$ 19,90"
+# Período de assinatura Stars (Bot API): exatamente 30 dias.
+PRO_SUBSCRIPTION_PERIOD_SECONDS = 2592000
 
 # ── Dev local ────────────────────────────────────────────────────────────────
 # Persistência por arquivo SOLO para dev (pnpm run dev). No serverless se usa

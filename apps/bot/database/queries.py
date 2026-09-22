@@ -6,6 +6,8 @@ A bot lê ``listing`` (read-only), escreve ``users``/``alerts``/``alert_matches`
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from shared_models.tables import (
     Alert,
     AlertMatch,
@@ -32,6 +34,77 @@ def ensure_user(session: Session, chat_id: int) -> bool:
     stmt = postgres_insert(User).values(chat_id=chat_id).on_conflict_do_nothing()
     result = session.exec(stmt)
     return result.rowcount is not None  # True mesmo se nada inserido
+
+
+def get_user(session: Session, chat_id: int) -> User | None:
+    return session.get(User, chat_id)
+
+
+def is_pro(user: User | None) -> bool:
+    """Entitlement Pro: plan=pro e ``pro_until`` no futuro (ou sem expiry)."""
+    if user is None or user.plan != "pro":
+        return False
+    if user.pro_until is None:
+        return True
+    until = user.pro_until
+    if until.tzinfo is None:
+        until = until.replace(tzinfo=UTC)
+    return until > datetime.now(UTC)
+
+
+def watch_cap_for(user: User | None) -> int:
+    return config.WATCHLIST_PRO_CAP if is_pro(user) else config.WATCHLIST_FREE_CAP
+
+
+def alert_cap_for(user: User | None) -> int:
+    return config.ALERT_PRO_CAP if is_pro(user) else config.ALERT_FREE_CAP
+
+
+def activate_pro(
+    session: Session,
+    *,
+    chat_id: int,
+    pro_until: datetime | None,
+    telegram_payment_charge_id: str | None,
+    subscription_active: bool = True,
+) -> User:
+    """Ativa ou renova Radar Pro. Garante a linha do usuário."""
+    ensure_user(session, chat_id)
+    user = get_user(session, chat_id)
+    if user is None:
+        raise RuntimeError(f"Usuário {chat_id} não encontrado após ensure_user")
+    user.plan = "pro"
+    user.pro_until = pro_until
+    if telegram_payment_charge_id:
+        user.stars_telegram_payment_charge_id = telegram_payment_charge_id
+    user.stars_subscription_active = subscription_active
+    session.add(user)
+    session.flush()
+    return user
+
+
+def mark_pro_subscription_canceled(session: Session, chat_id: int) -> User | None:
+    """Marca assinatura cancelada; mantém Pro até ``pro_until``."""
+    user = get_user(session, chat_id)
+    if user is None:
+        return None
+    user.stars_subscription_active = False
+    session.add(user)
+    session.flush()
+    return user
+
+
+def downgrade_expired_pro(session: Session, chat_id: int) -> User | None:
+    """Se Pro expirou, volta para free."""
+    user = get_user(session, chat_id)
+    if user is None or is_pro(user):
+        return user
+    if user.plan == "pro":
+        user.plan = "free"
+        user.stars_subscription_active = False
+        session.add(user)
+        session.flush()
+    return user
 
 
 def get_users_chat_ids(session: Session) -> list[int]:
@@ -138,6 +211,16 @@ def get_active_alerts_for_user(session: Session, chat_id: int) -> list[Alert]:
             .where(Alert.chat_id == chat_id, Alert.active.is_(True))  # type: ignore[union-attr]
             .order_by(Alert.id.desc())  # type: ignore[union-attr]
         ).all()
+    )
+
+
+def count_active_alerts_for_user(session: Session, chat_id: int) -> int:
+    return int(
+        session.exec(
+            select(func.count())
+            .select_from(Alert)
+            .where(Alert.chat_id == chat_id, Alert.active.is_(True))  # type: ignore[union-attr]
+        ).one()
     )
 
 
@@ -277,7 +360,7 @@ def create_watch(session: Session, *, chat_id: int, listing_id: int) -> tuple[st
     if existing is not None:
         return "duplicate", existing.id
 
-    if count_watches_for_user(session, chat_id) >= config.WATCHLIST_FREE_CAP:
+    if count_watches_for_user(session, chat_id) >= watch_cap_for(get_user(session, chat_id)):
         return "cap_reached", None
 
     watch = WatchedListing(

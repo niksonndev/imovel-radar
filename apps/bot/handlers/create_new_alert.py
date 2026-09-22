@@ -29,6 +29,7 @@ from handlers.data import (
     get_neighbourhoods,
     get_unnotified_listings,
     mark_listings_notified,
+    user_is_pro,
 )
 from handlers.ui import keyboards, menus
 from models import (
@@ -477,10 +478,30 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
                 min_rooms=draft.get("min_rooms"),
                 categories=draft.get("categories") or None,
             )
+            if result.status == "cap_reached":
+                wizard_state["confirming"] = False
+                try:
+                    pro = await user_is_pro(user.id)
+                except Exception:
+                    logger.exception("Falha ao checar Pro no cap de alerta")
+                    pro = False
+                await query.edit_message_text(
+                    menus.alert_cap_reached(is_pro_user=pro),
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=(
+                        keyboards.main_menu_keyboard()
+                        if pro
+                        else keyboards.alert_cap_upsell_keyboard()
+                    ),
+                )
+                _clear_wizard(context)
+                return ConversationHandler.END
             alert_id = result.alert_id
             alert_was_created = result.created
             draft["created_alert_id"] = alert_id
             wizard_state["alert_was_created"] = alert_was_created
+
+        assert alert_id is not None
 
         if not wizard_state.get("seed_done"):
             await query.message.reply_text("⏳ Procurando imóveis que combinam com seu alerta…")  # type: ignore[union-attr]

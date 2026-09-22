@@ -9,6 +9,7 @@ Lê/escreve no Postgres via SQLModel usando os table models de
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Literal, NamedTuple
 
 from shared_models.tables import (
@@ -16,6 +17,7 @@ from shared_models.tables import (
     Listing,
     ListingAlertMatch,
     ListingKind,
+    User,
     WatchedListingChange,
 )
 from sqlmodel import Session
@@ -27,10 +29,11 @@ logger = logging.getLogger(__name__)
 
 
 class CreateAlertResult(NamedTuple):
-    """Resultado de ``create_alert``: id e se a linha foi inserida agora."""
+    """Resultado de ``create_alert``: id, se inseriu agora, e status de freemium."""
 
-    alert_id: int
+    alert_id: int | None
     created: bool
+    status: Literal["created", "reused", "cap_reached"]
 
 
 CreateWatchStatus = Literal["created", "duplicate", "cap_reached", "listing_missing"]
@@ -52,6 +55,50 @@ async def ensure_user(chat_id: int) -> bool:
     except Exception:
         logger.exception("Falha ao garantir usuário %s", chat_id)
         return False
+
+
+async def get_user(chat_id: int) -> User | None:
+    with Session(get_engine()) as session:
+        return queries.get_user(session, chat_id)
+
+
+async def user_is_pro(chat_id: int) -> bool:
+    with Session(get_engine()) as session:
+        return queries.is_pro(queries.get_user(session, chat_id))
+
+
+async def watch_cap_for_user(chat_id: int) -> int:
+    with Session(get_engine()) as session:
+        return queries.watch_cap_for(queries.get_user(session, chat_id))
+
+
+async def activate_pro(
+    *,
+    chat_id: int,
+    pro_until: datetime | None,
+    telegram_payment_charge_id: str | None,
+    subscription_active: bool = True,
+) -> User:
+    with Session(get_engine()) as session:
+        user = queries.activate_pro(
+            session,
+            chat_id=chat_id,
+            pro_until=pro_until,
+            telegram_payment_charge_id=telegram_payment_charge_id,
+            subscription_active=subscription_active,
+        )
+        session.commit()
+        session.refresh(user)
+        return user
+
+
+async def mark_pro_subscription_canceled(chat_id: int) -> User | None:
+    with Session(get_engine()) as session:
+        user = queries.mark_pro_subscription_canceled(session, chat_id)
+        if user is not None:
+            session.commit()
+            session.refresh(user)
+        return user
 
 
 # ── Listings / bairros (read-only) ─────────────────────────────────────────
@@ -92,7 +139,15 @@ async def create_alert(
             categories=categories,
         )
         if existing is not None and existing.id is not None:
-            return CreateAlertResult(alert_id=existing.id, created=False)
+            return CreateAlertResult(
+                alert_id=existing.id, created=False, status="reused"
+            )
+
+        user = queries.get_user(session, chat_id)
+        cap = queries.alert_cap_for(user)
+        if queries.count_active_alerts_for_user(session, chat_id) >= cap:
+            return CreateAlertResult(alert_id=None, created=False, status="cap_reached")
+
         alert_id = queries.create_alert(
             session,
             chat_id=chat_id,
@@ -105,7 +160,7 @@ async def create_alert(
             categories=categories,
         )
         session.commit()
-    return CreateAlertResult(alert_id=alert_id, created=True)
+    return CreateAlertResult(alert_id=alert_id, created=True, status="created")
 
 
 async def get_alerts_for_user(chat_id: int) -> list[Alert]:

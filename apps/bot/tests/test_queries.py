@@ -773,3 +773,83 @@ def test_delete_watch_for_user(session: Session, monkeypatch) -> None:
     session.commit()
     assert queries.get_watches_for_user(session, 504) == []
     assert queries.delete_watch_for_user(session, 504, watch_id) is False
+
+
+def test_is_pro_and_caps(session: Session, monkeypatch) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    monkeypatch.setattr("config.WATCHLIST_FREE_CAP", 2)
+    monkeypatch.setattr("config.WATCHLIST_PRO_CAP", 10)
+    monkeypatch.setattr("config.ALERT_FREE_CAP", 1)
+    monkeypatch.setattr("config.ALERT_PRO_CAP", 5)
+
+    session.add(User(chat_id=601))
+    session.commit()
+    free_user = queries.get_user(session, 601)
+    assert queries.is_pro(free_user) is False
+    assert queries.watch_cap_for(free_user) == 2
+    assert queries.alert_cap_for(free_user) == 1
+
+    until = datetime.now(UTC) + timedelta(days=30)
+    queries.activate_pro(
+        session,
+        chat_id=601,
+        pro_until=until,
+        telegram_payment_charge_id="charge_abc",
+        subscription_active=True,
+    )
+    session.commit()
+    pro_user = queries.get_user(session, 601)
+    assert pro_user is not None
+    assert queries.is_pro(pro_user) is True
+    assert queries.watch_cap_for(pro_user) == 10
+    assert queries.alert_cap_for(pro_user) == 5
+    assert pro_user.stars_telegram_payment_charge_id == "charge_abc"
+    assert pro_user.stars_subscription_active is True
+
+
+def test_create_watch_respects_pro_cap(session: Session, monkeypatch) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    monkeypatch.setattr("config.WATCHLIST_FREE_CAP", 2)
+    monkeypatch.setattr("config.WATCHLIST_PRO_CAP", 3)
+
+    session.add(User(chat_id=602))
+    for lid in (6021, 6022, 6023, 6024):
+        _add_listing(session, lid, price=1000 + lid)
+    session.commit()
+
+    assert queries.create_watch(session, chat_id=602, listing_id=6021)[0] == "created"
+    assert queries.create_watch(session, chat_id=602, listing_id=6022)[0] == "created"
+    session.commit()
+    assert queries.create_watch(session, chat_id=602, listing_id=6023)[0] == "cap_reached"
+
+    queries.activate_pro(
+        session,
+        chat_id=602,
+        pro_until=datetime.now(UTC) + timedelta(days=30),
+        telegram_payment_charge_id="c1",
+    )
+    session.commit()
+    assert queries.create_watch(session, chat_id=602, listing_id=6023)[0] == "created"
+    session.commit()
+    assert queries.create_watch(session, chat_id=602, listing_id=6024)[0] == "cap_reached"
+
+
+def test_mark_pro_subscription_canceled(session: Session) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    until = datetime.now(UTC) + timedelta(days=10)
+    queries.activate_pro(
+        session,
+        chat_id=603,
+        pro_until=until,
+        telegram_payment_charge_id="c2",
+        subscription_active=True,
+    )
+    session.commit()
+    user = queries.mark_pro_subscription_canceled(session, 603)
+    session.commit()
+    assert user is not None
+    assert user.stars_subscription_active is False
+    assert queries.is_pro(user) is True  # still within pro_until
