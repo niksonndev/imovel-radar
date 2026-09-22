@@ -68,6 +68,22 @@ def price_range_keyboard(*, listing_kind: str = "aluguel") -> InlineKeyboardMark
     return InlineKeyboardMarkup(rows)
 
 
+def rooms_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("Qualquer", callback_data="wiz_rooms_any"),
+                InlineKeyboardButton("1+", callback_data="wiz_rooms_1"),
+                InlineKeyboardButton("2+", callback_data="wiz_rooms_2"),
+            ],
+            [
+                InlineKeyboardButton("3+", callback_data="wiz_rooms_3"),
+                InlineKeyboardButton("4+", callback_data="wiz_rooms_4"),
+            ],
+        ]
+    )
+
+
 def neighborhoods_keyboard(
     selected: list[str],
     neighbourhoods: list[str],

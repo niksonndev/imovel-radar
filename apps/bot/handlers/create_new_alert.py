@@ -1,7 +1,7 @@
 """
 Wizard multi-etapas para criar um alerta (comando ``/novo_alerta``).
 
-Fluxo: KIND (Comprar/Alugar) → PRICE → NEIGHBOURHOODS → NAME → CONFIRM.
+Fluxo: KIND (Comprar/Alugar) → PRICE → ROOMS → NEIGHBOURHOODS → NAME → CONFIRM.
 Ao confirmar, grava o alerta direto no Postgres compartilhado (ADR 0005)
 e busca matches.
 """
@@ -42,10 +42,11 @@ logger = logging.getLogger(__name__)
 (
     KIND,
     PRICE,
+    ROOMS,
     NEIGHBOURHOODS,
     NAME,
     CONFIRM,
-) = range(5)
+) = range(6)
 
 _RENT_PRESETS = {
     "wiz_price_preset_rent_0": (0, 800),
@@ -58,6 +59,14 @@ _SALE_PRESETS = {
     "wiz_price_preset_sale_1": (150_000, 300_000),
     "wiz_price_preset_sale_2": (300_000, 500_000),
     "wiz_price_preset_sale_3": (500_000, 99_999_999),
+}
+
+_ROOMS_CALLBACKS: dict[str, int | None] = {
+    "wiz_rooms_any": None,
+    "wiz_rooms_1": 1,
+    "wiz_rooms_2": 2,
+    "wiz_rooms_3": 3,
+    "wiz_rooms_4": 4,
 }
 
 
@@ -76,6 +85,14 @@ def _get_wizard_state(context: CustomContext) -> CreateAlertWizardState:
 def _draft_kind(draft: CreateAlertDraft) -> ListingKind:
     kind = draft.get("listing_kind")
     return "venda" if kind == "venda" else "aluguel"
+
+
+async def _enter_rooms(msg: Message) -> None:
+    await msg.reply_text(
+        menus.wizard_quartos_intro(),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=keyboards.rooms_keyboard(),
+    )
 
 
 async def _enter_neighbourhoods(msg: Message, context: CustomContext) -> None:
@@ -169,8 +186,8 @@ async def wiz_price_preset_cb(update: Update, context: CustomContext) -> int:
     draft["max_price"] = pmax
 
     await query.edit_message_reply_markup(reply_markup=None)
-    await _enter_neighbourhoods(update.effective_message, context)
-    return NEIGHBOURHOODS
+    await _enter_rooms(update.effective_message)
+    return ROOMS
 
 
 async def wiz_price_custom_cb(update: Update, context: CustomContext) -> int:
@@ -207,6 +224,29 @@ async def wiz_price_text(update: Update, context: CustomContext) -> int:
 
     draft["max_price"] = value
     wizard_state.pop("awaiting", None)
+    await _enter_rooms(update.effective_message)
+    return ROOMS
+
+
+async def wiz_rooms_cb(update: Update, context: CustomContext) -> int:
+    assert update.effective_message is not None
+    assert update.callback_query is not None
+    assert context.user_data is not None
+
+    query = update.callback_query
+    await query.answer()
+
+    if "create_alert_draft" not in context.user_data:
+        await update.effective_message.reply_text("Sessão expirada. Use /novo_alerta novamente.")
+        return ConversationHandler.END
+
+    draft = _get_draft(context)
+    assert query.data is not None
+    if query.data not in _ROOMS_CALLBACKS:
+        return ROOMS
+    draft["min_rooms"] = _ROOMS_CALLBACKS[query.data]
+
+    await query.edit_message_reply_markup(reply_markup=None)
     await _enter_neighbourhoods(update.effective_message, context)
     return NEIGHBOURHOODS
 
@@ -323,6 +363,7 @@ async def wiz_name(update: Update, context: CustomContext) -> int:
             nb_s=nb_s,
             name=name,
             listing_kind=_draft_kind(draft),
+            min_rooms=draft.get("min_rooms"),
         ),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.alert_confirmation_keyboard(),
@@ -374,8 +415,9 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
                 alert_name=draft["alert_name"],  # type: ignore[typeddict-item]
                 min_price=draft.get("min_price"),
                 max_price=draft.get("max_price"),
-                neighbourhoods=draft["neighbourhoods"],  # type: ignore[typeddict-item]
+                neighbourhoods=draft.get("neighbourhoods", []),
                 listing_kind=_draft_kind(draft),
+                min_rooms=draft.get("min_rooms"),
             )
             alert_id = result.alert_id
             alert_was_created = result.created
@@ -471,6 +513,9 @@ def new_alert_conversation() -> ConversationHandler:
                 CallbackQueryHandler(wiz_price_preset_cb, pattern="^wiz_price_preset_"),
                 CallbackQueryHandler(wiz_price_custom_cb, pattern="^wiz_price_custom$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, wiz_price_text),
+            ],
+            ROOMS: [
+                CallbackQueryHandler(wiz_rooms_cb, pattern="^wiz_rooms_"),
             ],
             NEIGHBOURHOODS: [
                 CallbackQueryHandler(wiz_neighbourhoods_cb, pattern="^nbd_"),

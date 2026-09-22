@@ -23,6 +23,7 @@ class CreateAlertDraft(TypedDict, total=False):
     listing_kind: ListingKind
     min_price: int
     max_price: int
+    min_rooms: int | None
     neighbourhoods: list[str]
     created_alert_id: int
 
