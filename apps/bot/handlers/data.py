@@ -75,6 +75,7 @@ async def create_alert(
     neighbourhoods: list[str],
     listing_kind: ListingKind = "aluguel",
     min_rooms: int | None = None,
+    categories: list[str] | None = None,
 ) -> CreateAlertResult:
     """Cria o alerta (ou reusa um com os mesmos filtros) e indica se foi novo."""
     if min_price is None and max_price is None:
@@ -88,6 +89,7 @@ async def create_alert(
             neighbourhoods=neighbourhoods,
             listing_kind=listing_kind,
             min_rooms=min_rooms,
+            categories=categories,
         )
         if existing is not None and existing.id is not None:
             return CreateAlertResult(alert_id=existing.id, created=False)
@@ -100,6 +102,7 @@ async def create_alert(
             neighbourhoods=neighbourhoods,
             listing_kind=listing_kind,
             min_rooms=min_rooms,
+            categories=categories,
         )
         session.commit()
     return CreateAlertResult(alert_id=alert_id, created=True)

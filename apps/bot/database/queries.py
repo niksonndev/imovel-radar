@@ -78,6 +78,7 @@ def create_alert(
     neighbourhoods: list[str] | None,
     listing_kind: ListingKind = "aluguel",
     min_rooms: int | None = None,
+    categories: list[str] | None = None,
 ) -> int:
     """Cria um alerta e retorna o id (o chamador decide quando commitar)."""
     alert = Alert(
@@ -88,6 +89,7 @@ def create_alert(
         max_price=max_price,
         min_rooms=min_rooms,
         neighbourhoods=neighbourhoods,
+        categories=categories,
     )
     session.add(alert)
     session.flush()  # preenche id sem commitar
@@ -105,16 +107,19 @@ def find_equivalent_alert(
     neighbourhoods: list[str] | None,
     listing_kind: ListingKind = "aluguel",
     min_rooms: int | None = None,
+    categories: list[str] | None = None,
 ) -> Alert | None:
     """Alerta já existente do usuário com os mesmos filtros (nome ignorado)."""
-    wanted = sorted(neighbourhoods or [])
+    wanted_nb = sorted(neighbourhoods or [])
+    wanted_cats = sorted(categories or [])
     for alert in get_alerts_for_user(session, chat_id):
         if (
             alert.listing_kind == listing_kind
             and alert.min_price == min_price
             and alert.max_price == max_price
             and alert.min_rooms == min_rooms
-            and sorted(alert.neighbourhoods or []) == wanted
+            and sorted(alert.neighbourhoods or []) == wanted_nb
+            and sorted(alert.categories or []) == wanted_cats
         ):
             return alert
     return None
@@ -167,6 +172,8 @@ def get_unnotified_listings_for_alert(session: Session, alert: Alert) -> list[Li
     if (min_rooms := alert.min_rooms) is not None:
         rooms = cast(Listing.properties["rooms"].as_string(), Integer)
         conditions.append(or_(rooms.is_(None), rooms >= min_rooms))
+    if alert.categories:
+        conditions.append(Listing.category.in_(alert.categories))  # type: ignore[union-attr]
     if alert.neighbourhoods:
         conditions.append(Listing.neighbourhood.in_(alert.neighbourhoods))  # type: ignore[union-attr]
 
