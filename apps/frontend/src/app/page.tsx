@@ -1,10 +1,9 @@
 import { HeroSection } from "@/components/hero-section";
-import { NeighborhoodsMarquee } from "@/components/neighborhoods-marquee";
-import { SocialProof } from "@/components/social-proof";
-import { FeatureCards } from "@/components/feature-cards";
 import { HowItWorks } from "@/components/how-it-works";
-import { TelegramPreview } from "@/components/telegram-preview";
+import { ExampleSearches } from "@/components/example-searches";
+import { NeighborhoodsMarquee } from "@/components/neighborhoods-marquee";
 import { PricingSection } from "@/components/pricing-section";
+import { FaqSection } from "@/components/faq-section";
 import { CTASection } from "@/components/cta-section";
 import { Footer } from "@/components/footer";
 
@@ -13,12 +12,11 @@ export default function Home() {
     <div className="flex flex-1 flex-col">
       <main className="bg-surface">
         <HeroSection />
-        <NeighborhoodsMarquee />
-        <SocialProof />
-        <FeatureCards />
         <HowItWorks />
-        <TelegramPreview />
+        <ExampleSearches />
+        <NeighborhoodsMarquee />
         <PricingSection />
+        <FaqSection />
         <CTASection />
       </main>
       <Footer />
