@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "generate:ai-seo": "tsx scripts/generate-ai-seo.ts",
+    "prebuild": "pnpm run generate:ai-seo",
     "build": "next build",
     "start": "serve out",
     "lint": "eslint . && tsc --noEmit",
@@ -34,6 +36,7 @@
     "serve": "^14.2.6",
     "shadcn": "^4.15.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
