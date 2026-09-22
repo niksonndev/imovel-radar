@@ -337,3 +337,32 @@ def watchlist_confirm_keyboard() -> InlineKeyboardMarkup:
         ]
     )
 
+
+def watchlist_cap_upsell_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🚀 Quero o Radar Pro", callback_data="pro_subscribe")],
+            [InlineKeyboardButton("🗑 Gerenciar acompanhados", callback_data="menu_watchlist")],
+            [InlineKeyboardButton("🏠 Menu principal", callback_data="wl_m")],
+        ]
+    )
+
+
+def alert_cap_upsell_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🚀 Quero o Radar Pro", callback_data="pro_subscribe")],
+            [InlineKeyboardButton("📋 Meus Alertas", callback_data="menu_meus_alertas")],
+            [InlineKeyboardButton("🏠 Menu principal", callback_data="wl_m")],
+        ]
+    )
+
+
+def pro_pitch_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("⭐ Assinar com Stars", callback_data="pro_subscribe")],
+            [InlineKeyboardButton("🏠 Menu principal", callback_data="wl_m")],
+        ]
+    )
+

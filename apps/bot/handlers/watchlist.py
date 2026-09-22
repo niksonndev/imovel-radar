@@ -18,13 +18,14 @@ from telegram.ext import (
     filters,
 )
 
-import config
 from handlers.data import (
     create_watch,
     delete_watch,
     get_listing,
     get_watch_for_user,
     get_watches_for_user,
+    user_is_pro,
+    watch_cap_for_user,
 )
 from handlers.ui import keyboards, menus
 from models import CustomContext, WatchlistDraft
@@ -65,6 +66,7 @@ def _clear_draft(context: CustomContext) -> None:
 async def _render_watchlist_list(query: CallbackQuery, user_id: int) -> None:
     try:
         rows = await get_watches_for_user(user_id)
+        cap = await watch_cap_for_user(user_id)
     except Exception:
         logger.exception("Falha ao listar acompanhamentos")
         await query.edit_message_text(
@@ -74,8 +76,8 @@ async def _render_watchlist_list(query: CallbackQuery, user_id: int) -> None:
         )
         return
 
-    text, visible = menus.watchlist_list_message(rows)
-    can_add = len(rows) < config.WATCHLIST_FREE_CAP
+    text, visible = menus.watchlist_list_message(rows, cap=cap)
+    can_add = len(rows) < cap
     markup = (
         keyboards.watchlist_list_keyboard(visible, can_add=can_add)
         if visible
@@ -162,13 +164,13 @@ async def watchlist_actions_callback(update: Update, context: CustomContext) -> 
     await query.answer()
 
 
-def _toast_for_create_status(status: str) -> str:
+def _toast_for_create_status(status: str, *, is_pro_user: bool = False) -> str:
     if status == "created":
-        return "Anúncio adicionado!"
+        return menus.watchlist_created_alert()
     if status == "duplicate":
         return "Você já acompanha este anúncio."
     if status == "cap_reached":
-        return f"Limite de {config.WATCHLIST_FREE_CAP} anúncios atingido."
+        return menus.watchlist_cap_reached_alert(is_pro_user=is_pro_user)
     if status == "listing_missing":
         return "Anúncio ainda não está no radar."
     return "Não foi possível acompanhar."
@@ -196,10 +198,29 @@ async def carousel_watch_callback(update: Update, context: CustomContext) -> Non
         await query.answer("Erro ao acompanhar. Tente de novo.", show_alert=True)
         return
 
+    pro = False
+    if result.status == "cap_reached":
+        try:
+            pro = await user_is_pro(user.id)
+        except Exception:
+            logger.exception("Falha ao checar Pro no cap watchlist")
+
     await query.answer(
-        _toast_for_create_status(result.status),
-        show_alert=result.status != "created",
+        _toast_for_create_status(result.status, is_pro_user=pro),
+        show_alert=True,
     )
+
+    if result.status == "cap_reached" and query.message is not None:
+        markup = (
+            keyboards.main_menu_keyboard()
+            if pro
+            else keyboards.watchlist_cap_upsell_keyboard()
+        )
+        await query.message.reply_text(
+            menus.watchlist_cap_reached(is_pro_user=pro),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=markup,
+        )
 
 
 # ── Conversation: adicionar por URL ────────────────────────────────────────
@@ -319,16 +340,34 @@ async def watchlist_confirm_cb(update: Update, context: CustomContext) -> int:
 
     if result.status == "created":
         text = menus.watchlist_created()
+        markup = keyboards.main_menu_keyboard()
     elif result.status == "cap_reached":
-        text = menus.watchlist_cap_reached()
+        try:
+            pro = await user_is_pro(user.id)
+        except Exception:
+            logger.exception("Falha ao checar Pro no cap watchlist URL")
+            pro = False
+        text = menus.watchlist_cap_reached(is_pro_user=pro)
+        markup = (
+            keyboards.main_menu_keyboard()
+            if pro
+            else keyboards.watchlist_cap_upsell_keyboard()
+        )
     elif result.status == "duplicate":
         text = menus.watchlist_duplicate()
+        markup = keyboards.main_menu_keyboard()
     elif result.status == "listing_missing":
         text = menus.watchlist_listing_missing()
+        markup = keyboards.main_menu_keyboard()
     else:
         text = "Não foi possível acompanhar este anúncio."
+        markup = keyboards.main_menu_keyboard()
 
-    await query.edit_message_text(text, reply_markup=keyboards.main_menu_keyboard())
+    await query.edit_message_text(
+        text,
+        parse_mode=ParseMode.MARKDOWN if result.status == "cap_reached" else None,
+        reply_markup=markup,
+    )
     return ConversationHandler.END
 
 

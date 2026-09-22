@@ -12,6 +12,7 @@ from telegram.ext import (
     CommandHandler,
 )
 
+from handlers.billing import register_billing_handlers
 from handlers.carousel import register_handlers as register_carousel_handlers
 from handlers.create_new_alert import new_alert_conversation
 from handlers.meus_alertas import meus_alertas_actions_callback, meus_alertas_callback
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 BOT_COMMANDS = [
     BotCommand("start", "Abre o menu principal"),
     BotCommand("novo_alerta", "Cria um novo alerta"),
+    BotCommand("cancelar_pro", "Cancela a assinatura Radar Pro"),
     BotCommand("ajuda", "Mostra ajuda de uso"),
 ]
 
@@ -90,6 +92,7 @@ def setup(app: Application) -> None:
     )
     app.add_handler(CallbackQueryHandler(carousel_watch_callback, pattern=r"^wch_\d+$"))
     app.add_handler(CallbackQueryHandler(main_menu_callback, pattern=r"^menu_ajuda$"))
+    register_billing_handlers(app)
     register_carousel_handlers(app)
 
     # Nota: a garantia de que o usuário existe no Postgres é feita de forma

@@ -27,7 +27,62 @@ def ajuda_comandos_plain() -> str:
         "/start — boas-vindas e menu principal\n"
         "/novo_alerta — criar alerta de aluguel ou compra\n"
         "/cancelar — sai do wizard de novo alerta ou de acompanhar anúncio\n"
+        "/cancelar_pro — cancela a assinatura Radar Pro (Stars)\n"
         "/ajuda — esta mensagem"
+    )
+
+
+def pro_price_label() -> str:
+    return f"{config.PRO_STARS_AMOUNT} Stars/mês (≈ {config.PRO_PRICE_BRL_LABEL})"
+
+
+def pro_pitch_message() -> str:
+    return (
+        "🚀 *Radar Pro*\n\n"
+        f"Até *{config.ALERT_PRO_CAP} alertas* e *{config.WATCHLIST_PRO_CAP} anúncios* "
+        "acompanhados.\n\n"
+        f"*{pro_price_label()}*\n"
+        "Pagamento com Telegram Stars (moeda do app). "
+        "O valor em reais é aproximado — o custo exato depende de como você compra Stars.\n\n"
+        "Assinatura mensal; cancele quando quiser com /cancelar_pro."
+    )
+
+
+def pro_already_active() -> str:
+    return "✅ Você já tem o *Radar Pro* ativo. Aproveite os limites maiores!"
+
+
+def pro_activated() -> str:
+    return (
+        "✅ *Radar Pro ativado!*\n\n"
+        f"Agora você pode ter até {config.ALERT_PRO_CAP} alertas e "
+        f"{config.WATCHLIST_PRO_CAP} anúncios acompanhados."
+    )
+
+
+def pro_cancel_confirm() -> str:
+    return (
+        "Assinatura cancelada. O Pro continua até o fim do período já pago; "
+        "depois você volta ao plano grátis."
+    )
+
+
+def pro_cancel_none() -> str:
+    return "Você não tem uma assinatura Radar Pro ativa para cancelar."
+
+
+def alert_cap_reached(*, is_pro_user: bool = False) -> str:
+    if is_pro_user:
+        return (
+            f"Você já tem {config.ALERT_PRO_CAP} alertas ativos "
+            "(limite do Radar Pro).\n\n"
+            "Remova um em *Meus Alertas* para criar outro."
+        )
+    return (
+        f"Você já tem {config.ALERT_FREE_CAP} alerta ativo (limite grátis).\n\n"
+        f"No *Radar Pro* você sobe para até {config.ALERT_PRO_CAP} alertas "
+        f"— {pro_price_label()}.\n\n"
+        "Ou remova um alerta em *Meus Alertas* para criar outro no free."
     )
 
 
@@ -189,9 +244,11 @@ def _watchlist_format_one(row: WatchedListingChange) -> str:
 
 def watchlist_list_message(
     rows: list[WatchedListingChange],
+    *,
+    cap: int | None = None,
 ) -> tuple[str, list[WatchedListingChange]]:
-    cap = config.WATCHLIST_FREE_CAP
-    header = f"👀 *Acompanhar anúncio* ({len(rows)}/{cap})\n\n"
+    limit = config.WATCHLIST_FREE_CAP if cap is None else cap
+    header = f"👀 *Acompanhar anúncio* ({len(rows)}/{limit})\n\n"
     if not rows:
         return (
             header
@@ -254,12 +311,39 @@ def watchlist_listing_missing() -> str:
     )
 
 
-def watchlist_cap_reached() -> str:
-    cap = config.WATCHLIST_FREE_CAP
+def watchlist_cap_reached(*, is_pro_user: bool = False) -> str:
+    if is_pro_user:
+        return (
+            f"Você já acompanha {config.WATCHLIST_PRO_CAP} anúncios "
+            "(limite do Radar Pro).\n\n"
+            "Remova um em *Acompanhar anúncio* para liberar vaga."
+        )
     return (
-        f"Você já acompanha {cap} anúncios (limite grátis). "
-        "Remova um para adicionar outro."
+        f"Você já acompanha {config.WATCHLIST_FREE_CAP} anúncios "
+        "(limite grátis).\n\n"
+        f"No *Radar Pro* você sobe para até {config.WATCHLIST_PRO_CAP} "
+        f"acompanhados e {config.ALERT_PRO_CAP} alertas "
+        f"— {pro_price_label()}.\n\n"
+        "Ou remova um em *Acompanhar anúncio* para liberar vaga no free."
     )
+
+
+def watchlist_cap_reached_alert(*, is_pro_user: bool = False) -> str:
+    """Texto curto para ``show_alert`` (limite de caracteres do Telegram)."""
+    if is_pro_user:
+        return (
+            f"Limite Pro de {config.WATCHLIST_PRO_CAP} anúncios atingido. "
+            "Remova um para adicionar outro."
+        )
+    return (
+        f"Limite grátis de {config.WATCHLIST_FREE_CAP} anúncios. "
+        f"Radar Pro: até {config.WATCHLIST_PRO_CAP} "
+        f"({config.PRO_STARS_AMOUNT} Stars/mês ≈ {config.PRO_PRICE_BRL_LABEL})."
+    )
+
+
+def watchlist_created_alert() -> str:
+    return "Anúncio adicionado! Aviso se o preço mudar ou se sair do ar."
 
 
 def watchlist_duplicate() -> str:

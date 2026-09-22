@@ -1,7 +1,9 @@
-"""Tests for watchlist URL parsing and create-status toasts."""
+"""Tests for watchlist toasts, Pro sell copy, and Stars payload helpers."""
 
 from __future__ import annotations
 
+from handlers.billing import _parse_pro_payload, _pro_invoice_payload
+from handlers.ui import menus
 from handlers.watchlist import _toast_for_create_status, parse_olx_listing_id
 
 
@@ -28,7 +30,34 @@ def test_parse_olx_listing_id_invalid() -> None:
 
 def test_toast_for_create_status(monkeypatch) -> None:
     monkeypatch.setattr("config.WATCHLIST_FREE_CAP", 2)
-    assert "adicionado" in _toast_for_create_status("created").lower()
+    monkeypatch.setattr("config.WATCHLIST_PRO_CAP", 10)
+    monkeypatch.setattr("config.PRO_STARS_AMOUNT", 200)
+    monkeypatch.setattr("config.PRO_PRICE_BRL_LABEL", "R$ 19,90")
+    created = _toast_for_create_status("created").lower()
+    assert "adicionado" in created
+    assert "preço" in created
     assert "já acompanha" in _toast_for_create_status("duplicate").lower()
-    assert "2" in _toast_for_create_status("cap_reached")
+    cap = _toast_for_create_status("cap_reached")
+    assert "2" in cap
+    assert "Stars" in cap or "stars" in cap.lower()
+    assert "19,90" in cap
     assert "radar" in _toast_for_create_status("listing_missing").lower()
+
+
+def test_watchlist_cap_reached_sells_pro(monkeypatch) -> None:
+    monkeypatch.setattr("config.WATCHLIST_FREE_CAP", 2)
+    monkeypatch.setattr("config.WATCHLIST_PRO_CAP", 10)
+    monkeypatch.setattr("config.ALERT_PRO_CAP", 5)
+    monkeypatch.setattr("config.PRO_STARS_AMOUNT", 200)
+    monkeypatch.setattr("config.PRO_PRICE_BRL_LABEL", "R$ 19,90")
+    text = menus.watchlist_cap_reached()
+    assert "Radar Pro" in text
+    assert "200 Stars" in text
+    assert "19,90" in text
+    assert "10" in text
+
+
+def test_pro_invoice_payload_roundtrip() -> None:
+    assert _pro_invoice_payload(42) == "pro_monthly:42"
+    assert _parse_pro_payload("pro_monthly:42") == 42
+    assert _parse_pro_payload("other") is None
