@@ -132,6 +132,7 @@ resource "aws_cloudwatch_metric_alarm" "collect_errors" {
   alarm_description   = "Falha (Errors) na coleta diária do scraper."
   alarm_actions       = [aws_sns_topic.alarms.arn]
   ok_actions          = [aws_sns_topic.alarms.arn]
+  treat_missing_data  = "notBreaching"
   dimensions = {
     FunctionName = aws_lambda_function.collect.function_name
   }

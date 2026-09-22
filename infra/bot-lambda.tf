@@ -160,6 +160,7 @@ resource "aws_cloudwatch_metric_alarm" "bot_errors" {
   alarm_description   = "Falha (Errors) na Bot Lambda (webhook/notificação)."
   alarm_actions       = [aws_sns_topic.alarms.arn]
   ok_actions          = [aws_sns_topic.alarms.arn]
+  treat_missing_data  = "notBreaching"
   dimensions = {
     FunctionName = aws_lambda_function.bot.function_name
   }
