@@ -84,6 +84,77 @@ def rooms_keyboard() -> InlineKeyboardMarkup:
     )
 
 
+# OLX ``listing.category`` values (exact DB strings) ↔ wizard callback slugs.
+CATEGORY_APARTAMENTOS = "Apartamentos"
+CATEGORY_CASAS = "Casas"
+CATEGORY_QUARTOS = "Aluguel de quartos"
+
+_CATEGORY_BY_SLUG: dict[str, str] = {
+    "apto": CATEGORY_APARTAMENTOS,
+    "casa": CATEGORY_CASAS,
+    "quarto": CATEGORY_QUARTOS,
+}
+
+_CATEGORY_OPTIONS_ALUGUEL: list[tuple[str, str, str]] = [
+    ("apto", CATEGORY_APARTAMENTOS, "Apartamento"),
+    ("casa", CATEGORY_CASAS, "Casa"),
+    ("quarto", CATEGORY_QUARTOS, "Quarto"),
+]
+_CATEGORY_OPTIONS_VENDA: list[tuple[str, str, str]] = [
+    ("apto", CATEGORY_APARTAMENTOS, "Apartamento"),
+    ("casa", CATEGORY_CASAS, "Casa"),
+]
+
+
+def category_options_for_kind(listing_kind: str) -> list[tuple[str, str, str]]:
+    """Pairs of ``(slug, db_value, button_label)`` for the wizard."""
+    if listing_kind == "venda":
+        return list(_CATEGORY_OPTIONS_VENDA)
+    return list(_CATEGORY_OPTIONS_ALUGUEL)
+
+
+def category_value_for_slug(slug: str) -> str | None:
+    return _CATEGORY_BY_SLUG.get(slug)
+
+
+def _categories_done_caption(n_selected: int) -> str:
+    if n_selected == 0:
+        return "Qualquer tipo"
+    if n_selected == 1:
+        label = "✅ Concluir (1 selecionado)"
+    else:
+        label = f"✅ Concluir ({n_selected} selecionados)"
+    return label[:_INLINE_BTN_TEXT_MAX]
+
+
+def categories_keyboard(
+    selected: list[str],
+    *,
+    listing_kind: str = "aluguel",
+) -> InlineKeyboardMarkup:
+    options = category_options_for_kind(listing_kind)
+    rows: list[list[InlineKeyboardButton]] = []
+    for slug, value, label in options:
+        marker = "✅ " if value in selected else ""
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    f"{marker}{label}"[:_INLINE_BTN_TEXT_MAX],
+                    callback_data=f"wiz_cat_{slug}",
+                )
+            ]
+        )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                _categories_done_caption(len(selected)),
+                callback_data="wiz_cat_done",
+            )
+        ]
+    )
+    return InlineKeyboardMarkup(rows)
+
+
 def neighborhoods_keyboard(
     selected: list[str],
     neighbourhoods: list[str],

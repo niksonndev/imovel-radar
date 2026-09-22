@@ -1,7 +1,7 @@
 """
 Wizard multi-etapas para criar um alerta (comando ``/novo_alerta``).
 
-Fluxo: KIND (Comprar/Alugar) → PRICE → ROOMS → NEIGHBOURHOODS → NAME → CONFIRM.
+Fluxo: KIND → PRICE → ROOMS → CATEGORIES → NEIGHBOURHOODS → NAME → CONFIRM.
 Ao confirmar, grava o alerta direto no Postgres compartilhado (ADR 0005)
 e busca matches.
 """
@@ -43,10 +43,11 @@ logger = logging.getLogger(__name__)
     KIND,
     PRICE,
     ROOMS,
+    CATEGORIES,
     NEIGHBOURHOODS,
     NAME,
     CONFIRM,
-) = range(6)
+) = range(7)
 
 _RENT_PRESETS = {
     "wiz_price_preset_rent_0": (0, 800),
@@ -87,11 +88,26 @@ def _draft_kind(draft: CreateAlertDraft) -> ListingKind:
     return "venda" if kind == "venda" else "aluguel"
 
 
+def _allowed_categories(kind: ListingKind) -> set[str]:
+    return {value for _, value, _ in keyboards.category_options_for_kind(kind)}
+
+
 async def _enter_rooms(msg: Message) -> None:
     await msg.reply_text(
         menus.wizard_quartos_intro(),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.rooms_keyboard(),
+    )
+
+
+async def _enter_categories(msg: Message, context: CustomContext) -> None:
+    draft = _get_draft(context)
+    sel = draft.get("categories", [])
+    kind = _draft_kind(draft)
+    await msg.reply_text(
+        menus.wizard_categorias_intro(),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=keyboards.categories_keyboard(sel, listing_kind=kind),
     )
 
 
@@ -247,8 +263,48 @@ async def wiz_rooms_cb(update: Update, context: CustomContext) -> int:
     draft["min_rooms"] = _ROOMS_CALLBACKS[query.data]
 
     await query.edit_message_reply_markup(reply_markup=None)
-    await _enter_neighbourhoods(update.effective_message, context)
-    return NEIGHBOURHOODS
+    await _enter_categories(update.effective_message, context)
+    return CATEGORIES
+
+
+async def wiz_categories_cb(update: Update, context: CustomContext) -> int:
+    query = update.callback_query
+    assert query is not None
+    assert update.effective_message is not None
+    assert context.user_data is not None
+    await query.answer()
+
+    if "create_alert_draft" not in context.user_data:
+        await update.effective_message.reply_text("Sessão expirada. Use /novo_alerta novamente.")
+        return ConversationHandler.END
+
+    data = query.data or ""
+    draft = _get_draft(context)
+    kind = _draft_kind(draft)
+    sel: list[str] = draft.setdefault("categories", [])
+
+    if data == "wiz_cat_done":
+        await query.edit_message_reply_markup(reply_markup=None)
+        await _enter_neighbourhoods(update.effective_message, context)
+        return NEIGHBOURHOODS
+
+    if data.startswith("wiz_cat_"):
+        slug = data.removeprefix("wiz_cat_")
+        value = keyboards.category_value_for_slug(slug)
+        if value is None or value not in _allowed_categories(kind):
+            return CATEGORIES
+        if value in sel:
+            sel.remove(value)
+        else:
+            sel.append(value)
+        draft["categories"] = sel
+
+    await query.edit_message_text(
+        menus.wizard_categorias_instrucao(sel),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=keyboards.categories_keyboard(sel, listing_kind=kind),
+    )
+    return CATEGORIES
 
 
 async def wiz_neighbourhoods_cb(update: Update, context: CustomContext) -> int:
@@ -364,6 +420,7 @@ async def wiz_name(update: Update, context: CustomContext) -> int:
             name=name,
             listing_kind=_draft_kind(draft),
             min_rooms=draft.get("min_rooms"),
+            categories=draft.get("categories"),
         ),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.alert_confirmation_keyboard(),
@@ -418,6 +475,7 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
                 neighbourhoods=draft.get("neighbourhoods", []),
                 listing_kind=_draft_kind(draft),
                 min_rooms=draft.get("min_rooms"),
+                categories=draft.get("categories") or None,
             )
             alert_id = result.alert_id
             alert_was_created = result.created
@@ -516,6 +574,9 @@ def new_alert_conversation() -> ConversationHandler:
             ],
             ROOMS: [
                 CallbackQueryHandler(wiz_rooms_cb, pattern="^wiz_rooms_"),
+            ],
+            CATEGORIES: [
+                CallbackQueryHandler(wiz_categories_cb, pattern="^wiz_cat_"),
             ],
             NEIGHBOURHOODS: [
                 CallbackQueryHandler(wiz_neighbourhoods_cb, pattern="^nbd_"),

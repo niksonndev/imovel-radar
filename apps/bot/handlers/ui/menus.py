@@ -55,6 +55,19 @@ def _rooms_label(min_rooms: int | None) -> str:
     return f"{min_rooms}+"
 
 
+_CATEGORY_DISPLAY = {
+    "Apartamentos": "Apartamento",
+    "Casas": "Casa",
+    "Aluguel de quartos": "Quarto",
+}
+
+
+def _categories_label(categories: list[str] | None) -> str:
+    if not categories:
+        return "qualquer"
+    return ", ".join(_CATEGORY_DISPLAY.get(c, c) for c in categories)
+
+
 def _meus_alertas_format_one(a: Alert) -> str:
     raw_name = a.alert_name or "Sem nome"
     name = escape_markdown(str(raw_name), version=1)
@@ -62,6 +75,7 @@ def _meus_alertas_format_one(a: Alert) -> str:
     kind_line = f"🏷️ *Tipo:* {_listing_kind_label(a.listing_kind)}"
     price_line = f"💰 *Preço:* {format_brl(a.min_price)} – {format_brl(a.max_price)}"
     rooms_line = f"🛏 *Quartos:* {_rooms_label(a.min_rooms)}"
+    cats_line = f"🏠 *Categoria:* {_categories_label(a.categories)}"
 
     nh = a.neighbourhoods or []
     if nh:
@@ -73,7 +87,7 @@ def _meus_alertas_format_one(a: Alert) -> str:
 
     esc_created = _meus_alertas_created_display(a.created_at)
     return (
-        f"*{name}*\n{status}\n{kind_line}\n{price_line}\n{rooms_line}\n{loc}\n"
+        f"*{name}*\n{status}\n{kind_line}\n{price_line}\n{rooms_line}\n{cats_line}\n{loc}\n"
         f"📅 *Criado:* {esc_created}"
     )
 
@@ -85,6 +99,7 @@ def meus_alertas_detail_view(alert: Alert) -> str:
     kind_line = f"🏷️ {_listing_kind_label(alert.listing_kind)}"
     price_line = f"💰 {format_brl(alert.min_price)} – {format_brl(alert.max_price)}"
     rooms_line = f"🛏 {_rooms_label(alert.min_rooms)}"
+    cats_line = f"🏠 {_categories_label(alert.categories)}"
 
     nh = alert.neighbourhoods or []
     loc_short = ", ".join(str(x) for x in nh) if nh else "Todos"
@@ -99,6 +114,7 @@ def meus_alertas_detail_view(alert: Alert) -> str:
         f"{kind_line}\n"
         f"{price_line}\n"
         f"{rooms_line}\n"
+        f"{cats_line}\n"
         f"{bairros_line}\n"
         f"📅 *Criado:* {esc_created}"
     )
@@ -336,6 +352,22 @@ def wizard_quartos_intro() -> str:
     return "🛏 *Quartos*\n\nMínimo de quartos que você quer?"
 
 
+def wizard_categorias_intro() -> str:
+    return (
+        "🏠 *Tipo de imóvel*\n\n"
+        "Toque para selecionar (pode marcar mais de um). "
+        "Sem seleção = qualquer tipo."
+    )
+
+
+def wizard_categorias_instrucao(selected: list[str]) -> str:
+    if not selected:
+        return "*Tipos selecionados:* nenhum ainda.\nToque para marcar ou conclua (qualquer)."
+    labels = [_CATEGORY_DISPLAY.get(c, c) for c in selected]
+    names = ", ".join(escape_markdown(n, version=1) for n in labels)
+    return f"*Tipos selecionados:* {names}\nToque em mais ou conclua."
+
+
 def wizard_sessao_expirada() -> str:
     return "Sua sessão do wizard expirou. Use /novo_alerta novamente."
 
@@ -406,17 +438,20 @@ def confirmacao_resumo(
     name: str,
     listing_kind: str = "aluguel",
     min_rooms: int | None = None,
+    categories: list[str] | None = None,
 ) -> str:
     esc_price = escape_markdown(price_s, version=1)
     esc_nb = escape_markdown(nb_s, version=1)
     esc_name = escape_markdown(name, version=1)
     esc_rooms = escape_markdown(_rooms_label(min_rooms), version=1)
+    esc_cats = escape_markdown(_categories_label(categories), version=1)
     kind_label = _listing_kind_label(listing_kind)
     return (
         "🧾 *Confirmação do alerta*\n\n"
         f"🏷️ *Tipo:* {kind_label}\n"
         f"💰 *Preço:* {esc_price}\n"
         f"🛏 *Quartos:* {esc_rooms}\n"
+        f"🏠 *Categoria:* {esc_cats}\n"
         f"📍 *Bairros:* {esc_nb}\n"
         f"📝 *Nome:* `{esc_name}`\n\n"
         "Confirme abaixo:"
