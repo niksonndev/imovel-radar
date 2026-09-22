@@ -268,6 +268,186 @@ def test_unnotified_listings_no_min_rooms_includes_all(session: Session) -> None
     assert sorted(m.listing_id for m in matches) == [201, 202]
 
 
+def test_equivalent_alert_differs_by_categories(session: Session) -> None:
+    session.add(User(chat_id=66))
+    session.commit()
+
+    any_id = queries.create_alert(
+        session,
+        chat_id=66,
+        alert_name="Qualquer",
+        min_price=800,
+        max_price=1500,
+        neighbourhoods=["Jatiúca"],
+        listing_kind="aluguel",
+        categories=None,
+    )
+    apto_id = queries.create_alert(
+        session,
+        chat_id=66,
+        alert_name="Só apto",
+        min_price=800,
+        max_price=1500,
+        neighbourhoods=["Jatiúca"],
+        listing_kind="aluguel",
+        categories=["Apartamentos"],
+    )
+    session.commit()
+    assert any_id != apto_id
+
+    found_any = queries.find_equivalent_alert(
+        session,
+        chat_id=66,
+        min_price=800,
+        max_price=1500,
+        neighbourhoods=["Jatiúca"],
+        listing_kind="aluguel",
+        categories=None,
+    )
+    found_apto = queries.find_equivalent_alert(
+        session,
+        chat_id=66,
+        min_price=800,
+        max_price=1500,
+        neighbourhoods=["Jatiúca"],
+        listing_kind="aluguel",
+        categories=["Apartamentos"],
+    )
+    assert found_any is not None and found_any.id == any_id
+    assert found_apto is not None and found_apto.id == apto_id
+    assert (
+        queries.find_equivalent_alert(
+            session,
+            chat_id=66,
+            min_price=800,
+            max_price=1500,
+            neighbourhoods=["Jatiúca"],
+            listing_kind="aluguel",
+            categories=["Casas"],
+        )
+        is None
+    )
+
+
+def test_unnotified_listings_filter_by_categories(session: Session) -> None:
+    session.add(User(chat_id=55))
+    session.add(
+        Listing(
+            listing_id=301,
+            url="https://ex/301",
+            title="Apto",
+            price_value=1200,
+            municipality="Maceió",
+            neighbourhood="Centro",
+            category="Apartamentos",
+            images=["https://img/301.webp"],
+            properties={},
+            listing_kind="aluguel",
+            active=True,
+        )
+    )
+    session.add(
+        Listing(
+            listing_id=302,
+            url="https://ex/302",
+            title="Casa",
+            price_value=1200,
+            municipality="Maceió",
+            neighbourhood="Centro",
+            category="Casas",
+            images=["https://img/302.webp"],
+            properties={},
+            listing_kind="aluguel",
+            active=True,
+        )
+    )
+    session.add(
+        Listing(
+            listing_id=303,
+            url="https://ex/303",
+            title="Quarto",
+            price_value=1200,
+            municipality="Maceió",
+            neighbourhood="Centro",
+            category="Aluguel de quartos",
+            images=["https://img/303.webp"],
+            properties={},
+            listing_kind="aluguel",
+            active=True,
+        )
+    )
+    session.commit()
+
+    alert_id = queries.create_alert(
+        session,
+        chat_id=55,
+        alert_name="Casas e aptos",
+        min_price=500,
+        max_price=2000,
+        neighbourhoods=["Centro"],
+        listing_kind="aluguel",
+        categories=["Casas", "Apartamentos"],
+    )
+    session.commit()
+    alert = queries.get_alert_for_user(session, 55, alert_id)
+    assert alert is not None
+
+    matches = queries.get_unnotified_listings_for_alert(session, alert)
+    assert sorted(m.listing_id for m in matches) == [301, 302]
+
+
+def test_unnotified_listings_no_categories_includes_all(session: Session) -> None:
+    session.add(User(chat_id=54))
+    session.add(
+        Listing(
+            listing_id=401,
+            url="https://ex/401",
+            title="Apto",
+            price_value=1000,
+            municipality="Maceió",
+            neighbourhood="Centro",
+            category="Apartamentos",
+            images=["https://img/401.webp"],
+            properties={},
+            listing_kind="aluguel",
+            active=True,
+        )
+    )
+    session.add(
+        Listing(
+            listing_id=402,
+            url="https://ex/402",
+            title="Casa",
+            price_value=1000,
+            municipality="Maceió",
+            neighbourhood="Centro",
+            category="Casas",
+            images=["https://img/402.webp"],
+            properties={},
+            listing_kind="aluguel",
+            active=True,
+        )
+    )
+    session.commit()
+
+    alert_id = queries.create_alert(
+        session,
+        chat_id=54,
+        alert_name="Qualquer",
+        min_price=500,
+        max_price=2000,
+        neighbourhoods=["Centro"],
+        listing_kind="aluguel",
+        categories=None,
+    )
+    session.commit()
+    alert = queries.get_alert_for_user(session, 54, alert_id)
+    assert alert is not None
+
+    matches = queries.get_unnotified_listings_for_alert(session, alert)
+    assert sorted(m.listing_id for m in matches) == [401, 402]
+
+
 def test_unnotified_listings_filter_by_listing_kind(session: Session) -> None:
     session.add(User(chat_id=7))
     session.add(
