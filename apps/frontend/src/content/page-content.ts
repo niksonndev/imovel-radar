@@ -1,5 +1,5 @@
 // ------------------------------------------------------------------
-// Content for Imóvel Radar landing page + freemium/Stars copy.
+// Content for Imóvel Radar landing page + freemium copy.
 // Product decision: docs/adr/freemium-pix-monetization.md
 // Edit this file to update ALL copy — no component changes needed.
 // ------------------------------------------------------------------
@@ -53,10 +53,10 @@ export const EXAMPLE_SEARCHES = [
 ] as const;
 export const EXAMPLE_SEARCHES_CTA = "Monte o seu no Telegram";
 
-// Pricing / freemium (Stars no bot; âncora em BRL)
+// Pricing / freemium (trial por e-mail no bot; Stars pausado)
 export const PRICING_HEADLINE = "Pode testar grátis. Evolua quando precisar.";
 export const PRICING_SUBHEADLINE =
-  "Comece com 1 alerta no free. Se precisar de mais, o Radar Pro desbloqueia vantagens — pagamento com Telegram Stars (≈ R$ 19,90/mês).";
+  "Comece com 1 alerta no free. Se precisar de mais, cadastre o e-mail no bot e ganhe 1 mês de Radar Pro.";
 export const PRICING_FREE = {
   name: "Free",
   price: "R$ 0",
@@ -72,10 +72,10 @@ export const PRICING_FREE = {
 } as const;
 export const PRICING_PRO = {
   name: "Radar Pro",
-  price: "R$ 19,90",
-  period: "/ mês ≈ 200 Stars",
+  price: "1 mês grátis",
+  period: "com e-mail no bot",
   badge: "Recomendado",
-  cta: "Quero o Pro no bot",
+  cta: "Cadastre o e-mail no bot",
   features: [
     "Até 5 alertas ativos",
     "Até 10 anúncios acompanhados",
@@ -85,7 +85,7 @@ export const PRICING_PRO = {
   ],
 } as const;
 export const PRICING_FOOTNOTE =
-  "Radar Pro é cobrado em Telegram Stars no próprio bot (≈ R$ 19,90/mês). O valor em reais é aproximado — o custo exato depende de como você compra Stars. Pix fica para uma etapa futura.";
+  "No momento, o Radar Pro libera 1 mês grátis ao cadastrar o e-mail no bot. Pagamento (Stars/Pix) volta em breve.";
 
 // FAQ
 export const FAQ_HEADLINE = "Perguntas frequentes";
@@ -113,12 +113,12 @@ export const FAQ_ITEMS = [
   {
     question: "O que muda no Radar Pro?",
     answer:
-      "No Pro você pode ter até 5 alertas e até 10 anúncios acompanhados, além de outras vantagens. O pagamento é com Telegram Stars no bot (≈ R$ 19,90/mês).",
+      "No Pro você pode ter até 5 alertas e até 10 anúncios acompanhados, além de outras vantagens. Agora você ganha 1 mês grátis cadastrando o e-mail no bot.",
   },
   {
-    question: "O que são Telegram Stars?",
+    question: "Como ganho 1 mês de Radar Pro?",
     answer:
-      "Stars são a moeda do Telegram. Você compra Stars no app e usa para assinar o Radar Pro. Mostramos o equivalente em reais (≈ R$ 19,90) para ficar claro — o valor cobrado em reais pode variar conforme a loja/forma de compra.",
+      "No bot, quando bater o limite grátis (ou pelo CTA do Pro), escolha cadastrar o e-mail. Validamos o formato, salvamos e liberamos 1 mês de Pro — uma vez por conta.",
   },
   {
     question: "Com que frequência chegam os alertas?",
@@ -130,7 +130,7 @@ export const FAQ_ITEMS = [
 // CTA section
 export const CTA_HEADLINE = "Deixe o Radar procurar por você";
 export const CTA_SUBHEADLINE =
-  "Comece grátis com 1 alerta. Quando precisar de mais, o Radar Pro entra com Stars no bot (≈ R$ 19,90/mês).";
+  "Comece grátis com 1 alerta. Quando precisar de mais, cadastre o e-mail no bot e ganhe 1 mês de Radar Pro.";
 export const CTA_BUTTON_LABEL = "Abrir no Telegram";
 
 // Shared section CTA (intent pages + how-it-works)
@@ -163,5 +163,5 @@ export const FOOTER_LEGAL = "© Imóvel Radar";
 export const FOOTER_DISCLAIMER =
   "Produto independente. Não somos afiliados à OLX. Os anúncios vêm do OLX Maceió; preços e disponibilidade podem mudar.";
 export const FOOTER_PRIVACY =
-  "Usamos o chat do Telegram como identificador. Não pedimos CPF no free. Radar Pro é pago com Telegram Stars no bot.";
+  "Usamos o chat do Telegram como identificador. Não pedimos CPF no free. Para o mês grátis do Pro, pedimos só o e-mail no bot.";
 export const FOOTER_CONTACT_LABEL = "Falar conosco no Telegram";

@@ -19,7 +19,7 @@ export const CITABLE_ANSWERS = [
   },
   {
     id: "pricing",
-    claim: `O plano free inclui 1 alerta ativo. O ${PRODUCT_FACTS.pricing.pro.name} custa ${PRODUCT_FACTS.pricing.pro.price}${PRODUCT_FACTS.pricing.pro.period} e inclui até 5 alertas, prioridade e alertas de queda de preço.`,
+    claim: `O plano free inclui 1 alerta ativo. O ${PRODUCT_FACTS.pricing.pro.name} (${PRODUCT_FACTS.pricing.pro.price} ${PRODUCT_FACTS.pricing.pro.period}) inclui até 5 alertas, prioridade e alertas de queda de preço.`,
   },
   {
     id: "start",

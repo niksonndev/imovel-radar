@@ -58,7 +58,7 @@ export function buildLlmsFullTxt(): string {
 
 ## Summary
 
-${PRODUCT_FACTS.name} monitors public OLX listings in ${PRODUCT_FACTS.coverage.city}, ${PRODUCT_FACTS.coverage.state}, Brazil, and sends Telegram alerts for rent and sale matches. Free plan: 1 active alert. ${PRODUCT_FACTS.pricing.pro.name}: ${PRODUCT_FACTS.pricing.pro.price}${PRODUCT_FACTS.pricing.pro.period} via Telegram Stars (up to 5 alerts, price-drop alerts, priority).
+${PRODUCT_FACTS.name} monitors public OLX listings in ${PRODUCT_FACTS.coverage.city}, ${PRODUCT_FACTS.coverage.state}, Brazil, and sends Telegram alerts for rent and sale matches. Free plan: 1 active alert. ${PRODUCT_FACTS.pricing.pro.name}: ${PRODUCT_FACTS.pricing.pro.price} ${PRODUCT_FACTS.pricing.pro.period} (up to 5 alerts, price-drop alerts, priority).
 
 ${PRODUCT_FACTS.independence}
 

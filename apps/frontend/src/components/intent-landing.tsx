@@ -33,7 +33,7 @@ export function IntentLanding({ page }: { page: SeoPage }) {
           <p className="text-sm text-white/40">
             Também monitoramos{" "}
             <Link href="/#precos" className="text-primary-on-surface hover:underline">
-              Free e Radar Pro (Stars)
+              Free e Radar Pro (e-mail)
             </Link>
             .
           </p>

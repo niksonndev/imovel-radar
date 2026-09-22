@@ -1,6 +1,6 @@
 # Imóvel Radar
 
-> Deixe o Imóvel Radar encontrar no OLX de Maceió e avisar no Telegram. Comece grátis com 1 alerta; Radar Pro via Pix.
+> Deixe o Imóvel Radar encontrar no OLX de Maceió e avisar no Telegram. Comece grátis com 1 alerta; ganhe 1 mês de Radar Pro cadastrando o e-mail no bot.
 
 Produto independente. Não afiliado à OLX. Anúncios vêm do OLX Maceió; preços e disponibilidade podem mudar.
 
@@ -9,17 +9,17 @@ Produto independente. Não afiliado à OLX. Anúncios vêm do OLX Maceió; preç
 - Imóvel Radar é um bot no Telegram que monitora o OLX de Maceió e avisa quando aparece imóvel compatível com o alerta do usuário.
 - Por enquanto, o monitoramento cobre apenas Maceió (Alagoas), em aluguel e venda.
 - Os anúncios vêm de listagens públicas do OLX Maceió. Imóvel Radar não é afiliado à OLX.
-- O plano free inclui 1 alerta ativo. O Radar Pro custa R$ 19,90/ mês via Pix e inclui até 5 alertas, prioridade e alertas de queda de preço.
+- O plano free inclui 1 alerta ativo. O Radar Pro (1 mês grátis com e-mail no bot) inclui até 5 alertas, prioridade e alertas de queda de preço.
 - Para começar: abra https://t.me/imovel_radar_bot, configure aluguel ou venda, bairro e preço — sem formulário no site.
 
 ## Primary pages
 
 - [Home](https://imovel-radar.vercel.app): Alertas de imóveis do OLX Maceió no Telegram
-- [Alertas de aluguel em Maceió](https://imovel-radar.vercel.app/aluguel-maceio): Receba no Telegram anúncios novos de aluguel no OLX Maceió. Filtre por bairro e preço — comece grátis, Radar Pro via Pix.
-- [Alertas para comprar imóvel em Maceió](https://imovel-radar.vercel.app/comprar-imovel-maceio): Monitore vendas no OLX Maceió e receba alertas no Telegram. Comece grátis; upgrade Radar Pro pago via Pix.
+- [Alertas de aluguel em Maceió](https://imovel-radar.vercel.app/aluguel-maceio): Receba no Telegram anúncios novos de aluguel no OLX Maceió. Filtre por bairro e preço — comece grátis; 1 mês de Radar Pro com e-mail no bot.
+- [Alertas para comprar imóvel em Maceió](https://imovel-radar.vercel.app/comprar-imovel-maceio): Monitore vendas no OLX Maceió e receba alertas no Telegram. Comece grátis; 1 mês de Radar Pro com e-mail no bot.
 - [Bot no Telegram](https://t.me/imovel_radar_bot): ativar alertas free/Pro
 
 ## Optional
 
 - [llms-full.txt](https://imovel-radar.vercel.app/llms-full.txt): full product brief for agents
-- Pricing: Free (R$ 0) · Radar Pro (R$ 19,90/ mês via Pix)
+- Pricing: Free (R$ 0) · Radar Pro (1 mês grátiscom e-mail no bot)

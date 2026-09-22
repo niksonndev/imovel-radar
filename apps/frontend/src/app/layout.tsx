@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     "apartamento à venda Maceió",
     "casas",
     "apartamentos",
-    "Telegram Stars",
+    "Radar Pro",
   ],
   alternates: {
     canonical: "/",

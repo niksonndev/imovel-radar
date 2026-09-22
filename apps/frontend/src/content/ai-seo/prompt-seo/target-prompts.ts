@@ -23,7 +23,7 @@ export const TARGET_PROMPTS = [
   },
   {
     prompt: "Imóvel Radar é grátis?",
-    answer: `Sim para testar: plano free com 1 alerta. O ${PRODUCT_FACTS.pricing.pro.name} (${PRODUCT_FACTS.pricing.pro.price}${PRODUCT_FACTS.pricing.pro.period} via Telegram Stars) libera até 5 alertas e vantagens extras.`,
+    answer: `Sim para testar: plano free com 1 alerta. O ${PRODUCT_FACTS.pricing.pro.name} (${PRODUCT_FACTS.pricing.pro.price} ${PRODUCT_FACTS.pricing.pro.period}) libera até 5 alertas e vantagens extras.`,
   },
   {
     prompt: "Imóvel Radar funciona fora de Maceió?",

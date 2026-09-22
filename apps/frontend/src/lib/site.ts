@@ -58,4 +58,4 @@ export const SITE_TITLE =
   "Pare de procurar imóvel — alertas OLX Maceió no Telegram | Imóvel Radar";
 
 export const SITE_DESCRIPTION =
-  "Deixe o Imóvel Radar encontrar no OLX de Maceió e avisar no Telegram. Comece grátis com 1 alerta; Radar Pro com Stars (≈ R$ 19,90/mês).";
+  "Deixe o Imóvel Radar encontrar no OLX de Maceió e avisar no Telegram. Comece grátis com 1 alerta; ganhe 1 mês de Radar Pro cadastrando o e-mail no bot.";
