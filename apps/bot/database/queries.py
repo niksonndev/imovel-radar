@@ -16,7 +16,7 @@ from shared_models.tables import (
     WatchedListing,
     WatchedListingChange,
 )
-from sqlalchemy import delete, func, or_
+from sqlalchemy import Integer, cast, delete, func, or_
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlmodel import Session, select
 
@@ -77,6 +77,7 @@ def create_alert(
     max_price: int | None,
     neighbourhoods: list[str] | None,
     listing_kind: ListingKind = "aluguel",
+    min_rooms: int | None = None,
 ) -> int:
     """Cria um alerta e retorna o id (o chamador decide quando commitar)."""
     alert = Alert(
@@ -85,6 +86,7 @@ def create_alert(
         listing_kind=listing_kind,
         min_price=min_price,
         max_price=max_price,
+        min_rooms=min_rooms,
         neighbourhoods=neighbourhoods,
     )
     session.add(alert)
@@ -102,6 +104,7 @@ def find_equivalent_alert(
     max_price: int | None,
     neighbourhoods: list[str] | None,
     listing_kind: ListingKind = "aluguel",
+    min_rooms: int | None = None,
 ) -> Alert | None:
     """Alerta já existente do usuário com os mesmos filtros (nome ignorado)."""
     wanted = sorted(neighbourhoods or [])
@@ -110,6 +113,7 @@ def find_equivalent_alert(
             alert.listing_kind == listing_kind
             and alert.min_price == min_price
             and alert.max_price == max_price
+            and alert.min_rooms == min_rooms
             and sorted(alert.neighbourhoods or []) == wanted
         ):
             return alert
@@ -160,6 +164,9 @@ def get_unnotified_listings_for_alert(session: Session, alert: Alert) -> list[Li
         conditions.append(Listing.price_value >= min_price)  # type: ignore[union-attr]
     if (max_price := alert.max_price) is not None:
         conditions.append(Listing.price_value <= max_price)  # type: ignore[union-attr]
+    if (min_rooms := alert.min_rooms) is not None:
+        rooms = cast(Listing.properties["rooms"].as_string(), Integer)
+        conditions.append(or_(rooms.is_(None), rooms >= min_rooms))
     if alert.neighbourhoods:
         conditions.append(Listing.neighbourhood.in_(alert.neighbourhoods))  # type: ignore[union-attr]
 
