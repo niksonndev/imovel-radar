@@ -55,7 +55,7 @@ if (!envSiteUrl && !vercelProductionUrl && !vercelDeploymentUrl) {
 export const SITE_NAME = "Imóvel Radar";
 
 export const SITE_TITLE =
-  "Alertas de imóveis OLX Maceió no Telegram | Imóvel Radar";
+  "Pare de procurar imóvel — alertas OLX Maceió no Telegram | Imóvel Radar";
 
 export const SITE_DESCRIPTION =
-  "Monitore aluguel e venda no OLX Maceió e receba alertas no Telegram. Comece grátis com 1 alerta; Radar Pro via Pix.";
+  "Deixe o Imóvel Radar encontrar no OLX de Maceió e avisar no Telegram. Comece grátis com 1 alerta; Radar Pro via Pix.";

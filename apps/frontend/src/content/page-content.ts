@@ -6,62 +6,57 @@
 
 export const TELEGRAM_BOT_URL = "https://t.me/imovel_radar_bot";
 
-// Hero
-export const HERO_HEADLINE = "Não perca mais nenhum anúncio bom no OLX";
+// Hero (outcome-first)
+export const HERO_HEADLINE = "Pare de procurar imóvel.";
+export const HERO_HEADLINE_LINE2 = "Deixe o Imóvel Radar encontrar por você.";
 export const HERO_SUBHEADLINE =
-  "Monitore aluguel e venda em Maceió e receba no Telegram os anúncios novos que batem com o seu filtro — comece grátis, sem cadastro.";
-export const HERO_BADGE_TEXT = "Coleta diária · aluguel e venda em Maceió";
-export const HERO_CTA_LABEL = "Comece grátis no Telegram";
-export const HERO_CTA_HINT = "1 alerta grátis · upgrade via Pix quando precisar";
+  "Monitore o OLX de Maceió automaticamente e receba no Telegram os imóveis que combinam com o que você procura.";
+export const HERO_CTA_LABEL = "Começar grátis no Telegram";
+export const HERO_CTA_HINT =
+  "Sem cadastro · 1 alerta grátis · funciona em aluguel e venda";
 
-// Social proof
-export const SOCIAL_PROOF_HEADLINE = "Feito pra quem busca imóvel em Maceió";
-export const SOCIAL_PROOF_STATS = [
-  { value: "17k+", label: "anúncios indexados no OLX Maceió" },
-  { value: "Diário", label: "varredura de aluguel e venda" },
-  { value: "Pix", label: "assinatura Pro sem cartão internacional" },
+// Telegram alert mock (hero product visual)
+export const MOCK_ALERT = {
+  appName: "Imóvel Radar",
+  time: "10:12",
+  title: "Novo imóvel encontrado",
+  property: "Apartamento em Ponta Verde",
+  price: "R$ 1.800/mês",
+  details: "2 quartos · 65m²",
+  alertLabel: "Seu alerta",
+  alertFilter: "Ponta Verde · até R$2.000",
+  cta: "Ver no OLX →",
+} as const;
+
+// How it works (problem → solution → outcome steps)
+export const HOW_IT_WORKS_PROBLEM = "Chega de abrir o OLX várias vezes por dia.";
+export const HOW_IT_WORKS_SOLUTION =
+  "Deixe o Radar encontrar os anúncios por você.";
+export const HOW_IT_WORKS_HEADLINE =
+  "Você configura uma vez. O Radar trabalha sozinho.";
+export const STEP_1_TITLE = "Diga o que procura";
+export const STEP_1_DESC = "Aluguel · Ponta Verde · até R$2.000";
+export const STEP_2_TITLE = "O Radar monitora";
+export const STEP_2_DESC = "17 anúncios novos encontrados";
+export const STEP_3_TITLE = "Você recebe o match";
+export const STEP_3_DESC = "Telegram · “Novo imóvel encontrado…”";
+
+// Example searches (“Does it work in my case?”)
+export const EXAMPLE_SEARCHES_HEADLINE = "Funciona no seu caso";
+export const EXAMPLE_SEARCHES_SUBHEADLINE =
+  "Exemplos de alertas que você pode montar em poucos toques.";
+export const EXAMPLE_SEARCHES = [
+  "Aluguel · Ponta Verde · até R$2.000",
+  "Aluguel · Jatiúca · até R$2.500",
+  "Compra · Farol · até R$350.000",
+  "Compra · Pajuçara · até R$450.000",
 ] as const;
-/** Cenários de uso (não são depoimentos de clientes). */
-export const SOCIAL_PROOF_QUOTES = [
-  {
-    quote:
-      "Aluguel na orla: um alerta de bairro + faixa de preço e o digest do dia chega no Telegram, sem F5 no OLX.",
-    attribution: "Cenário · Aluguel em Ponta Verde / Jatiúca",
-  },
-  {
-    quote:
-      "Compra com orçamento apertado: no free você valida o fluxo; no Pro (Pix) acompanha vários bairros e quedas de preço.",
-    attribution: "Cenário · Compra em Maceió",
-  },
-] as const;
-
-// Features (no per-card CTA — one primary path on the page)
-export const FEATURE_1_TITLE = "Monitore";
-export const FEATURE_1_DESC =
-  "Todo dia o radar varre o OLX de Maceió em busca de anúncios novos de aluguel e venda — sem você precisar abrir a aba de novo.";
-export const FEATURE_2_TITLE = "Filtre";
-export const FEATURE_2_DESC =
-  "Escolha bairro, faixa de preço e se quer alugar ou comprar. Você só recebe o que bate com o alerta.";
-export const FEATURE_3_TITLE = "Receba";
-export const FEATURE_3_DESC =
-  "Quando aparece match, o resumo chega no Telegram com link direto pro anúncio — antes de sumir no meio do feed.";
-
-// How it works (order matches Telegram UX: open bot → filters → alerts)
-export const HOW_IT_WORKS_HEADLINE = "Como funciona";
-export const STEP_1_TITLE = "Abra o bot no Telegram";
-export const STEP_1_DESC =
-  "Sem formulário e sem cartão no free: toque em iniciar e pronto.";
-export const STEP_2_TITLE = "Monte seu alerta";
-export const STEP_2_DESC =
-  "Defina aluguel ou compra, bairros e faixa de preço em poucos toques.";
-export const STEP_3_TITLE = "Receba os matches";
-export const STEP_3_DESC =
-  "Todo anúncio novo que bater com o filtro chega no seu Telegram.";
+export const EXAMPLE_SEARCHES_CTA = "Monte o seu no Telegram";
 
 // Pricing / freemium (Pix)
-export const PRICING_HEADLINE = "Comece grátis. Evolua com Pix.";
+export const PRICING_HEADLINE = "Pode testar grátis. Evolua quando precisar.";
 export const PRICING_SUBHEADLINE =
-  "O free prova o valor. O Radar Pro desbloqueia mais alertas e vantagens — pagamento via Pix, sem Telegram Stars.";
+  "Comece com 1 alerta no free. Se precisar de mais, o Radar Pro desbloqueia vantagens — pagamento via Pix.";
 export const PRICING_FREE = {
   name: "Free",
   price: "R$ 0",
@@ -69,9 +64,9 @@ export const PRICING_FREE = {
   cta: "Ativar free no Telegram",
   features: [
     "1 alerta ativo",
-    "Digest diário (coleta + notificação do dia)",
+    "Resumo diário no Telegram",
     "Aluguel e venda em Maceió",
-    "Carrossel com link direto pro OLX",
+    "Link direto pro anúncio no OLX",
   ],
 } as const;
 export const PRICING_PRO = {
@@ -82,50 +77,65 @@ export const PRICING_PRO = {
   cta: "Quero o Pro no bot",
   features: [
     "Até 5 alertas ativos",
-    "Prioridade na fila de matches",
+    "Prioridade nos matches",
     "Alertas de queda de preço",
-    "Atualizações mais frequentes (quando a coleta multi-dia estiver no ar)",
-    "Filtros extras (ex.: com foto) conforme forem liberados",
+    "Atualizações mais frequentes (quando disponíveis)",
+    "Filtros extras conforme forem liberados",
   ],
 } as const;
 export const PRICING_FOOTNOTE =
   "Cobrança Pix em implementação. Enquanto isso, comece no free — o Pro será ativado no próprio bot.";
 
+// FAQ
+export const FAQ_HEADLINE = "Perguntas frequentes";
+export const FAQ_ITEMS = [
+  {
+    question: "Preciso criar conta ou pagar pra testar?",
+    answer:
+      "Não. Você abre o bot no Telegram, ativa 1 alerta grátis e pronto — sem formulário e sem cartão.",
+  },
+  {
+    question: "Funciona pra aluguel e venda?",
+    answer:
+      "Sim. Você escolhe se quer alugar ou comprar e monta o alerta com bairro e faixa de preço.",
+  },
+  {
+    question: "Só funciona em Maceió?",
+    answer:
+      "Por enquanto, sim — o Radar monitora anúncios do OLX em Maceió.",
+  },
+  {
+    question: "De onde vêm os anúncios?",
+    answer:
+      "Dos anúncios públicos do OLX Maceió. Somos um produto independente e não somos afiliados à OLX.",
+  },
+  {
+    question: "O que muda no Radar Pro?",
+    answer:
+      "No Pro você pode ter até 5 alertas, prioridade nos matches, alertas de queda de preço e outras vantagens. O pagamento será via Pix, no próprio bot.",
+  },
+  {
+    question: "Com que frequência chegam os alertas?",
+    answer:
+      "No free, você recebe o resumo do dia com os imóveis que bateram com o seu filtro. No Pro, a ideia é avisar com mais frequência conforme a coleta evoluir.",
+  },
+] as const;
+
 // CTA section
-export const CTA_HEADLINE = "Comece a receber alertas agora";
+export const CTA_HEADLINE = "Deixe o Radar procurar por você";
 export const CTA_SUBHEADLINE =
   "Comece grátis com 1 alerta. Quando precisar de mais, o Radar Pro entra via Pix.";
 export const CTA_BUTTON_LABEL = "Abrir no Telegram";
 
-// Sections
-export const FEATURES_SECTION_HEADING = "O que o radar faz";
-export const SECTION_CTA_LABEL = "Comece grátis";
+// Shared section CTA (intent pages + how-it-works)
+export const SECTION_CTA_LABEL = "Começar grátis";
 
 // Open Graph / SEO taglines
 export const OG_IMAGE_TAGLINE =
-  "Alertas de imóveis OLX Maceió no Telegram — comece grátis";
-
-// Telegram preview (mock de conversa — aluguel + venda)
-export const TELEGRAM_PREVIEW_HEADLINE = "Veja como o alerta chega";
-export const TELEGRAM_PREVIEW_SUBHEADLINE =
-  "Resumo do anúncio e link direto no Telegram — aluguel ou venda, sem ficar F5 no OLX.";
-export const MOCK_ALERTS = [
-  {
-    title: "Apartamento em Ponta Verde",
-    detail: "R$ 1.800/mês · 2 quartos · 65m² · Aluguel",
-    time: "10:12",
-    kind: "aluguel" as const,
-  },
-  {
-    title: "Apartamento em Jatiúca",
-    detail: "R$ 320.000 · 3 quartos · 98m² · Venda",
-    time: "10:14",
-    kind: "venda" as const,
-  },
-];
+  "Pare de procurar imóvel — alertas OLX Maceió no Telegram";
 
 // Marquee
-export const MARQUEE_LABEL = "Bairros monitorados em Maceió · aluguel e venda";
+export const MARQUEE_LABEL = "Bairros em Maceió · aluguel e venda";
 export const MONITORED_NEIGHBORHOODS = [
   "Ponta Verde",
   "Jatiúca",
