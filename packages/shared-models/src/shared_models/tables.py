@@ -135,6 +135,7 @@ class Alert(SQLModel, table=True):
     max_price: int | None = None
     min_rooms: int | None = None
     neighbourhoods: list[str] | None = Field(default=None, sa_column=Column("neighbourhoods", JSON))
+    categories: list[str] | None = Field(default=None, sa_column=Column("categories", JSON))
     active: bool = Field(
         default=True,
         sa_column=Column("active", Boolean, nullable=False, server_default=text("true")),
