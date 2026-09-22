@@ -28,23 +28,48 @@ def test_parse_olx_listing_id_invalid() -> None:
     assert parse_olx_listing_id("123") is None  # too short
 
 
-def test_toast_for_create_status(monkeypatch) -> None:
+def test_toast_for_create_status_email_trial(monkeypatch) -> None:
+    monkeypatch.setattr("config.BILLING_ENABLED", False)
     monkeypatch.setattr("config.WATCHLIST_FREE_CAP", 2)
     monkeypatch.setattr("config.WATCHLIST_PRO_CAP", 10)
-    monkeypatch.setattr("config.PRO_STARS_AMOUNT", 200)
-    monkeypatch.setattr("config.PRO_PRICE_BRL_LABEL", "R$ 19,90")
     created = _toast_for_create_status("created").lower()
     assert "adicionado" in created
     assert "preço" in created
     assert "já acompanha" in _toast_for_create_status("duplicate").lower()
     cap = _toast_for_create_status("cap_reached")
     assert "2" in cap
-    assert "Stars" in cap or "stars" in cap.lower()
-    assert "19,90" in cap
+    assert "e-mail" in cap.lower()
+    assert "radar pro" in cap.lower()
     assert "radar" in _toast_for_create_status("listing_missing").lower()
 
 
-def test_watchlist_cap_reached_sells_pro(monkeypatch) -> None:
+def test_toast_for_create_status_stars(monkeypatch) -> None:
+    monkeypatch.setattr("config.BILLING_ENABLED", True)
+    monkeypatch.setattr("config.WATCHLIST_FREE_CAP", 2)
+    monkeypatch.setattr("config.WATCHLIST_PRO_CAP", 10)
+    monkeypatch.setattr("config.PRO_STARS_AMOUNT", 200)
+    monkeypatch.setattr("config.PRO_PRICE_BRL_LABEL", "R$ 19,90")
+    cap = _toast_for_create_status("cap_reached")
+    assert "2" in cap
+    assert "Stars" in cap or "stars" in cap.lower()
+    assert "19,90" in cap
+
+
+def test_watchlist_cap_reached_email_trial(monkeypatch) -> None:
+    monkeypatch.setattr("config.BILLING_ENABLED", False)
+    monkeypatch.setattr("config.WATCHLIST_FREE_CAP", 2)
+    monkeypatch.setattr("config.WATCHLIST_PRO_CAP", 10)
+    monkeypatch.setattr("config.ALERT_PRO_CAP", 5)
+    monkeypatch.setattr("config.EMAIL_PRO_TRIAL_DAYS", 30)
+    text = menus.watchlist_cap_reached()
+    assert "Radar Pro" in text
+    assert "e-mail" in text.lower()
+    assert "10" in text
+    assert "Stars" not in text
+
+
+def test_watchlist_cap_reached_sells_stars(monkeypatch) -> None:
+    monkeypatch.setattr("config.BILLING_ENABLED", True)
     monkeypatch.setattr("config.WATCHLIST_FREE_CAP", 2)
     monkeypatch.setattr("config.WATCHLIST_PRO_CAP", 10)
     monkeypatch.setattr("config.ALERT_PRO_CAP", 5)
