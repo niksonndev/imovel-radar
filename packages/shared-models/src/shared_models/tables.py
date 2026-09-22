@@ -89,9 +89,18 @@ class User(SQLModel, table=True):
 
     ``chat_id`` is BIGINT — Telegram user ids can exceed PostgreSQL INTEGER
     (2^31-1).
+
+    Billing (Radar Pro via Telegram Stars): ``plan`` + ``pro_until`` drive
+    entitlement; Stars charge/subscription fields mirror Telegram state.
     """
 
     __tablename__ = "users"  # type: ignore
+    __table_args__ = (
+        CheckConstraint(
+            "plan IN ('free', 'pro')",
+            name="ck_users_plan",
+        ),
+    )
 
     chat_id: int = Field(
         sa_column=Column("chat_id", BigInteger, primary_key=True, nullable=False)
@@ -99,6 +108,32 @@ class User(SQLModel, table=True):
     created_at: datetime | None = Field(
         default=None,
         sa_column=Column("created_at", DateTime(timezone=True), server_default=func.now()),
+    )
+    plan: str = Field(
+        default="free",
+        sa_column=Column(
+            "plan",
+            Text,
+            nullable=False,
+            server_default=text("'free'"),
+        ),
+    )
+    pro_until: datetime | None = Field(
+        default=None,
+        sa_column=Column("pro_until", DateTime(timezone=True), nullable=True),
+    )
+    stars_telegram_payment_charge_id: str | None = Field(
+        default=None,
+        sa_column=Column("stars_telegram_payment_charge_id", Text, nullable=True),
+    )
+    stars_subscription_active: bool = Field(
+        default=False,
+        sa_column=Column(
+            "stars_subscription_active",
+            Boolean,
+            nullable=False,
+            server_default=text("false"),
+        ),
     )
 
 
