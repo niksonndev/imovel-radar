@@ -3,6 +3,7 @@ import { GoogleTagManager } from "@next/third-parties/google";
 import { Archivo_Black, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
+import { AiSeoJsonLd } from "@/components/ai-seo/json-ld";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 
 const GTM_ID = "GTM-WDVXQDFF";
@@ -77,7 +78,10 @@ export default function RootLayout({
       className={`${archivoBlack.variable} ${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <GoogleTagManager gtmId={GTM_ID} />
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <AiSeoJsonLd />
+        {children}
+      </body>
     </html>
   );
 }
