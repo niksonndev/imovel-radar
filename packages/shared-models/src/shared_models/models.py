@@ -49,6 +49,7 @@ class Alert(BaseModel):
     alert_name: str | None = None
     min_price: int | None = None
     max_price: int | None = None
+    min_rooms: int | None = None
     neighbourhoods: list[str] | None = None
     active: bool = True
     created_at: datetime

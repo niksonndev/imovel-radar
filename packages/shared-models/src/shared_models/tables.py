@@ -133,6 +133,7 @@ class Alert(SQLModel, table=True):
     )
     min_price: int | None = None
     max_price: int | None = None
+    min_rooms: int | None = None
     neighbourhoods: list[str] | None = Field(default=None, sa_column=Column("neighbourhoods", JSON))
     active: bool = Field(
         default=True,
