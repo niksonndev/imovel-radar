@@ -1,4 +1,6 @@
 import {
+  HOW_IT_WORKS_PROBLEM,
+  HOW_IT_WORKS_SOLUTION,
   HOW_IT_WORKS_HEADLINE,
   STEP_1_TITLE,
   STEP_1_DESC,
@@ -33,9 +35,17 @@ export function HowItWorks() {
   return (
     <section className="px-4 py-20 sm:py-28">
       <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-12">
-        <h2 className="font-heading text-3xl leading-tight tracking-tight text-white sm:text-4xl">
-          {HOW_IT_WORKS_HEADLINE}
-        </h2>
+        <div className="flex max-w-2xl flex-col items-center gap-4 text-center">
+          <p className="text-lg leading-relaxed text-white/70">
+            {HOW_IT_WORKS_PROBLEM}
+          </p>
+          <p className="text-lg font-medium leading-relaxed text-primary-on-surface">
+            {HOW_IT_WORKS_SOLUTION}
+          </p>
+          <h2 className="font-heading text-3xl leading-tight tracking-tight text-white sm:text-4xl">
+            {HOW_IT_WORKS_HEADLINE}
+          </h2>
+        </div>
 
         <div className="flex w-full flex-col gap-8">
           {steps.map((step, index) => (
@@ -50,9 +60,7 @@ export function HowItWorks() {
               </div>
 
               <div className="reveal-on-scroll flex flex-col gap-1 pb-8">
-                <h3 className="font-heading text-lg text-white">
-                  {step.title}
-                </h3>
+                <h3 className="font-heading text-lg text-white">{step.title}</h3>
                 <p className="text-sm leading-relaxed text-white/60">
                   {step.description}
                 </p>
