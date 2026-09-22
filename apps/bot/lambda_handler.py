@@ -94,6 +94,14 @@ def _is_eventbridge(event: dict) -> bool:
     return event.get("source") == "aws.events" or event.get("detail-type") == "Scheduled Event"
 
 
+def _is_notify_dry_run(event: dict) -> bool:
+    """Smoke CI: ``detail.dry_run`` evita Telegram e writes em alert_matches."""
+    detail = event.get("detail")
+    if isinstance(detail, dict):
+        return detail.get("dry_run") is True
+    return False
+
+
 def header_secret(event: dict) -> str:
     """Lê ``X-Telegram-Bot-Api-Secret-Token`` (API Gateway HTTP API v2)."""
     headers = event.get("headers") or {}
@@ -155,25 +163,35 @@ async def _handle_webhook(event: dict) -> dict:
     return {"statusCode": 200, "body": json.dumps({"ok": True, "handled": True})}
 
 
-async def _handle_notify() -> None:
+async def _handle_notify(*, dry_run: bool = False) -> None:
     app = await _get_application()
-    await run_daily_notifications(app)
-    await app.update_persistence()
+    await run_daily_notifications(app, dry_run=dry_run)
+    if not dry_run:
+        await app.update_persistence()
 
 
 def lambda_handler(event: dict | None, context: object | None) -> dict:
     """Handler AWS Lambda — roteia por EventBridge vs. API Gateway."""
     del context
     event = event or {}
-    logger.info("Lambda bot invocada (typed=%s)", _is_eventbridge(event))
+    is_eb = _is_eventbridge(event)
+    dry_run = _is_notify_dry_run(event) if is_eb else False
+    logger.info("Lambda bot invocada (typed=%s dry_run=%s)", is_eb, dry_run)
 
-    if _is_eventbridge(event):
-        _run(_handle_notify())
+    if is_eb:
+        _run(_handle_notify(dry_run=dry_run))
         return {"statusCode": 200}
 
     return _run(_handle_webhook(event))
 
 
 if __name__ == "__main__":
-    # Smoke local: simula um evento EventBridge
-    lambda_handler({"source": "aws.events", "detail-type": "Scheduled Event"}, None)
+    # Smoke local: EventBridge dry-run (sem Telegram)
+    lambda_handler(
+        {
+            "source": "aws.events",
+            "detail-type": "Scheduled Event",
+            "detail": {"dry_run": True},
+        },
+        None,
+    )

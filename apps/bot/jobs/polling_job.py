@@ -30,7 +30,7 @@ from handlers.ui import menus
 logger = logging.getLogger(__name__)
 
 
-async def notify_new_matches(app: Application) -> None:
+async def notify_new_matches(app: Application, *, dry_run: bool = False) -> None:
     """Verifica listings não notificados por chat, envia carrossel e marca."""
     chat_ids = list_all_users()
     if not chat_ids:
@@ -39,15 +39,20 @@ async def notify_new_matches(app: Application) -> None:
 
     for chat_id in chat_ids:
         try:
-            await _process_chat(chat_id, app)
+            await _process_chat(chat_id, app, dry_run=dry_run)
         except Exception:
             logger.exception("Notificação: falha ao processar chat %s", chat_id)
-        await asyncio.sleep(2)  # evita flood no Telegram
+        if not dry_run:
+            await asyncio.sleep(2)  # evita flood no Telegram
 
-    logger.info("Notificação: %s chat(s) processado(s)", len(chat_ids))
+    logger.info(
+        "Notificação%s: %s chat(s) processado(s)",
+        " dry-run" if dry_run else "",
+        len(chat_ids),
+    )
 
 
-async def notify_watched_changes(app: Application) -> None:
+async def notify_watched_changes(app: Application, *, dry_run: bool = False) -> None:
     """Avisa mudanças de preço / status em anúncios acompanhados."""
     try:
         changes = await get_changed_watches()
@@ -65,18 +70,25 @@ async def notify_watched_changes(app: Application) -> None:
 
     for chat_id, rows in by_chat.items():
         try:
-            await _process_watch_chat(chat_id, rows, app)
+            await _process_watch_chat(chat_id, rows, app, dry_run=dry_run)
         except Exception:
             logger.exception("Watchlist: falha ao processar chat %s", chat_id)
-        await asyncio.sleep(2)
+        if not dry_run:
+            await asyncio.sleep(2)
 
-    logger.info("Watchlist: %s chat(s) processado(s)", len(by_chat))
+    logger.info(
+        "Watchlist%s: %s chat(s) processado(s)",
+        " dry-run" if dry_run else "",
+        len(by_chat),
+    )
 
 
-async def run_daily_notifications(app: Application) -> None:
+async def run_daily_notifications(app: Application, *, dry_run: bool = False) -> None:
     """Pipeline diário: matches de alerta + mudanças na watchlist."""
-    await notify_new_matches(app)
-    await notify_watched_changes(app)
+    if dry_run:
+        logger.info("Notificação: dry-run (sem Telegram nem mark)")
+    await notify_new_matches(app, dry_run=dry_run)
+    await notify_watched_changes(app, dry_run=dry_run)
 
 
 def list_all_users() -> list[int]:
@@ -85,11 +97,19 @@ def list_all_users() -> list[int]:
         return queries.get_users_chat_ids(session)
 
 
-async def _process_chat(chat_id: int, app: Application) -> None:
+async def _process_chat(chat_id: int, app: Application, *, dry_run: bool = False) -> None:
     """Busca listings não notificados de um chat, envia carrossel e marca."""
     rows = await get_unnotified_listings(chat_id)
     if not rows:
         logger.info("Notificação: chat %s sem listings não notificados", chat_id)
+        return
+
+    if dry_run:
+        logger.info(
+            "Notificação dry-run: chat %s — %s listings (não enviados/marcados)",
+            chat_id,
+            len(rows),
+        )
         return
 
     await send_carousel(
@@ -106,7 +126,9 @@ async def _process_chat(chat_id: int, app: Application) -> None:
     logger.info("Notificação: chat %s — %s listings marcados", chat_id, len(pairs))
 
 
-async def _process_watch_chat(chat_id: int, rows: list, app: Application) -> None:
+async def _process_watch_chat(
+    chat_id: int, rows: list, app: Application, *, dry_run: bool = False
+) -> None:
     baselines: list[tuple[int, int | None, bool]] = []
 
     for row in rows:
@@ -140,6 +162,15 @@ async def _process_watch_chat(chat_id: int, rows: list, app: Application) -> Non
                         url=listing.url,
                     )
                 )
+
+        if dry_run:
+            logger.info(
+                "Watchlist dry-run: chat %s watch %s — %s mudança(s) (não enviadas)",
+                chat_id,
+                watch.id,
+                len(messages),
+            )
+            continue
 
         for text in messages:
             await app.bot.send_message(

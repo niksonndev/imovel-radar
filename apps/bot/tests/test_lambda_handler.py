@@ -14,6 +14,41 @@ def test_eventbridge_detection() -> None:
     assert not lambda_handler._is_eventbridge({"body": "{}"})
 
 
+def test_notify_dry_run_from_detail() -> None:
+    assert lambda_handler._is_notify_dry_run(
+        {"source": "aws.events", "detail": {"dry_run": True}}
+    )
+    assert not lambda_handler._is_notify_dry_run(
+        {"source": "aws.events", "detail": {"dry_run": "yes"}}
+    )
+    assert not lambda_handler._is_notify_dry_run(
+        {"source": "aws.events", "detail": {"dry_run": False}}
+    )
+    assert not lambda_handler._is_notify_dry_run({"source": "aws.events"})
+    assert not lambda_handler._is_notify_dry_run(
+        {"source": "aws.events", "detail": "not-a-dict"}
+    )
+
+
+def test_lambda_handler_eventbridge_passes_dry_run(monkeypatch) -> None:
+    seen: dict[str, bool] = {}
+
+    async def fake_handle_notify(*, dry_run: bool = False) -> None:
+        seen["dry_run"] = dry_run
+
+    monkeypatch.setattr(lambda_handler, "_handle_notify", fake_handle_notify)
+    result = lambda_handler.lambda_handler(
+        {
+            "source": "aws.events",
+            "detail-type": "Scheduled Event",
+            "detail": {"dry_run": True},
+        },
+        None,
+    )
+    assert result["statusCode"] == 200
+    assert seen == {"dry_run": True}
+
+
 def test_webhook_secret_rejects_missing_and_wrong(monkeypatch) -> None:
     monkeypatch.setattr(config, "TELEGRAM_WEBHOOK_SECRET", "s3cret-token-value")
     assert not lambda_handler.webhook_secret_ok({"headers": {}})
