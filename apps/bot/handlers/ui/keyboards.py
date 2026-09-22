@@ -7,6 +7,8 @@ from __future__ import annotations
 from shared_models.tables import Alert, WatchedListingChange
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+import config
+
 NEIGHBORHOODS_PAGE_SIZE = 12
 _INLINE_BTN_TEXT_MAX = 64
 
@@ -341,7 +343,7 @@ def watchlist_confirm_keyboard() -> InlineKeyboardMarkup:
 def watchlist_cap_upsell_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🚀 Quero o Radar Pro", callback_data="pro_subscribe")],
+            [_pro_cta_button()],
             [InlineKeyboardButton("🗑 Gerenciar acompanhados", callback_data="menu_watchlist")],
             [InlineKeyboardButton("🏠 Menu principal", callback_data="wl_m")],
         ]
@@ -351,7 +353,7 @@ def watchlist_cap_upsell_keyboard() -> InlineKeyboardMarkup:
 def alert_cap_upsell_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🚀 Quero o Radar Pro", callback_data="pro_subscribe")],
+            [_pro_cta_button()],
             [InlineKeyboardButton("📋 Meus Alertas", callback_data="menu_meus_alertas")],
             [InlineKeyboardButton("🏠 Menu principal", callback_data="wl_m")],
         ]
@@ -361,8 +363,25 @@ def alert_cap_upsell_keyboard() -> InlineKeyboardMarkup:
 def pro_pitch_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("⭐ Assinar com Stars", callback_data="pro_subscribe")],
+            [_pro_cta_button()],
             [InlineKeyboardButton("🏠 Menu principal", callback_data="wl_m")],
         ]
+    )
+
+
+def email_pro_trial_cancel_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("❌ Cancelar", callback_data="email_pro_trial_cancel")],
+        ]
+    )
+
+
+def _pro_cta_button() -> InlineKeyboardButton:
+    if config.BILLING_ENABLED:
+        return InlineKeyboardButton("🚀 Quero o Radar Pro", callback_data="pro_subscribe")
+    return InlineKeyboardButton(
+        "📧 Cadastre seu e-mail e ganhe 1 mês de Radar Pro",
+        callback_data="email_pro_trial",
     )
 

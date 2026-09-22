@@ -22,21 +22,42 @@ def menu_principal_inline() -> str:
 
 
 def ajuda_comandos_plain() -> str:
-    return (
+    lines = [
         "Comandos\n"
         "/start — boas-vindas e menu principal\n"
         "/novo_alerta — criar alerta de aluguel ou compra\n"
         "/cancelar — sai do wizard de novo alerta ou de acompanhar anúncio\n"
-        "/cancelar_pro — cancela a assinatura Radar Pro (Stars)\n"
-        "/ajuda — esta mensagem"
-    )
+    ]
+    if config.BILLING_ENABLED:
+        lines.append("/cancelar_pro — cancela a assinatura Radar Pro (Stars)\n")
+    lines.append("/ajuda — esta mensagem")
+    return "".join(lines)
 
 
 def pro_price_label() -> str:
     return f"{config.PRO_STARS_AMOUNT} Stars/mês (≈ {config.PRO_PRICE_BRL_LABEL})"
 
 
+def pro_upsell_hint() -> str:
+    """Texto curto de upsell (Stars ou trial por e-mail)."""
+    if config.BILLING_ENABLED:
+        return pro_price_label()
+    return (
+        f"Cadastre seu e-mail e ganhe *{config.EMAIL_PRO_TRIAL_DAYS} dias* "
+        "de Radar Pro grátis"
+    )
+
+
 def pro_pitch_message() -> str:
+    if not config.BILLING_ENABLED:
+        return (
+            "🚀 *Radar Pro*\n\n"
+            f"Até *{config.ALERT_PRO_CAP} alertas* e *{config.WATCHLIST_PRO_CAP} anúncios* "
+            "acompanhados.\n\n"
+            f"Cadastre seu e-mail e ganhe *1 mês* de Radar Pro grátis "
+            f"({config.EMAIL_PRO_TRIAL_DAYS} dias).\n\n"
+            "É só uma vez por conta — digite o e-mail quando pedir."
+        )
     return (
         "🚀 *Radar Pro*\n\n"
         f"Até *{config.ALERT_PRO_CAP} alertas* e *{config.WATCHLIST_PRO_CAP} anúncios* "
@@ -71,6 +92,59 @@ def pro_cancel_none() -> str:
     return "Você não tem uma assinatura Radar Pro ativa para cancelar."
 
 
+def email_pro_trial_ask() -> str:
+    return (
+        "📧 *1 mês de Radar Pro grátis*\n\n"
+        f"Envie seu e-mail para ativar *{config.EMAIL_PRO_TRIAL_DAYS} dias* "
+        f"com até {config.ALERT_PRO_CAP} alertas e "
+        f"{config.WATCHLIST_PRO_CAP} anúncios acompanhados.\n\n"
+        "Ex.: `voce@email.com`\n"
+        "Use /cancelar para desistir."
+    )
+
+
+def email_pro_trial_invalid() -> str:
+    return (
+        "Esse e-mail não parece válido. "
+        "Envie de novo no formato `voce@email.com`."
+    )
+
+
+def email_pro_trial_email_taken() -> str:
+    return (
+        "Esse e-mail já foi usado em outra conta. "
+        "Tente outro e-mail ou fale com o suporte."
+    )
+
+
+def email_pro_trial_already_claimed() -> str:
+    return (
+        "Você já resgatou o mês grátis do Radar Pro nesta conta. "
+        "Quando o período acabar, o Pro pago volta a ficar disponível."
+    )
+
+
+def email_pro_trial_activated(*, pro_until: datetime | None) -> str:
+    until_txt = ""
+    if pro_until is not None:
+        until = pro_until
+        until_txt = f"\n\nVálido até *{until.day:02d}/{until.month:02d}/{until.year}*."
+    return (
+        "✅ *Radar Pro ativado por 1 mês!*\n\n"
+        f"Agora você pode ter até {config.ALERT_PRO_CAP} alertas e "
+        f"{config.WATCHLIST_PRO_CAP} anúncios acompanhados."
+        f"{until_txt}"
+    )
+
+
+def email_pro_trial_canceled() -> str:
+    return "Cadastro de e-mail cancelado. Você continua no plano grátis."
+
+
+def email_pro_trial_error() -> str:
+    return "Não consegui ativar o Pro agora. Tente de novo em instantes."
+
+
 def alert_cap_reached(*, is_pro_user: bool = False) -> str:
     if is_pro_user:
         return (
@@ -81,7 +155,7 @@ def alert_cap_reached(*, is_pro_user: bool = False) -> str:
     return (
         f"Você já tem {config.ALERT_FREE_CAP} alerta ativo (limite grátis).\n\n"
         f"No *Radar Pro* você sobe para até {config.ALERT_PRO_CAP} alertas "
-        f"— {pro_price_label()}.\n\n"
+        f"— {pro_upsell_hint()}.\n\n"
         "Ou remova um alerta em *Meus Alertas* para criar outro no free."
     )
 
@@ -323,7 +397,7 @@ def watchlist_cap_reached(*, is_pro_user: bool = False) -> str:
         "(limite grátis).\n\n"
         f"No *Radar Pro* você sobe para até {config.WATCHLIST_PRO_CAP} "
         f"acompanhados e {config.ALERT_PRO_CAP} alertas "
-        f"— {pro_price_label()}.\n\n"
+        f"— {pro_upsell_hint()}.\n\n"
         "Ou remova um em *Acompanhar anúncio* para liberar vaga no free."
     )
 
@@ -335,10 +409,15 @@ def watchlist_cap_reached_alert(*, is_pro_user: bool = False) -> str:
             f"Limite Pro de {config.WATCHLIST_PRO_CAP} anúncios atingido. "
             "Remova um para adicionar outro."
         )
+    if config.BILLING_ENABLED:
+        return (
+            f"Limite grátis de {config.WATCHLIST_FREE_CAP} anúncios. "
+            f"Radar Pro: até {config.WATCHLIST_PRO_CAP} "
+            f"({config.PRO_STARS_AMOUNT} Stars/mês ≈ {config.PRO_PRICE_BRL_LABEL})."
+        )
     return (
         f"Limite grátis de {config.WATCHLIST_FREE_CAP} anúncios. "
-        f"Radar Pro: até {config.WATCHLIST_PRO_CAP} "
-        f"({config.PRO_STARS_AMOUNT} Stars/mês ≈ {config.PRO_PRICE_BRL_LABEL})."
+        "Cadastre o e-mail e ganhe 1 mês de Radar Pro."
     )
 
 

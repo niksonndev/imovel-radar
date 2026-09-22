@@ -209,9 +209,14 @@ async def cancel_pro_cmd(update: Update, context: CustomContext) -> None:
 
 
 def register_billing_handlers(app) -> None:
-    app.add_handler(CallbackQueryHandler(pro_subscribe_callback, pattern=r"^pro_subscribe$"))
-    app.add_handler(PreCheckoutQueryHandler(pro_precheckout))
-    app.add_handler(
-        MessageHandler(filters.SUCCESSFUL_PAYMENT, pro_successful_payment),
-    )
+    # Stars checkout só quando BILLING_ENABLED; cancelamento fica sempre
+    # disponível para assinantes existentes.
+    if config.BILLING_ENABLED:
+        app.add_handler(
+            CallbackQueryHandler(pro_subscribe_callback, pattern=r"^pro_subscribe$")
+        )
+        app.add_handler(PreCheckoutQueryHandler(pro_precheckout))
+        app.add_handler(
+            MessageHandler(filters.SUCCESSFUL_PAYMENT, pro_successful_payment),
+        )
     app.add_handler(CommandHandler("cancelar_pro", cancel_pro_cmd))

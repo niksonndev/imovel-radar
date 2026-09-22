@@ -12,9 +12,11 @@ from telegram.ext import (
     CommandHandler,
 )
 
+import config
 from handlers.billing import register_billing_handlers
 from handlers.carousel import register_handlers as register_carousel_handlers
 from handlers.create_new_alert import new_alert_conversation
+from handlers.email_pro_trial import email_pro_trial_conversation
 from handlers.meus_alertas import meus_alertas_actions_callback, meus_alertas_callback
 from handlers.ui import keyboards, menus
 from handlers.watchlist import (
@@ -27,12 +29,20 @@ from models import CustomContext
 
 logger = logging.getLogger(__name__)
 
-BOT_COMMANDS = [
-    BotCommand("start", "Abre o menu principal"),
-    BotCommand("novo_alerta", "Cria um novo alerta"),
-    BotCommand("cancelar_pro", "Cancela a assinatura Radar Pro"),
-    BotCommand("ajuda", "Mostra ajuda de uso"),
-]
+
+def bot_commands() -> list[BotCommand]:
+    cmds = [
+        BotCommand("start", "Abre o menu principal"),
+        BotCommand("novo_alerta", "Cria um novo alerta"),
+    ]
+    if config.BILLING_ENABLED:
+        cmds.append(BotCommand("cancelar_pro", "Cancela a assinatura Radar Pro"))
+    cmds.append(BotCommand("ajuda", "Mostra ajuda de uso"))
+    return cmds
+
+
+# Mantido para imports legados / testes.
+BOT_COMMANDS = bot_commands()
 
 
 async def start_cmd(update: Update, context: CustomContext) -> None:
@@ -80,6 +90,7 @@ def setup(app: Application) -> None:
     # estado preso. Fora do wizard, os CommandHandlers abaixo atendem.
     app.add_handler(new_alert_conversation())
     app.add_handler(watchlist_add_conversation())
+    app.add_handler(email_pro_trial_conversation())
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("ajuda", help_cmd))
 
@@ -101,4 +112,4 @@ def setup(app: Application) -> None:
 
 
 async def apply_bot_commands(app: Application) -> None:
-    await app.bot.set_my_commands(BOT_COMMANDS)
+    await app.bot.set_my_commands(bot_commands())

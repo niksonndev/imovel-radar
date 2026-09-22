@@ -92,6 +92,19 @@ async def activate_pro(
         return user
 
 
+async def claim_email_pro_trial(
+    chat_id: int, email_raw: str
+) -> tuple[queries.ClaimEmailProTrialStatus, User | None]:
+    with Session(get_engine()) as session:
+        status, user = queries.claim_email_pro_trial(
+            session, chat_id=chat_id, email_raw=email_raw
+        )
+        if status == "activated" and user is not None:
+            session.commit()
+            session.refresh(user)
+        return status, user
+
+
 async def mark_pro_subscription_canceled(chat_id: int) -> User | None:
     with Session(get_engine()) as session:
         user = queries.mark_pro_subscription_canceled(session, chat_id)

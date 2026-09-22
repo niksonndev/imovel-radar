@@ -853,3 +853,123 @@ def test_mark_pro_subscription_canceled(session: Session) -> None:
     assert user is not None
     assert user.stars_subscription_active is False
     assert queries.is_pro(user) is True  # still within pro_until
+
+
+def test_claim_email_pro_trial_activates(session: Session, monkeypatch) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    monkeypatch.setattr("config.EMAIL_PRO_TRIAL_DAYS", 30)
+    monkeypatch.setattr("config.ALERT_PRO_CAP", 5)
+    monkeypatch.setattr("config.WATCHLIST_PRO_CAP", 10)
+
+    session.add(User(chat_id=701))
+    session.commit()
+
+    before = datetime.now(UTC)
+    status, user = queries.claim_email_pro_trial(
+        session, chat_id=701, email_raw="  Foo.Bar@Example.COM "
+    )
+    session.commit()
+
+    assert status == "activated"
+    assert user is not None
+    assert user.email == "foo.bar@example.com"
+    assert user.email_pro_trial_claimed_at is not None
+    assert user.plan == "pro"
+    assert user.stars_subscription_active is False
+    assert user.stars_telegram_payment_charge_id is None
+    assert queries.is_pro(user) is True
+    assert queries.alert_cap_for(user) == 5
+    assert queries.watch_cap_for(user) == 10
+    assert user.pro_until is not None
+    assert user.pro_until >= before + timedelta(days=29)
+    assert user.pro_until <= before + timedelta(days=31)
+
+
+def test_claim_email_pro_trial_rejects_invalid(session: Session) -> None:
+    session.add(User(chat_id=702))
+    session.commit()
+    status, user = queries.claim_email_pro_trial(
+        session, chat_id=702, email_raw="not-an-email"
+    )
+    assert status == "invalid_email"
+    assert user is None
+
+
+def test_claim_email_pro_trial_rejects_second_claim(session: Session, monkeypatch) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    monkeypatch.setattr("config.EMAIL_PRO_TRIAL_DAYS", 30)
+    session.add(User(chat_id=703))
+    session.commit()
+
+    status1, _ = queries.claim_email_pro_trial(
+        session, chat_id=703, email_raw="once@example.com"
+    )
+    session.commit()
+    assert status1 == "activated"
+
+    # Expire Pro but keep claim stamp — second claim must fail.
+    user = queries.get_user(session, 703)
+    assert user is not None
+    user.plan = "free"
+    user.pro_until = datetime.now(UTC) - timedelta(days=1)
+    session.add(user)
+    session.commit()
+
+    status2, _ = queries.claim_email_pro_trial(
+        session, chat_id=703, email_raw="other@example.com"
+    )
+    assert status2 == "already_claimed"
+
+
+def test_claim_email_pro_trial_rejects_duplicate_email(
+    session: Session, monkeypatch
+) -> None:
+    monkeypatch.setattr("config.EMAIL_PRO_TRIAL_DAYS", 30)
+    session.add(User(chat_id=704))
+    session.add(User(chat_id=705))
+    session.commit()
+
+    status1, _ = queries.claim_email_pro_trial(
+        session, chat_id=704, email_raw="shared@example.com"
+    )
+    session.commit()
+    assert status1 == "activated"
+
+    status2, user2 = queries.claim_email_pro_trial(
+        session, chat_id=705, email_raw="shared@example.com"
+    )
+    assert status2 == "email_taken"
+    assert user2 is None
+    assert queries.is_pro(queries.get_user(session, 705)) is False
+
+
+def test_claim_email_pro_trial_rejects_already_pro(session: Session, monkeypatch) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    monkeypatch.setattr("config.EMAIL_PRO_TRIAL_DAYS", 30)
+    session.add(User(chat_id=706))
+    session.commit()
+    queries.activate_pro(
+        session,
+        chat_id=706,
+        pro_until=datetime.now(UTC) + timedelta(days=10),
+        telegram_payment_charge_id="stars_x",
+        subscription_active=True,
+    )
+    session.commit()
+
+    status, user = queries.claim_email_pro_trial(
+        session, chat_id=706, email_raw="pro@example.com"
+    )
+    assert status == "already_pro"
+    assert user is not None
+    assert user.email is None
+    assert user.stars_telegram_payment_charge_id == "stars_x"
+
+
+def test_normalize_email() -> None:
+    assert queries.normalize_email("  A@B.Co ") == "a@b.co"
+    assert queries.normalize_email("bad") is None
+    assert queries.normalize_email("") is None

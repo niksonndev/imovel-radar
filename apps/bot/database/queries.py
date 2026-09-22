@@ -6,7 +6,9 @@ A bot lê ``listing`` (read-only), escreve ``users``/``alerts``/``alert_matches`
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+import re
+from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 from shared_models.tables import (
     Alert,
@@ -105,6 +107,69 @@ def downgrade_expired_pro(session: Session, chat_id: int) -> User | None:
         session.add(user)
         session.flush()
     return user
+
+
+_EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
+
+
+def normalize_email(raw: str) -> str | None:
+    """Lowercase + strip; ``None`` se formato inválido."""
+    email = (raw or "").strip().lower()
+    if not email or _EMAIL_RE.match(email) is None:
+        return None
+    return email
+
+
+ClaimEmailProTrialStatus = Literal[
+    "activated",
+    "already_pro",
+    "already_claimed",
+    "email_taken",
+    "invalid_email",
+]
+
+
+def claim_email_pro_trial(
+    session: Session,
+    *,
+    chat_id: int,
+    email_raw: str,
+) -> tuple[ClaimEmailProTrialStatus, User | None]:
+    """Cadastro de e-mail → 1 mês de Radar Pro (uma vez por usuário)."""
+    email = normalize_email(email_raw)
+    if email is None:
+        return "invalid_email", None
+
+    ensure_user(session, chat_id)
+    user = get_user(session, chat_id)
+    if user is None:
+        raise RuntimeError(f"Usuário {chat_id} não encontrado após ensure_user")
+
+    if is_pro(user):
+        return "already_pro", user
+    if user.email_pro_trial_claimed_at is not None:
+        return "already_claimed", user
+
+    taken = session.exec(
+        select(User).where(User.email == email, User.chat_id != chat_id)
+    ).first()
+    if taken is not None:
+        return "email_taken", None
+
+    now = datetime.now(UTC)
+    pro_until = now + timedelta(days=config.EMAIL_PRO_TRIAL_DAYS)
+    user = activate_pro(
+        session,
+        chat_id=chat_id,
+        pro_until=pro_until,
+        telegram_payment_charge_id=None,
+        subscription_active=False,
+    )
+    user.email = email
+    user.email_pro_trial_claimed_at = now
+    session.add(user)
+    session.flush()
+    return "activated", user
 
 
 def get_users_chat_ids(session: Session) -> list[int]:

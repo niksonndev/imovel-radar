@@ -74,6 +74,13 @@ def get_bot_token() -> str:
     return _resolve_token()
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
 # Caps freemium / Radar Pro (ADR freemium + Stars checkout).
 WATCHLIST_FREE_CAP = int(os.getenv("WATCHLIST_FREE_CAP", "2"))
 WATCHLIST_PRO_CAP = int(os.getenv("WATCHLIST_PRO_CAP", "10"))
@@ -81,6 +88,9 @@ ALERT_FREE_CAP = int(os.getenv("ALERT_FREE_CAP", "1"))
 ALERT_PRO_CAP = int(os.getenv("ALERT_PRO_CAP", "5"))
 
 # Radar Pro — Telegram Stars (XTR), com âncora em BRL na copy.
+# ``BILLING_ENABLED=false`` pausa invoice/checkout; trial por e-mail fica ativo.
+BILLING_ENABLED = _env_bool("BILLING_ENABLED", False)
+EMAIL_PRO_TRIAL_DAYS = int(os.getenv("EMAIL_PRO_TRIAL_DAYS", "30"))
 PRO_STARS_AMOUNT = int(os.getenv("PRO_STARS_AMOUNT", "200"))
 PRO_PRICE_BRL_LABEL = os.getenv("PRO_PRICE_BRL_LABEL", "R$ 19,90").strip() or "R$ 19,90"
 # Período de assinatura Stars (Bot API): exatamente 30 dias.

@@ -70,3 +70,18 @@ def test_pro_successful_payment_activates(monkeypatch) -> None:
     assert kwargs["telegram_payment_charge_id"] == "tg_charge_1"
     assert kwargs["subscription_active"] is True
     message.reply_text.assert_awaited()
+
+
+def test_register_billing_handlers_skips_checkout_when_disabled(monkeypatch) -> None:
+    monkeypatch.setattr(config, "BILLING_ENABLED", False)
+    app = MagicMock()
+    billing.register_billing_handlers(app)
+    # Only cancel command when billing is off.
+    assert app.add_handler.call_count == 1
+
+
+def test_register_billing_handlers_registers_checkout_when_enabled(monkeypatch) -> None:
+    monkeypatch.setattr(config, "BILLING_ENABLED", True)
+    app = MagicMock()
+    billing.register_billing_handlers(app)
+    assert app.add_handler.call_count == 4
