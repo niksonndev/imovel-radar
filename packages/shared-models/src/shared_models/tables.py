@@ -92,6 +92,8 @@ class User(SQLModel, table=True):
 
     Billing (Radar Pro via Telegram Stars): ``plan`` + ``pro_until`` drive
     entitlement; Stars charge/subscription fields mirror Telegram state.
+    Email trial: ``email`` + ``email_pro_trial_claimed_at`` for one-time
+    free Pro month while Stars checkout is paused.
     """
 
     __tablename__ = "users"  # type: ignore
@@ -100,6 +102,7 @@ class User(SQLModel, table=True):
             "plan IN ('free', 'pro')",
             name="ck_users_plan",
         ),
+        UniqueConstraint("email", name="uq_users_email"),
     )
 
     chat_id: int = Field(
@@ -133,6 +136,18 @@ class User(SQLModel, table=True):
             Boolean,
             nullable=False,
             server_default=text("false"),
+        ),
+    )
+    email: str | None = Field(
+        default=None,
+        sa_column=Column("email", Text, nullable=True),
+    )
+    email_pro_trial_claimed_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(
+            "email_pro_trial_claimed_at",
+            DateTime(timezone=True),
+            nullable=True,
         ),
     )
 
