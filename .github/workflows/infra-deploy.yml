@@ -161,13 +161,13 @@ jobs:
           aws lambda update-function-configuration --function-name "$FN" \
             --environment "Variables={DATABASE_URL=${{ env.DATABASE_URL }},LOG_LEVEL=INFO,SCRAPER_MAX_PAGES=500}" >/dev/null
 
-      - name: Post-deploy bot smoke (EventBridge notify)
+      - name: Post-deploy bot smoke (EventBridge notify dry-run)
         run: |
           FN="$(terraform -chdir=infra output -raw bot_lambda_function_name)"
           aws lambda invoke \
             --function-name "$FN" \
             --cli-binary-format raw-in-base64-out \
-            --payload '{"source":"aws.events","detail-type":"Scheduled Event"}' \
+            --payload '{"source":"aws.events","detail-type":"Scheduled Event","detail":{"dry_run":true}}' \
             /tmp/bot-invoke.json
           cat /tmp/bot-invoke.json
 

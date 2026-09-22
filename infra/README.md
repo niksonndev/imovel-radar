@@ -55,7 +55,8 @@ ou thumbprint de GitHub é rotacionado — crie seguindo a doc oficial do GitHub
 `.github/workflows/infra-deploy.yml`: testes → migrations (gate bloqueante) →
 build do zip → `terraform plan`/`apply` → smoke pós-deploy (5 páginas;
 `SCRAPER_MAX_PAGES=5` **não** marca a coleta como completed — evita
-`deactivate_missing_listings` no smoke; o CI restaura `500` depois).
+`deactivate_missing_listings` no smoke; o CI restaura `500` depois; bot
+smoke usa EventBridge com `detail.dry_run` — valida o path sem Telegram).
 
 > ATENÇÃO: `database_url` aparece no state (projeto pessoal); o CI o passa por
 > `-var`, então não fica hardcoded nos arquivos.
