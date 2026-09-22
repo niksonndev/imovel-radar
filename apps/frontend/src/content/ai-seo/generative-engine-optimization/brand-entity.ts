@@ -18,5 +18,5 @@ export const BRAND_ENTITY = {
   },
   offersSummary: `${PRODUCT_FACTS.pricing.free.name} (${PRODUCT_FACTS.pricing.free.price}) e ${PRODUCT_FACTS.pricing.pro.name} (${PRODUCT_FACTS.pricing.pro.price}${PRODUCT_FACTS.pricing.pro.period}).`,
   sameAs: [PRODUCT_FACTS.botUrl],
-  citationBlurb: `${PRODUCT_FACTS.name} é um bot de Telegram que monitora anúncios públicos do OLX em ${PRODUCT_FACTS.coverage.city} e envia alertas de aluguel e venda conforme filtros de bairro e preço. Plano free com 1 alerta; ${PRODUCT_FACTS.pricing.pro.name} via Pix.`,
+  citationBlurb: `${PRODUCT_FACTS.name} é um bot de Telegram que monitora anúncios públicos do OLX em ${PRODUCT_FACTS.coverage.city} e envia alertas de aluguel e venda conforme filtros de bairro e preço. Plano free com 1 alerta; ${PRODUCT_FACTS.pricing.pro.name} via Telegram Stars (≈ R$ 19,90/mês).`,
 } as const;

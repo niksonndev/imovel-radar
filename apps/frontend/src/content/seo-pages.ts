@@ -7,9 +7,9 @@ export const SEO_PAGES = [
     path: "/aluguel-maceio",
     title: `Alertas de aluguel em Maceió no Telegram | ${SITE_NAME}`,
     description:
-      "Receba no Telegram anúncios novos de aluguel no OLX Maceió. Filtre por bairro e preço — comece grátis, Radar Pro via Pix.",
+      "Receba no Telegram anúncios novos de aluguel no OLX Maceió. Filtre por bairro e preço — comece grátis, Radar Pro com Stars (≈ R$ 19,90/mês).",
     headline: "Alertas de aluguel em Maceió",
-    body: "Monitore o OLX de Maceió e receba no Telegram quando aparecer um aluguel que bata com o seu filtro de bairro e preço. Plano free com 1 alerta; Radar Pro via Pix para quem precisa de mais.",
+    body: "Monitore o OLX de Maceió e receba no Telegram quando aparecer um aluguel que bata com o seu filtro de bairro e preço. Plano free com 1 alerta; Radar Pro com Telegram Stars (≈ R$ 19,90/mês) para quem precisa de mais.",
     keywords: [
       "aluguel Maceió",
       "apartamento aluguel Maceió",
@@ -22,9 +22,9 @@ export const SEO_PAGES = [
     path: "/comprar-imovel-maceio",
     title: `Alertas para comprar imóvel em Maceió | ${SITE_NAME}`,
     description:
-      "Monitore vendas no OLX Maceió e receba alertas no Telegram. Comece grátis; upgrade Radar Pro pago via Pix.",
+      "Monitore vendas no OLX Maceió e receba alertas no Telegram. Comece grátis; upgrade Radar Pro com Stars (≈ R$ 19,90/mês).",
     headline: "Alertas para comprar imóvel em Maceió",
-    body: "Acompanhe anúncios de venda no OLX Maceió sem checar o site todo dia. Defina bairros e faixa de preço no bot; no free você tem 1 alerta, no Pro (Pix) até 5 e queda de preço.",
+    body: "Acompanhe anúncios de venda no OLX Maceió sem checar o site todo dia. Defina bairros e faixa de preço no bot; no free você tem 1 alerta, no Pro (Stars ≈ R$ 19,90) até 5 e queda de preço.",
     keywords: [
       "comprar imóvel Maceió",
       "apartamento à venda Maceió",

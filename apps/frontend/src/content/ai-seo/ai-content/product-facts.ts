@@ -34,7 +34,7 @@ export const PRODUCT_FACTS = {
       price: PRICING_PRO.price,
       period: PRICING_PRO.period,
       features: [...PRICING_PRO.features],
-      payment: "Pix",
+      payment: "Telegram Stars (≈ R$ 19,90/mês)",
     },
   },
   independence:
