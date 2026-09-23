@@ -11,7 +11,6 @@ import re
 from shared_models.tables import Listing, WatchedListingChange
 from telegram import CallbackQuery, Update
 from telegram.constants import ParseMode
-from telegram.error import BadRequest
 
 from handlers.carousel import send_carousel
 from handlers.data import (
@@ -21,7 +20,7 @@ from handlers.data import (
     user_is_pro,
     watch_cap_for_user,
 )
-from handlers.home import restore_menu_after_error, show_main_menu
+from handlers.home import present_message, restore_menu_after_error, show_main_menu
 from handlers.ui import keyboards, menus
 from models import CustomContext
 
@@ -51,45 +50,6 @@ def _rows_with_photos(
     return listings, watch_ids
 
 
-async def _send_watchlist_view(
-    context: CustomContext,
-    user_id: int,
-    *,
-    rows: list[WatchedListingChange],
-    cap: int,
-) -> None:
-    header_markup = keyboards.watchlist_header_keyboard()
-
-    if not rows:
-        await context.bot.send_message(
-            chat_id=user_id,
-            text=menus.watchlist_empty_message(cap=cap),
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=header_markup,
-        )
-        return
-
-    listings, watch_ids = _rows_with_photos(rows)
-    if not listings:
-        await context.bot.send_message(
-            chat_id=user_id,
-            text=menus.watchlist_sem_fotos(count=len(rows), cap=cap),
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=header_markup,
-        )
-        return
-
-    await send_carousel(
-        context.application.bot,
-        user_id,
-        listings,
-        _watchlist_carousel_id(user_id),
-        context.application.bot_data,
-        mode="watchlist",
-        watch_ids=watch_ids,
-    )
-
-
 async def _render_watchlist_list(
     query: CallbackQuery,
     user_id: int,
@@ -100,9 +60,10 @@ async def _render_watchlist_list(
         cap = await watch_cap_for_user(user_id)
     except Exception:
         logger.exception("Falha ao listar acompanhamentos")
-        await query.edit_message_text(
-            text=menus.watchlist_erro(),
-            parse_mode=ParseMode.MARKDOWN,
+        await present_message(
+            query,
+            context,
+            menus.watchlist_erro(),
             reply_markup=keyboards.main_menu_keyboard(),
         )
         return
@@ -110,36 +71,32 @@ async def _render_watchlist_list(
     header_markup = keyboards.watchlist_header_keyboard()
 
     if not rows:
-        await query.edit_message_text(
-            text=menus.watchlist_empty_message(cap=cap),
-            parse_mode=ParseMode.MARKDOWN,
+        await present_message(
+            query,
+            context,
+            menus.watchlist_empty_message(cap=cap),
             reply_markup=header_markup,
         )
         return
 
     listings, watch_ids = _rows_with_photos(rows)
     if not listings:
-        try:
-            await query.edit_message_text(
-                text=menus.watchlist_sem_fotos(count=len(rows), cap=cap),
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=header_markup,
-            )
-        except BadRequest:
-            await context.bot.send_message(
-                chat_id=user_id,
-                text=menus.watchlist_sem_fotos(count=len(rows), cap=cap),
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=header_markup,
-            )
+        await present_message(
+            query,
+            context,
+            menus.watchlist_sem_fotos(count=len(rows), cap=cap),
+            reply_markup=header_markup,
+        )
         return
 
-    # Carrossel só — sem mensagem de cabeçalho acima da foto.
-    if query.message is not None:
-        try:
-            await query.message.delete()
-        except Exception:
-            logger.debug("Não foi possível apagar a mensagem anterior", exc_info=True)
+    on_photo = query.message is not None and bool(query.message.photo)
+    if not on_photo:
+        await present_message(
+            query,
+            context,
+            menus.watchlist_carousel_header(count=len(rows), cap=cap),
+            reply_markup=header_markup,
+        )
 
     await send_carousel(
         context.application.bot,
@@ -149,6 +106,7 @@ async def _render_watchlist_list(
         context.application.bot_data,
         mode="watchlist",
         watch_ids=watch_ids,
+        query=query if on_photo else None,
     )
 
 
@@ -194,27 +152,6 @@ async def watchlist_actions_callback(update: Update, context: CustomContext) -> 
             await restore_menu_after_error(query, context, menus.watchlist_erro())
             return
         await query.answer("Removido da lista.")
-
-        if query.message is not None and query.message.photo:
-            try:
-                await query.message.delete()
-            except Exception:
-                logger.debug("Não foi possível apagar o card do carrossel", exc_info=True)
-            try:
-                rows = await get_watches_for_user(user_id)
-                cap = await watch_cap_for_user(user_id)
-            except Exception:
-                logger.exception("Falha ao relistar após remover")
-                await context.bot.send_message(
-                    chat_id=user_id,
-                    text=menus.watchlist_erro(),
-                    parse_mode=ParseMode.MARKDOWN,
-                    reply_markup=keyboards.main_menu_keyboard(),
-                )
-                return
-            await _send_watchlist_view(context, user_id, rows=rows, cap=cap)
-            return
-
         await _render_watchlist_list(query, user_id, context)
         return
 

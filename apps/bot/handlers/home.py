@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 
-from telegram import CallbackQuery, Update
+from telegram import CallbackQuery, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.error import BadRequest
 
@@ -33,6 +33,43 @@ async def show_main_menu(update: Update, context: CustomContext) -> None:
     await _present_main_menu(query, context)
 
 
+async def present_message(
+    query: CallbackQuery,
+    context: CustomContext,
+    text: str,
+    *,
+    reply_markup: InlineKeyboardMarkup | None = None,
+    parse_mode: str | None = ParseMode.MARKDOWN,
+) -> None:
+    """Edita a bolha do callback. Foto troca a legenda; texto troca o corpo."""
+    message = query.message
+    try:
+        if message is not None and message.photo:
+            await query.edit_message_caption(
+                caption=text,
+                parse_mode=parse_mode,
+                reply_markup=reply_markup,
+            )
+            return
+        await query.edit_message_text(
+            text=text,
+            parse_mode=parse_mode,
+            reply_markup=reply_markup,
+        )
+        return
+    except BadRequest:
+        logger.debug("present_message: edit ignorado", exc_info=True)
+    chat_id = _chat_id(query, context)
+    if chat_id is None:
+        return
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=text,
+        parse_mode=parse_mode,
+        reply_markup=reply_markup,
+    )
+
+
 async def restore_menu_after_error(
     query: CallbackQuery,
     context: CustomContext,
@@ -40,24 +77,14 @@ async def restore_menu_after_error(
     *,
     parse_mode: str | None = ParseMode.MARKDOWN,
 ) -> None:
-    """Devolve um teclado de menu quando o loading já apagou os botões."""
-    markup = keyboards.main_menu_keyboard()
-    try:
-        await query.edit_message_text(
-            text=text,
-            parse_mode=parse_mode,
-            reply_markup=markup,
-        )
-    except BadRequest:
-        chat_id = _chat_id(query, context)
-        if chat_id is None:
-            return
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=text,
-            parse_mode=parse_mode,
-            reply_markup=markup,
-        )
+    """Devolve um teclado de menu quando o loading já tirou os botões."""
+    await present_message(
+        query,
+        context,
+        text,
+        reply_markup=keyboards.main_menu_keyboard(),
+        parse_mode=parse_mode,
+    )
 
 
 async def route_menu_callback(update: Update, context: CustomContext) -> None:
@@ -87,39 +114,12 @@ async def route_menu_callback(update: Update, context: CustomContext) -> None:
 
 
 async def _present_main_menu(query: CallbackQuery, context: CustomContext) -> None:
-    text = menus.menu_principal_inline()
-    markup = keyboards.main_menu_keyboard()
-    if query.message is not None and query.message.photo:
-        try:
-            await query.message.delete()
-        except Exception:
-            logger.debug("Não foi possível apagar o card ao voltar ao menu", exc_info=True)
-        chat_id = _chat_id(query, context)
-        if chat_id is None:
-            return
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=text,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=markup,
-        )
-        return
-    try:
-        await query.edit_message_text(
-            text=text,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=markup,
-        )
-    except BadRequest:
-        chat_id = _chat_id(query, context)
-        if chat_id is None:
-            return
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=text,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=markup,
-        )
+    await present_message(
+        query,
+        context,
+        menus.menu_principal_inline(),
+        reply_markup=keyboards.main_menu_keyboard(),
+    )
 
 
 def _chat_id(query: CallbackQuery, context: CustomContext) -> int | None:
