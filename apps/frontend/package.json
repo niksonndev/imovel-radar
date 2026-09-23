@@ -11,7 +11,8 @@
     "build": "next build",
     "start": "serve out",
     "lint": "eslint . && tsc --noEmit",
-    "test": "pnpm run test:a11y",
+    "test": "pnpm run test:unit && pnpm run test:a11y",
+    "test:unit": "node --import tsx --test tests/programmatic-seo-catalog.test.ts",
     "test:a11y": "playwright test tests/accessibility",
     "record:demo": "node scripts/record-demo.mjs"
   },
