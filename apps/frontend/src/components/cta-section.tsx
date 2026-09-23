@@ -21,7 +21,7 @@ export function CTASection() {
         <TrackedCta
           href={TELEGRAM_BOT_URL}
           ctaId="final_cta"
-          className="mt-2 h-11 px-6 text-base bg-white text-primary hover:bg-white/90"
+          className="mt-2 bg-white text-primary hover:bg-white/90"
         >
           {CTA_BUTTON_LABEL}
         </TrackedCta>

@@ -24,7 +24,7 @@ export function IntentLanding({ page }: { page: SeoPage }) {
             <TrackedCta
               href={TELEGRAM_BOT_URL}
               ctaId={`seo_${page.slug}`}
-              className="btn-shine h-11 px-6 text-base"
+              className="btn-shine"
             >
               {SECTION_CTA_LABEL}
             </TrackedCta>

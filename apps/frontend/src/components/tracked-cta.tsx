@@ -29,7 +29,7 @@ export function TrackedCta({
   children,
   className,
   variant = "default",
-  size = "lg",
+  size = "cta",
   showIcon = true,
   onClick,
   ...rest
