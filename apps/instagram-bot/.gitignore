@@ -1,8 +1,10 @@
 # Arquivos gerados em tempo de execução
 generated-media/
 .mock-instagram-state.json
+.mock-tiktok-state.json
 .bot-database-state.json
 .test-instagram-state.json
+.test-tiktok-state.json
 
 # Build e dependências
 dist/
