@@ -25,7 +25,6 @@ def test_callback_needs_db_loading_menu_and_detail() -> None:
     assert callback_needs_db_loading("wl_b")
     assert callback_needs_db_loading("wl_p_1")
     assert callback_needs_db_loading("wl_rm_4")
-    assert callback_needs_db_loading("wl_confirm_yes")
     assert callback_needs_db_loading("email_pro_trial")
     assert callback_needs_db_loading("pro_subscribe")
 
@@ -36,7 +35,7 @@ def test_callback_needs_db_loading_excludes_nav_and_help() -> None:
     assert not callback_needs_db_loading("menu_ajuda")
     assert not callback_needs_db_loading("mal_m")
     assert not callback_needs_db_loading("wl_m")
-    assert not callback_needs_db_loading("wl_add")
+    assert not callback_needs_db_loading("menu_home")
     assert not callback_needs_db_loading("car_next_1")
     assert not callback_needs_db_loading("novo_alerta")
 

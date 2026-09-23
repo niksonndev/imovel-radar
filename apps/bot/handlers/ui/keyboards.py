@@ -252,13 +252,13 @@ def meus_alertas_pick_keyboard(alerts: list[Alert]) -> InlineKeyboardMarkup:
         for a in alerts
         if a.id is not None  # table model: id é opcional antes do primeiro flush
     ]
-    rows.append([InlineKeyboardButton("🏠 Menu principal", callback_data="mal_m")])
+    rows.append([InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")])
     return InlineKeyboardMarkup(rows)
 
 
 def meus_alertas_empty_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("🏠 Menu principal", callback_data="mal_m")]]
+        [[InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")]]
     )
 
 
@@ -270,6 +270,7 @@ def meus_alertas_detail_keyboard(alert_id: int) -> InlineKeyboardMarkup:
                 InlineKeyboardButton("🗑️ Remover", callback_data=f"mal_rm_{alert_id}"),
             ],
             [InlineKeyboardButton("⬅️ Voltar à lista", callback_data="mal_b")],
+            [InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")],
         ]
     )
 
@@ -278,31 +279,19 @@ def meus_alertas_edit_stub_keyboard(alert_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("⬅️ Voltar ao alerta", callback_data=f"mal_p_{alert_id}")],
+            [InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")],
         ]
     )
 
 
-def watchlist_header_keyboard(*, can_add: bool = True) -> InlineKeyboardMarkup:
-    rows: list[list[InlineKeyboardButton]] = []
-    if can_add:
-        rows.append([InlineKeyboardButton("➕ Adicionar por link", callback_data="wl_add")])
-    rows.append([InlineKeyboardButton("🏠 Menu principal", callback_data="wl_m")])
-    return InlineKeyboardMarkup(rows)
-
-
-def watchlist_empty_keyboard(*, can_add: bool = True) -> InlineKeyboardMarkup:
-    return watchlist_header_keyboard(can_add=can_add)
-
-
-def watchlist_confirm_keyboard() -> InlineKeyboardMarkup:
+def watchlist_header_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton("✅ Confirmar", callback_data="wl_confirm_yes"),
-                InlineKeyboardButton("❌ Cancelar", callback_data="wl_confirm_no"),
-            ]
-        ]
+        [[InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")]]
     )
+
+
+def watchlist_empty_keyboard() -> InlineKeyboardMarkup:
+    return watchlist_header_keyboard()
 
 
 def watchlist_cap_upsell_keyboard() -> InlineKeyboardMarkup:
@@ -310,7 +299,7 @@ def watchlist_cap_upsell_keyboard() -> InlineKeyboardMarkup:
         [
             [_pro_cta_button()],
             [InlineKeyboardButton("🗑 Gerenciar acompanhados", callback_data="menu_watchlist")],
-            [InlineKeyboardButton("🏠 Menu principal", callback_data="wl_m")],
+            [InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")],
         ]
     )
 
@@ -320,7 +309,7 @@ def alert_cap_upsell_keyboard() -> InlineKeyboardMarkup:
         [
             [_pro_cta_button()],
             [InlineKeyboardButton("📋 Meus Alertas", callback_data="menu_meus_alertas")],
-            [InlineKeyboardButton("🏠 Menu principal", callback_data="wl_m")],
+            [InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")],
         ]
     )
 
@@ -329,7 +318,7 @@ def pro_pitch_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [_pro_cta_button()],
-            [InlineKeyboardButton("🏠 Menu principal", callback_data="wl_m")],
+            [InlineKeyboardButton("🏠 Menu principal", callback_data="menu_home")],
         ]
     )
 

@@ -16,6 +16,7 @@ from handlers.data import (
     get_alert_for_user,
     get_alerts_for_user,
 )
+from handlers.home import restore_menu_after_error, show_main_menu
 from handlers.ui import keyboards, menus
 from models import CustomContext
 
@@ -74,12 +75,7 @@ async def meus_alertas_actions_callback(update: Update, context: CustomContext) 
     user_id = user.id
 
     if data == "mal_m":
-        await query.answer()
-        await query.edit_message_text(
-            text=menus.menu_principal_inline(),
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=keyboards.main_menu_keyboard(),
-        )
+        await show_main_menu(update, context)
         return
 
     if data == "mal_b":
@@ -97,6 +93,7 @@ async def meus_alertas_actions_callback(update: Update, context: CustomContext) 
         except Exception:
             logger.exception("Falha ao carregar alerta (detalhe)")
             await query.answer("Não foi possível abrir o alerta.", show_alert=True)
+            await restore_menu_after_error(query, context, menus.meus_alertas_erro())
             return
 
         if alert is None:
@@ -121,6 +118,7 @@ async def meus_alertas_actions_callback(update: Update, context: CustomContext) 
         except Exception:
             logger.exception("Falha ao carregar alerta (edição)")
             await query.answer("Não foi possível abrir o alerta.", show_alert=True)
+            await restore_menu_after_error(query, context, menus.meus_alertas_erro())
             return
 
         if alert is None:
@@ -144,6 +142,7 @@ async def meus_alertas_actions_callback(update: Update, context: CustomContext) 
         except Exception:
             logger.exception("Falha ao remover alerta no banco")
             await query.answer("Não foi possível remover o alerta.", show_alert=True)
+            await restore_menu_after_error(query, context, menus.meus_alertas_erro())
             return
 
         await query.answer("Alerta removido.")

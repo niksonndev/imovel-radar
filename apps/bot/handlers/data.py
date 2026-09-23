@@ -14,7 +14,6 @@ from typing import Literal, NamedTuple
 
 from shared_models.tables import (
     Alert,
-    Listing,
     ListingAlertMatch,
     ListingKind,
     User,
@@ -118,11 +117,6 @@ async def mark_pro_subscription_canceled(chat_id: int) -> User | None:
 async def get_neighbourhoods(*, listing_kind: ListingKind | None = None) -> list[str]:
     with Session(get_engine()) as session:
         return queries.get_neighbourhoods(session, listing_kind=listing_kind)
-
-
-async def get_listing(listing_id: int) -> Listing | None:
-    with Session(get_engine()) as session:
-        return queries.get_listing(session, listing_id)
 
 
 # ── Alerts (dona: bot) ─────────────────────────────────────────────────────

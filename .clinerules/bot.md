@@ -20,7 +20,7 @@ Telegram bot that monitors real estate listings and notifies users via configura
 - scraper writes `listing` only
 - `handlers/`, `jobs/`, `models.py` stay separated
 - `models.py` centraliza TypedDicts (`CreateAlertDraft`, `CreateAlertWizardState`,
-  `WatchlistDraft`, `UserData`)
+  `UserData`)
 - `CustomContext` is the standard handler context
 
 ## What to avoid

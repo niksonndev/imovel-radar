@@ -26,7 +26,7 @@ def ajuda_comandos_plain() -> str:
         "Comandos\n"
         "/start — boas-vindas e menu principal\n"
         "/novo_alerta — criar alerta de aluguel ou compra\n"
-        "/cancelar — sai do wizard de novo alerta ou de acompanhar anúncio\n"
+        "/cancelar — sai do wizard de novo alerta\n"
     ]
     if config.BILLING_ENABLED:
         lines.append("/cancelar_pro — cancela a assinatura Radar Pro (Stars)\n")
@@ -310,8 +310,8 @@ def watchlist_erro() -> str:
 def watchlist_empty_message(*, cap: int) -> str:
     return (
         f"👀 *Anúncios acompanhados* (0/{cap})\n\n"
-        "Cole o link de um anúncio do OLX para acompanhar preço e status.\n"
-        "Também dá para acompanhar direto pelo carrossel de matches."
+        "Acompanhe anúncios pelo botão 👀 no carrossel de matches "
+        "para receber aviso de mudança de preço ou status."
     )
 
 
@@ -319,25 +319,6 @@ def watchlist_sem_fotos(*, count: int, cap: int) -> str:
     return (
         f"👀 *Anúncios acompanhados* ({count}/{cap})\n\n"
         "Seus acompanhamentos estão salvos, mas nenhum tem foto para o carrossel agora."
-    )
-
-
-def watchlist_url_prompt() -> str:
-    return (
-        "👀 *Adicionar anúncio*\n\n"
-        "Cole o link do anúncio no OLX (ex.: `https://al.olx.com.br/...-1525220692`).\n\n"
-        "O anúncio precisa já estar no nosso radar (coleta diária)."
-    )
-
-
-def watchlist_url_invalida() -> str:
-    return "Link inválido. Envie a URL completa do anúncio no OLX."
-
-
-def watchlist_listing_missing() -> str:
-    return (
-        "Esse anúncio ainda não está no nosso radar. "
-        "Ele entra após a coleta diária — tente de novo amanhã."
     )
 
 
@@ -379,35 +360,6 @@ def watchlist_cap_reached_alert(*, is_pro_user: bool = False) -> str:
 
 def watchlist_created_alert() -> str:
     return "Anúncio adicionado! Aviso se o preço mudar ou se sair do ar."
-
-
-def watchlist_duplicate() -> str:
-    return "Você já acompanha este anúncio."
-
-
-def watchlist_confirm_resumo(
-    *,
-    title: str,
-    price_value: int | None,
-    neighbourhood: str,
-) -> str:
-    esc_title = escape_markdown(title[:80], version=1)
-    esc_nh = escape_markdown(neighbourhood or "—", version=1)
-    return (
-        "🧾 *Confirmar acompanhamento*\n\n"
-        f"*{esc_title}*\n"
-        f"💰 {format_brl(price_value)}\n"
-        f"📍 {esc_nh}\n\n"
-        "Vou avisar se o preço mudar ou se o anúncio sair do ar."
-    )
-
-
-def watchlist_created() -> str:
-    return "✅ Anúncio adicionado! Aviso você se o preço mudar ou se sair do ar."
-
-
-def watchlist_cancelado() -> str:
-    return "Ok, não adicionei o anúncio."
 
 
 def watchlist_change_price_message(

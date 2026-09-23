@@ -9,7 +9,6 @@ from telegram.ext import CallbackContext, ExtBot
 class UserData(TypedDict, total=False):
     create_alert_draft: CreateAlertDraft
     create_alert_wizard_state: CreateAlertWizardState
-    watchlist_draft: WatchlistDraft
 
 
 class CustomContext(CallbackContext[ExtBot, UserData, dict, dict]):
@@ -40,13 +39,3 @@ class CreateAlertWizardState(TypedDict, total=False):
     confirming: bool
     seed_done: bool
     alert_was_created: bool
-
-
-class WatchlistDraft(TypedDict, total=False):
-    """Estado parcial do fluxo de acompanhar anúncio por URL."""
-
-    listing_id: int
-    title: str
-    price_value: int | None
-    neighbourhood: str
-    url: str

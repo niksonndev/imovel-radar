@@ -17,12 +17,12 @@ from handlers.billing import register_billing_handlers
 from handlers.carousel import register_handlers as register_carousel_handlers
 from handlers.create_new_alert import new_alert_conversation
 from handlers.email_pro_trial import email_pro_trial_conversation
+from handlers.home import show_main_menu
 from handlers.meus_alertas import meus_alertas_actions_callback, meus_alertas_callback
 from handlers.ui import keyboards, menus
 from handlers.watchlist import (
     carousel_watch_callback,
     watchlist_actions_callback,
-    watchlist_add_conversation,
     watchlist_menu_callback,
 )
 from models import CustomContext
@@ -89,7 +89,6 @@ def setup(app: Application) -> None:
     # /novo_alerta passam pelos fallbacks/entry (allow_reentry) e liberam o
     # estado preso. Fora do wizard, os CommandHandlers abaixo atendem.
     app.add_handler(new_alert_conversation())
-    app.add_handler(watchlist_add_conversation())
     app.add_handler(email_pro_trial_conversation())
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("ajuda", help_cmd))
@@ -102,6 +101,7 @@ def setup(app: Application) -> None:
         CallbackQueryHandler(watchlist_actions_callback, pattern=r"^wl_(p_|rm_|m$|b$)")
     )
     app.add_handler(CallbackQueryHandler(carousel_watch_callback, pattern=r"^wch_\d+$"))
+    app.add_handler(CallbackQueryHandler(show_main_menu, pattern=r"^menu_home$"))
     app.add_handler(CallbackQueryHandler(main_menu_callback, pattern=r"^menu_ajuda$"))
     register_billing_handlers(app)
     register_carousel_handlers(app)

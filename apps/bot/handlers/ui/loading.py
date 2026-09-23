@@ -14,12 +14,12 @@ from handlers.ui import menus
 logger = logging.getLogger(__name__)
 
 # Callbacks cujo handler (ou o ensure_user) abre sessão no Postgres.
-# Exclui mal_m / wl_m (só voltam ao menu) e navegação de carrossel.
+# Exclui menu_home / mal_m / wl_m (só voltam ao menu) e navegação de carrossel.
 _DB_LOADING_CALLBACK_RE = re.compile(
     r"^(?:"
     r"menu_meus_alertas|menu_watchlist|"
     r"mal_(?:b$|p_|ed_|rm_)|"
-    r"wl_(?:b$|p_|rm_|confirm_yes$)|"
+    r"wl_(?:b$|p_|rm_)|"
     r"email_pro_trial$|"
     r"pro_subscribe$"
     r")"
