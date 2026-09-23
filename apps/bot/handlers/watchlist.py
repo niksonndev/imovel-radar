@@ -14,7 +14,6 @@ from telegram.constants import ParseMode
 from telegram.error import BadRequest
 
 from handlers.carousel import send_carousel
-from handlers.home import restore_menu_after_error, show_main_menu
 from handlers.data import (
     create_watch,
     delete_watch,
@@ -22,6 +21,7 @@ from handlers.data import (
     user_is_pro,
     watch_cap_for_user,
 )
+from handlers.home import restore_menu_after_error, show_main_menu
 from handlers.ui import keyboards, menus
 from models import CustomContext
 
