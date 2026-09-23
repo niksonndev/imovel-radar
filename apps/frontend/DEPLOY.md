@@ -17,7 +17,7 @@ O frontend é um build estático (`output: "export"`), então qualquer host de a
 | Variável | Obrigatória | Descrição |
 | --- | --- | --- |
 | `NEXT_PUBLIC_SITE_URL` | não (opcional) | Sobrepõe a URL detectada automaticamente. Use apenas se o site tiver um domínio próprio (ex.: `https://imovelradar.com.br`). Usada em canonical, Open Graph, sitemap e robots. O build só **falha** em produção se nem essa variável nem as variáveis de sistema da Vercel estiverem disponíveis; fora da Vercel (dev/build local), um fallback é usado com aviso no log. |
-| `NEXT_PUBLIC_MARKET_STATS_URL` | preenchida pelo CI | URL do `GET /market-stats`. Sem ela, `/mercado` usa o JSON de exemplo e mostra o aviso. Não edite na mão: o workflow `infra-deploy` lê o output Terraform `market_stats_url` e grava no ambiente **production**. Como o valor entra no bundle, o mesmo passo dispara um deploy de produção só quando a URL muda. |
+| `NEXT_PUBLIC_MARKET_STATS_URL` | preenchida pelo CI | URL do `GET /market-stats`. Sem ela, `/mercado` usa o JSON de exemplo e mostra o aviso. Não edite na mão: o workflow `infra-deploy` lê o output Terraform `market_stats_url` e grava no ambiente **production**. Como o valor entra no bundle, o mesmo passo dispara um deploy de produção só quando a URL muda. **Também alimenta o build das páginas `/imoveis/*` e entradas no sitemap** (bairros com amostra mínima). Um deploy após cada coleta mantém medianas e `lastModified` atualizados. |
 
 Secrets do repositório (Settings → Secrets and variables → Actions), lidos por esse passo:
 

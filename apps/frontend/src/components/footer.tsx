@@ -49,6 +49,12 @@ export function Footer() {
         >
           Mercado
         </Link>
+        <Link
+          href="/imoveis"
+          className="text-sm text-white/70 transition-colors hover:text-white"
+        >
+          Imóveis por cidade
+        </Link>
         {SEO_PAGES.map((page) => (
           <Link
             key={page.slug}

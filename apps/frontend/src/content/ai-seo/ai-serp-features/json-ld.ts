@@ -97,6 +97,7 @@ function howToSchema(): JsonLd {
 function breadcrumbListSchema(): JsonLd {
   const items = [
     { name: "Início", path: "/" },
+    { name: "Imóveis por cidade", path: "/imoveis" },
     ...SEO_PAGES.map((page) => ({
       name: page.headline,
       path: page.path,

@@ -1,6 +1,7 @@
 import { PRODUCT_FACTS } from "@/content/ai-seo/ai-content/product-facts";
 import { CITABLE_ANSWERS } from "@/content/ai-seo/generative-engine-optimization/citable-answers";
 import { TARGET_PROMPTS } from "@/content/ai-seo/prompt-seo/target-prompts";
+import { buildProgrammaticLlmsSection } from "@/content/programmatic-seo/llms-links";
 import { SEO_PAGES, absoluteUrl } from "@/content/seo-pages";
 
 /**
@@ -13,6 +14,8 @@ export function buildLlmsTxt(): string {
     ...SEO_PAGES.map(
       (page) => `- [${page.headline}](${absoluteUrl(page.path)}): ${page.description}`
     ),
+    `- [Mercado](${absoluteUrl("/mercado")}): mapa e medianas OLX Maceió e Recife`,
+    ...buildProgrammaticLlmsSection().split("\n"),
     `- [Bot no Telegram](${PRODUCT_FACTS.botUrl}): ativar alertas free/Pro`,
   ].join("\n");
 
@@ -67,6 +70,7 @@ ${PRODUCT_FACTS.independence}
 - Website: ${PRODUCT_FACTS.url}
 - Telegram bot: ${PRODUCT_FACTS.botUrl}
 - Intent: ${SEO_PAGES.map((p) => absoluteUrl(p.path)).join(", ")}
+- Location SEO: ${absoluteUrl("/imoveis")}
 
 ## Coverage
 

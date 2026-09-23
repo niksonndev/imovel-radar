@@ -2,13 +2,13 @@
 
 > Deixe o Imóvel Radar encontrar no OLX de Maceió e avisar no Telegram. Comece grátis com 1 alerta; ganhe 1 mês de Radar Pro cadastrando o e-mail no bot.
 
-Produto independente. Não afiliado à OLX. Anúncios vêm do OLX de Maceió e Recife; preços e disponibilidade podem mudar.
+Produto independente. Não afiliado à OLX. Anúncios vêm do OLX das cidades cobertas; preços e disponibilidade podem mudar.
 
 ## Product facts
 
-- Imóvel Radar é um bot no Telegram que monitora o OLX de Maceió e Recife e avisa quando aparece imóvel compatível com o alerta do usuário.
-- Por enquanto, o monitoramento cobre apenas Maceió e Recife (Alagoas e Pernambuco), em aluguel e venda.
-- Os anúncios vêm de listagens públicas do OLX Maceió e Recife. Imóvel Radar não é afiliado à OLX.
+- Imóvel Radar é um bot no Telegram que monitora o OLX de Maceió, Recife e Natal e avisa quando aparece imóvel compatível com o alerta do usuário.
+- Por enquanto, o monitoramento cobre apenas Maceió, Recife e Natal (Alagoas, Pernambuco e Rio Grande do Norte), em aluguel e venda.
+- Os anúncios vêm de listagens públicas do OLX Maceió, Recife e Natal. Imóvel Radar não é afiliado à OLX.
 - O plano free inclui 1 alerta ativo. O Radar Pro (1 mês grátis com e-mail no bot) inclui até 5 alertas, prioridade e alertas de queda de preço.
 - Para começar: abra https://t.me/imovel_radar_bot, configure aluguel ou venda, bairro e preço — sem formulário no site.
 
@@ -17,6 +17,16 @@ Produto independente. Não afiliado à OLX. Anúncios vêm do OLX de Maceió e R
 - [Home](https://imovel-radar.vercel.app): Alertas de imóveis do OLX Maceió no Telegram
 - [Alertas de aluguel em Maceió](https://imovel-radar.vercel.app/aluguel-maceio): Receba no Telegram anúncios novos de aluguel no OLX Maceió. Filtre por bairro e preço — comece grátis; 1 mês de Radar Pro com e-mail no bot.
 - [Alertas para comprar imóvel em Maceió](https://imovel-radar.vercel.app/comprar-imovel-maceio): Monitore vendas no OLX Maceió e receba alertas no Telegram. Comece grátis; 1 mês de Radar Pro com e-mail no bot.
+- [Mercado](https://imovel-radar.vercel.app/mercado): mapa e medianas OLX Maceió e Recife
+- [Imóveis por cidade](https://imovel-radar.vercel.app/imoveis): preços pedidos no OLX por cidade e bairro (dados agregados)
+- [Boa Viagem, Recife](https://imovel-radar.vercel.app/imoveis/recife/boa-viagem): medianas de aluguel e venda no bairro
+- [Ibura, Recife](https://imovel-radar.vercel.app/imoveis/recife/ibura): medianas de aluguel e venda no bairro
+- [Ponta Verde, Maceió](https://imovel-radar.vercel.app/imoveis/maceio/ponta-verde): medianas de aluguel e venda no bairro
+- [Jatiúca, Maceió](https://imovel-radar.vercel.app/imoveis/maceio/jatiuca): medianas de aluguel e venda no bairro
+- [Casa Forte, Recife](https://imovel-radar.vercel.app/imoveis/recife/casa-forte): medianas de aluguel e venda no bairro
+- [Pina, Recife](https://imovel-radar.vercel.app/imoveis/recife/pina): medianas de aluguel e venda no bairro
+- [Pajuçara, Maceió](https://imovel-radar.vercel.app/imoveis/maceio/pajucara): medianas de aluguel e venda no bairro
+- [Benedito Bentes, Maceió](https://imovel-radar.vercel.app/imoveis/maceio/benedito-bentes): medianas de aluguel e venda no bairro
 - [Bot no Telegram](https://t.me/imovel_radar_bot): ativar alertas free/Pro
 
 ## Optional
