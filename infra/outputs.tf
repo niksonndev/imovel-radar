@@ -11,7 +11,7 @@ output "lambda_arn" {
 }
 
 output "market_stats_url" {
-  description = "GET público do snapshot (Cache-Control 1h). Defina NEXT_PUBLIC_MARKET_STATS_URL no frontend."
+  description = "GET público do snapshot (Cache-Control 1h). O workflow infra-deploy grava isto em NEXT_PUBLIC_MARKET_STATS_URL."
   value       = "${aws_apigatewayv2_api.market_stats.api_endpoint}/market-stats"
 }
 

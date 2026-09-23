@@ -180,3 +180,13 @@ jobs:
             -H 'Content-Type: application/json' \
             -d "{\"url\": \"${WEBHOOK_URL}\", \"secret_token\": \"${SECRET}\", \"allowed_updates\": [\"message\", \"callback_query\"]}"
           echo
+
+      # NEXT_PUBLIC_* entra no bundle no build. Grava a URL e só rebuilda
+      # produção quando ela mudou. Secrets: VERCEL_TOKEN, VERCEL_PROJECT_ID
+      # e, se o projeto estiver num time, VERCEL_ORG_ID.
+      - name: Sync market stats URL to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        run: bash .github/scripts/sync-market-stats-url.sh
