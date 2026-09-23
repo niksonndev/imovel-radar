@@ -10,7 +10,8 @@
     "start": "serve out",
     "lint": "eslint . && tsc --noEmit",
     "test": "pnpm run test:a11y",
-    "test:a11y": "playwright test tests/accessibility"
+    "test:a11y": "playwright test tests/accessibility",
+    "record:demo": "node scripts/record-demo.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

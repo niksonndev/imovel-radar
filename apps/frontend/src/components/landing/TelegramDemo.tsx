@@ -29,7 +29,11 @@ function scrollTarget(stack: HTMLElement, viewport: HTMLElement) {
   return overflow > 0 ? -overflow : 0;
 }
 
-function buildConversation(tl: gsap.core.Timeline, { root, viewport, stack }: BuildArgs) {
+function buildConversation(
+  tl: gsap.core.Timeline,
+  { root, viewport, stack }: BuildArgs,
+  { includeReset = true }: { includeReset?: boolean } = {},
+) {
   const typing = root.querySelector<HTMLElement>("[data-typing]");
   const scrollY = () => scrollTarget(stack, viewport);
 
@@ -67,8 +71,10 @@ function buildConversation(tl: gsap.core.Timeline, { root, viewport, stack }: Bu
 
   tl.addLabel("payoff");
   tl.to(stack, { y: scrollY, duration: PAYOFF_HOLD, ease: "none" }, "payoff");
-  tl.addLabel("reset");
-  tl.to(stack, { autoAlpha: 0, duration: 0.4, ease: "power1.in" }, "reset");
+  if (includeReset) {
+    tl.addLabel("reset");
+    tl.to(stack, { autoAlpha: 0, duration: 0.4, ease: "power1.in" }, "reset");
+  }
 }
 
 function showPayoff(root: HTMLElement, stack: HTMLElement, viewport: HTMLElement) {
@@ -84,7 +90,25 @@ function showPayoff(root: HTMLElement, stack: HTMLElement, viewport: HTMLElement
   gsap.set(stack, { autoAlpha: 1, y: overflow > 0 ? -overflow : 0 });
 }
 
-export function TelegramDemo({ className = "" }: { className?: string }) {
+type TelegramDemoProps = {
+  className?: string;
+  /** Extra classes for the phone shell (size overrides for recording only). */
+  shellClassName?: string;
+  /** Hide the outer glow (recording crop). Site keeps the default glow. */
+  hideGlow?: boolean;
+  /** Play immediately (skip IntersectionObserver). Used for video recording. */
+  autoPlay?: boolean;
+  /** Run a single cycle ending on the listing payoff (no fade/reset loop). */
+  playOnce?: boolean;
+};
+
+export function TelegramDemo({
+  className = "",
+  shellClassName = "",
+  hideGlow = false,
+  autoPlay = false,
+  playOnce = false,
+}: TelegramDemoProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const stackRef = useRef<HTMLDivElement>(null);
@@ -95,6 +119,8 @@ export function TelegramDemo({ className = "" }: { className?: string }) {
       const viewport = viewportRef.current;
       const stack = stackRef.current;
       if (!root || !viewport || !stack) return;
+
+      root.dataset.demoState = "idle";
 
       const mm = gsap.matchMedia();
       mm.add(
@@ -108,6 +134,7 @@ export function TelegramDemo({ className = "" }: { className?: string }) {
 
           if (context.conditions?.reduceMotion) {
             showPayoff(root, stack, viewport);
+            root.dataset.demoState = "complete";
             return;
           }
 
@@ -130,8 +157,16 @@ export function TelegramDemo({ className = "" }: { className?: string }) {
           const tl = gsap.timeline({
             paused: true,
             defaults: { duration: 0.4, ease: "power2.out" },
+            onStart: () => {
+              root.dataset.demoState = "playing";
+            },
             onComplete: () => {
               if (!root.isConnected) return;
+              if (playOnce) {
+                root.dataset.demoState = "complete";
+                dotsTween.pause();
+                return;
+              }
               messages.forEach((el) => el.classList.add("hidden"));
               typing?.classList.add("hidden");
               gsap.set(messages, { autoAlpha: 0, y: 8 });
@@ -143,7 +178,17 @@ export function TelegramDemo({ className = "" }: { className?: string }) {
             },
           });
 
-          buildConversation(tl, { root, viewport, stack });
+          buildConversation(tl, { root, viewport, stack }, { includeReset: !playOnce });
+
+          if (autoPlay) {
+            inView = true;
+            tl.play();
+            dotsTween.play();
+            return () => {
+              dotsTween.kill();
+              tl.kill();
+            };
+          }
 
           const observer = new IntersectionObserver(
             ([entry]) => {
@@ -167,7 +212,7 @@ export function TelegramDemo({ className = "" }: { className?: string }) {
 
       return () => mm.revert();
     },
-    { scope: rootRef },
+    { scope: rootRef, dependencies: [autoPlay, playOnce] },
   );
 
   return (
@@ -178,9 +223,17 @@ export function TelegramDemo({ className = "" }: { className?: string }) {
         Antares por R$ 2.300.
       </p>
 
-      <div ref={rootRef} aria-hidden="true" className="relative">
-        <div className="pointer-events-none absolute -inset-8 -z-10 rounded-full bg-primary/20 blur-3xl" />
-        <div className="flex h-[min(34rem,calc(100svh-11.5rem))] min-h-[28rem] flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#0e1621] shadow-[0_24px_80px_-24px_rgba(0,119,188,0.55)]">
+      <div ref={rootRef} aria-hidden="true" className="relative" data-demo-root>
+        {!hideGlow ? (
+          <div className="pointer-events-none absolute -inset-8 -z-10 rounded-full bg-primary/20 blur-3xl" />
+        ) : null}
+        <div
+          data-demo-shell
+          className={cn(
+            "flex h-[min(34rem,calc(100svh-11.5rem))] min-h-[28rem] flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#0e1621] shadow-[0_24px_80px_-24px_rgba(0,119,188,0.55)]",
+            shellClassName,
+          )}
+        >
           <header className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-[#17212b] px-4 py-3">
             <div className="flex size-10 items-center justify-center rounded-full bg-[#0077BC]">
               <Radar className="size-5 text-white" />
