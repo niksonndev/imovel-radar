@@ -18,6 +18,8 @@ def test_process_chat_dry_run_skips_send_and_mark(monkeypatch) -> None:
     send = AsyncMock()
     mark = AsyncMock()
     monkeypatch.setattr(polling_job, "get_unnotified_listings", AsyncMock(return_value=rows))
+    monkeypatch.setattr(polling_job, "get_active_alerts_for_user", AsyncMock(return_value=[]))
+    monkeypatch.setattr(polling_job, "get_latest_market_snapshot", AsyncMock(return_value=None))
     monkeypatch.setattr(polling_job, "send_carousel", send)
     monkeypatch.setattr(polling_job, "mark_listings_notified", mark)
 
@@ -35,6 +37,8 @@ def test_process_chat_sends_and_marks_when_not_dry_run(monkeypatch) -> None:
     send = AsyncMock()
     mark = AsyncMock()
     monkeypatch.setattr(polling_job, "get_unnotified_listings", AsyncMock(return_value=rows))
+    monkeypatch.setattr(polling_job, "get_active_alerts_for_user", AsyncMock(return_value=[]))
+    monkeypatch.setattr(polling_job, "get_latest_market_snapshot", AsyncMock(return_value=None))
     monkeypatch.setattr(polling_job, "send_carousel", send)
     monkeypatch.setattr(polling_job, "mark_listings_notified", mark)
 

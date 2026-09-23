@@ -19,9 +19,12 @@ from telegram.ext import Application
 
 from database import queries
 from database.db import get_engine
+from handlers.alert_intelligence import prepare_match_carousel
 from handlers.carousel import send_carousel
 from handlers.data import (
+    get_active_alerts_for_user,
     get_changed_watches,
+    get_latest_market_snapshot,
     get_unnotified_listings,
     mark_listings_notified,
     update_watch_baselines,
@@ -113,12 +116,17 @@ async def _process_chat(chat_id: int, app: Application, *, dry_run: bool = False
         )
         return
 
+    alerts = await get_active_alerts_for_user(chat_id)
+    snapshot = await get_latest_market_snapshot()
+    listings, headlines = prepare_match_carousel(rows, alerts, snapshot)
+
     await send_carousel(
         app.bot,
         chat_id,
-        [row.listing for row in rows],
+        listings,
         str(chat_id),
         app.bot_data,
+        event_headlines=headlines,
     )
 
     # Mark immediately after send so a later failure cannot re-notify.

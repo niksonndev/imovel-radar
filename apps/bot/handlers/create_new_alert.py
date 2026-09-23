@@ -11,7 +11,9 @@ from __future__ import annotations
 import logging
 import re
 
-from shared_models.tables import Listing, ListingKind
+import config
+
+from shared_models.tables import Listing, ListingAlertMatch, ListingKind
 from telegram import CallbackQuery, InlineKeyboardMarkup, Message, Update
 from telegram.constants import ParseMode
 from telegram.error import BadRequest
@@ -23,15 +25,19 @@ from telegram.ext import (
     filters,
 )
 
+from handlers.alert_intelligence import prepare_match_carousel
 from handlers.carousel import send_carousel
 from handlers.data import (
     create_alert,
+    get_alert_for_user,
+    get_latest_market_snapshot,
     get_neighbourhoods,
     get_unnotified_listings,
     mark_listings_notified,
     user_is_pro,
 )
 from handlers.home import MENU_NAV_CALLBACK_RE, route_menu_callback
+from handlers.nl_intent import advance_nl_flow, wiz_nl_buttons_cb, wiz_nl_text
 from handlers.ui import keyboards, menus
 from models import (
     CreateAlertDraft,
@@ -52,6 +58,7 @@ logger = logging.getLogger(__name__)
 ) = range(7)
 # Estado novo no fim para não deslocar wizards persistidos que já passaram da cidade.
 CITY = 7
+INTENT = 8
 
 _CITIES = {
     "wiz_city_maceio": "Maceió",
@@ -664,12 +671,23 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
                     if alert_was_created
                     else menus.seed_alert_new_matches(),
                 )
+                alert = await get_alert_for_user(alert_id, user.id)
+                snapshot = await get_latest_market_snapshot()
+                headlines: list[str] | None = None
+                if alert is not None:
+                    match_rows = [
+                        ListingAlertMatch(listing=item, alert_id=alert_id) for item in listings
+                    ]
+                    listings, headlines = prepare_match_carousel(
+                        match_rows, [alert], snapshot
+                    )
                 await send_carousel(
                     context.application.bot,
                     user.id,
                     listings,
                     str(alert_id),
                     context.application.bot_data,
+                    event_headlines=headlines,
                 )
                 # Mark before the seed flag so a later failure cannot re-notify.
                 pairs = [(alert_id, item.listing_id) for item in listings]
