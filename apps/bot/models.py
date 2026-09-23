@@ -40,3 +40,5 @@ class CreateAlertWizardState(TypedDict, total=False):
     confirming: bool
     seed_done: bool
     alert_was_created: bool
+    nl_mode: bool
+    pending_raw_neighbourhoods: list[str]

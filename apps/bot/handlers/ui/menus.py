@@ -642,3 +642,37 @@ def seed_alert_created() -> str:
 
 def seed_alert_new_matches() -> str:
     return "✅ Encontrei imóveis novos para o seu alerta! 🔔"
+
+
+# —— Wizard NL (Onboarding em Linguagem Natural) ——
+
+
+def wizard_nl_prompt() -> str:
+    return (
+        "🆕 *Novo alerta*\n\n"
+        "💬 *Que imóvel você procura?*\n\n"
+        "Me diga em uma frase, por exemplo:\n"
+        '_"Apartamento até 400 mil perto da Ponta Verde"_\n'
+        '_"Aluguel kitnet em Boa Viagem até 2.500"_\n\n'
+        "Ou toque abaixo para escolher passo a passo:"
+    )
+
+
+def wizard_nl_texto_vazio() -> str:
+    return (
+        "Envie uma mensagem descrevendo o que você procura, "
+        "ou toque no botão para configurar passo a passo:"
+    )
+
+
+def wizard_nl_falta_cidade() -> str:
+    return "📍 *Em qual cidade você procura?*"
+
+
+def wizard_nl_falta_tipo() -> str:
+    return "🏷️ *Você quer comprar ou alugar?*"
+
+
+def wizard_nl_falta_preco(*, listing_kind: str) -> str:
+    kind_label = "compra" if listing_kind == "venda" else "aluguel"
+    return f"💰 *Qual o valor máximo que você pretende pagar ({kind_label})?*"

@@ -11,8 +11,6 @@ from __future__ import annotations
 import logging
 import re
 
-import config
-
 from shared_models.tables import Listing, ListingAlertMatch, ListingKind
 from telegram import CallbackQuery, InlineKeyboardMarkup, Message, Update
 from telegram.constants import ParseMode
@@ -25,6 +23,7 @@ from telegram.ext import (
     filters,
 )
 
+import config
 from handlers.alert_intelligence import prepare_match_carousel
 from handlers.carousel import send_carousel
 from handlers.data import (
@@ -249,6 +248,14 @@ async def new_alert_cmd(update: Update, context: CustomContext) -> int:
         except Exception:
             pass
 
+    if getattr(config, "ALERT_NL_ENABLED", True):
+        await update.effective_message.reply_text(
+            menus.wizard_nl_prompt(),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=keyboards.nl_prompt_keyboard(),
+        )
+        return INTENT
+
     await update.effective_message.reply_text(
         menus.wizard_cidade_intro(),
         parse_mode=ParseMode.MARKDOWN,
@@ -274,6 +281,10 @@ async def wiz_city_cb(update: Update, context: CustomContext) -> int:
     draft["municipality"] = _CITIES.get(query.data, "Maceió")
 
     await _show_choice(query, menus.wizard_cidade_escolhida(_draft_municipality(draft)))
+
+    if _get_wizard_state(context).get("nl_mode"):
+        return await advance_nl_flow(update, context)
+
     await update.effective_message.reply_text(
         menus.wizard_novo_alerta_intro(),
         parse_mode=ParseMode.MARKDOWN,
@@ -300,6 +311,10 @@ async def wiz_kind_cb(update: Update, context: CustomContext) -> int:
     draft["listing_kind"] = kind
 
     await _show_choice(query, menus.wizard_tipo_escolhido(listing_kind=kind))
+
+    if _get_wizard_state(context).get("nl_mode"):
+        return await advance_nl_flow(update, context)
+
     await _enter_categories(update.effective_message, context)
     return CATEGORIES
 
@@ -331,6 +346,9 @@ async def wiz_price_preset_cb(update: Update, context: CustomContext) -> int:
             max_price=pmax,
         ),
     )
+    if _get_wizard_state(context).get("nl_mode"):
+        return await advance_nl_flow(update, context)
+
     await _enter_rooms(update.effective_message)
     return ROOMS
 
@@ -374,6 +392,9 @@ async def wiz_price_text(update: Update, context: CustomContext) -> int:
     draft["max_price"] = value
     wizard_state.pop("awaiting", None)
     await _edit_price_choice(context, draft)
+    if wizard_state.get("nl_mode"):
+        return await advance_nl_flow(update, context)
+
     await _enter_rooms(update.effective_message)
     return ROOMS
 
@@ -748,6 +769,10 @@ def new_alert_conversation() -> ConversationHandler:
             CallbackQueryHandler(new_alert_cmd, pattern="^novo_alerta$"),
         ],
         states={
+            INTENT: [
+                CallbackQueryHandler(wiz_nl_buttons_cb, pattern="^wiz_nl_buttons$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, wiz_nl_text),
+            ],
             CITY: [
                 CallbackQueryHandler(wiz_city_cb, pattern="^wiz_city_(maceio|recife|natal)$"),
             ],

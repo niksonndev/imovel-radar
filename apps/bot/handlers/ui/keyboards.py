@@ -369,3 +369,17 @@ def _pro_cta_button() -> InlineKeyboardButton:
         callback_data="email_pro_trial",
     )
 
+
+def nl_prompt_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "🔘 Configurar com botões",
+                    callback_data="wiz_nl_buttons",
+                )
+            ]
+        ]
+    )
+
+
