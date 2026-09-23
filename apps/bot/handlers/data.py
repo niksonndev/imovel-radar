@@ -210,6 +210,16 @@ async def get_unnotified_listings(chat_id: int) -> list[ListingAlertMatch]:
         return list(queries.get_unnotified_listings_for_user(session, chat_id))
 
 
+async def get_latest_market_snapshot() -> dict | None:
+    """Mediana por bairro do último scrape. Falha não bloqueia a notificação."""
+    try:
+        with Session(get_engine()) as session:
+            return queries.get_latest_market_snapshot(session)
+    except Exception:
+        logger.exception("Falha ao ler market_snapshot")
+        return None
+
+
 async def mark_listings_notified(chat_id: int, pairs: list[tuple[int, int]]) -> dict:
     del chat_id  # alert_matches já carrega o alerta; chat é desnecessário aqui
     with Session(get_engine()) as session:

@@ -6,6 +6,7 @@ A bot lê ``listing`` (read-only), escreve ``users``/``alerts``/``alert_matches`
 
 from __future__ import annotations
 
+import json
 import re
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -16,6 +17,7 @@ from shared_models.tables import (
     Listing,
     ListingAlertMatch,
     ListingKind,
+    MarketSnapshot,
     User,
     WatchedListing,
     WatchedListingChange,
@@ -23,7 +25,7 @@ from shared_models.tables import (
 from shared_models.utils import effective_listing_price
 from sqlalchemy import Integer, case, cast, delete, func, or_
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 import config
 
@@ -500,6 +502,20 @@ def get_changed_watches(session: Session) -> list[WatchedListingChange]:
         .order_by(WatchedListing.chat_id, WatchedListing.id)
     ).all()
     return [WatchedListingChange(watch=w, listing=listing) for w, listing in rows]
+
+
+def get_latest_market_snapshot(session: Session) -> dict | None:
+    """Snapshot público do scraper (read-only). None se ainda não houver coleta."""
+    row = session.exec(
+        select(MarketSnapshot).order_by(col(MarketSnapshot.collected_on).desc())
+    ).first()
+    if row is None:
+        return None
+    payload = row.payload
+    if isinstance(payload, str):
+        loaded = json.loads(payload)
+        return loaded if isinstance(loaded, dict) else None
+    return payload if isinstance(payload, dict) else None
 
 
 def update_watch_baselines(

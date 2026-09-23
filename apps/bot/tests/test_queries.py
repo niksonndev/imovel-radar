@@ -1,4 +1,6 @@
-from shared_models.tables import AlertMatch, Listing, User
+from datetime import UTC, date, datetime
+
+from shared_models.tables import AlertMatch, Listing, MarketSnapshot, User
 from sqlmodel import Session, select
 
 from database import queries
@@ -1158,3 +1160,24 @@ def test_normalize_email() -> None:
     assert queries.normalize_email("  A@B.Co ") == "a@b.co"
     assert queries.normalize_email("bad") is None
     assert queries.normalize_email("") is None
+
+
+def test_latest_market_snapshot_returns_newest_payload(session: Session) -> None:
+    session.add(
+        MarketSnapshot(
+            collected_on=date(2026, 9, 22),
+            collected_at=datetime(2026, 9, 22, 11, 0, tzinfo=UTC),
+            payload={"cities": [{"municipality": "old"}]},
+        )
+    )
+    session.add(
+        MarketSnapshot(
+            collected_on=date(2026, 9, 23),
+            collected_at=datetime(2026, 9, 23, 11, 0, tzinfo=UTC),
+            payload={"cities": [{"municipality": "Maceió"}]},
+        )
+    )
+    session.commit()
+    assert queries.get_latest_market_snapshot(session) == {
+        "cities": [{"municipality": "Maceió"}]
+    }
