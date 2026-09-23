@@ -1,9 +1,12 @@
 ---
 name: bold
-description: Strong visual presence with heavyweight typography, high-contrast colors, and commanding layouts.
+description: >-
+  Strong visual presence with heavyweight typography, high-contrast colors, and
+  commanding layouts.
 license: MIT
 metadata:
   author: typeui.sh
+disabled: true
 ---
 
 <!-- TYPEUI_SH_MANAGED_START -->
