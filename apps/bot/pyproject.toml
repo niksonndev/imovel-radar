@@ -11,6 +11,7 @@ dependencies = [
     "boto3>=1.34.0",
     "tzdata==2024.1",
     "imovel-radar-shared-models",
+    "httpx>=0.28.0",
 ]
 
 [dependency-groups]
