@@ -28,8 +28,7 @@ export const MOCK_ALERT = {
   cta: "Ver no OLX →",
 } as const;
 
-// How it works (problem → solution → outcome steps)
-export const HOW_IT_WORKS_PROBLEM = "Chega de abrir o OLX várias vezes por dia.";
+// How it works (headline → solution → outcome steps)
 export const HOW_IT_WORKS_SOLUTION =
   "Deixe o Radar encontrar os anúncios por você.";
 export const HOW_IT_WORKS_HEADLINE =
