@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import pytest
 
+import config
 import lambda_handler
+from scheduler.jobs import slices_for_kind
 
 
 def _patch_run(monkeypatch: pytest.MonkeyPatch, result: Any) -> None:
@@ -55,9 +58,28 @@ def test_next_payload_continues_same_kind() -> None:
     )
     assert nxt == {
         "listing_kind": "venda",
+        "slice_index": 0,
         "start_page": 51,
+        "attempt": 0,
         "run_started_at": "2026-01-01T00:00:00+00:00",
     }
+
+
+def test_next_payload_keeps_attempt_when_retrying_page() -> None:
+    nxt = lambda_handler._next_payload_after_chunk(
+        {
+            "listing_kind": "aluguel",
+            "completed": False,
+            "next_page": 4,
+            "slice_index": 0,
+            "attempt": 2,
+            "run_started_at": "2026-01-01T00:00:00+00:00",
+        }
+    )
+    assert nxt is not None
+    assert nxt["start_page"] == 4
+    assert nxt["attempt"] == 2
+    assert nxt["slice_index"] == 0
 
 
 def test_next_payload_starts_venda_after_aluguel_complete() -> None:
@@ -69,19 +91,48 @@ def test_next_payload_starts_venda_after_aluguel_complete() -> None:
             "run_started_at": "2026-01-01T00:00:00+00:00",
         }
     )
-    assert nxt is not None
-    assert nxt["listing_kind"] == "venda"
-    assert nxt["start_page"] == 1
-    assert nxt["run_started_at"] is None
+    assert nxt == {
+        "listing_kind": "venda",
+        "slice_index": 0,
+        "start_page": 1,
+        "attempt": 0,
+        "run_started_at": None,
+    }
 
 
-def test_next_payload_none_when_venda_complete() -> None:
+def test_next_payload_advances_venda_slice_same_watermark() -> None:
     nxt = lambda_handler._next_payload_after_chunk(
         {
             "listing_kind": "venda",
             "completed": True,
             "next_page": None,
+            "slice_index": 1,
+            "run_started_at": "2026-01-01T00:00:00+00:00",
+        }
+    )
+    assert nxt == {
+        "listing_kind": "venda",
+        "slice_index": 2,
+        "start_page": 1,
+        "attempt": 0,
+        "run_started_at": "2026-01-01T00:00:00+00:00",
+    }
+
+
+def test_next_payload_none_when_last_venda_slice_complete() -> None:
+    last = len(slices_for_kind("venda")) - 1
+    nxt = lambda_handler._next_payload_after_chunk(
+        {
+            "listing_kind": "venda",
+            "completed": True,
+            "next_page": None,
+            "slice_index": last,
             "run_started_at": "2026-01-01T00:00:00+00:00",
         }
     )
     assert nxt is None
+
+
+def test_root_logger_honors_config_level() -> None:
+    expected = getattr(logging, config.LOG_LEVEL, logging.INFO)
+    assert logging.getLogger().level == expected
