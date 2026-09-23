@@ -12,8 +12,9 @@ import logging
 import re
 
 from shared_models.tables import Listing, ListingKind
-from telegram import CallbackQuery, Message, Update
+from telegram import CallbackQuery, InlineKeyboardMarkup, Message, Update
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
@@ -92,10 +93,21 @@ def _allowed_categories(kind: ListingKind) -> set[str]:
     return {value for _, value, _ in keyboards.category_options_for_kind(kind)}
 
 
+def _removed_inline_keyboard() -> InlineKeyboardMarkup:
+    # PTB omite listas vazias no to_dict(); sem esse campo o Telegram mantém os botões.
+    return InlineKeyboardMarkup([], api_kwargs={"inline_keyboard": []})
+
+
 async def _show_choice(query: CallbackQuery, text: str) -> None:
     """Substitui a pergunta pela escolha e remove o teclado daquela mensagem."""
-    await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN)
-    await query.edit_message_reply_markup(reply_markup=None)
+    try:
+        await query.edit_message_text(
+            text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=_removed_inline_keyboard(),
+        )
+    except BadRequest:
+        logger.exception("Falha ao gravar a escolha do wizard")
 
 
 async def _enter_price(msg: Message, context: CustomContext) -> None:
