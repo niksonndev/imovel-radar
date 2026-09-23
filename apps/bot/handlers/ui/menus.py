@@ -14,7 +14,7 @@ import config
 
 
 def start_welcome() -> str:
-    return "👋 *Olá!* Sou o bot de alertas OLX — *Maceió/AL*.\n\n"
+    return "👋 *Olá!* Sou o bot de alertas OLX — *Maceió e Recife*.\n\n"
 
 
 def menu_principal_inline() -> str:
@@ -201,6 +201,7 @@ def _meus_alertas_format_one(a: Alert) -> str:
     raw_name = a.alert_name or "Sem nome"
     name = escape_markdown(str(raw_name), version=1)
     status = "✅ Ativo" if a.active else "⏸ Pausado"
+    city_line = f"📍 *Cidade:* {escape_markdown(a.municipality or 'Maceió', version=1)}"
     kind_line = f"🏷️ *Tipo:* {_listing_kind_label(a.listing_kind)}"
     price_line = f"💰 *Preço:* {format_brl(a.min_price)} – {format_brl(a.max_price)}"
     rooms_line = f"🛏 *Quartos:* {_rooms_label(a.min_rooms)}"
@@ -216,7 +217,7 @@ def _meus_alertas_format_one(a: Alert) -> str:
 
     esc_created = _meus_alertas_created_display(a.created_at)
     return (
-        f"*{name}*\n{status}\n{kind_line}\n{price_line}\n{rooms_line}\n{cats_line}\n{loc}\n"
+        f"*{name}*\n{status}\n{city_line}\n{kind_line}\n{price_line}\n{rooms_line}\n{cats_line}\n{loc}\n"
         f"📅 *Criado:* {esc_created}"
     )
 
@@ -225,6 +226,7 @@ def meus_alertas_detail_view(alert: Alert) -> str:
     raw_name = alert.alert_name or "Sem nome"
     name = escape_markdown(str(raw_name), version=1)
     status_line = "✅ Alerta ativo" if alert.active else "❌ Alerta inativo"
+    city_line = f"📍 {escape_markdown(alert.municipality or 'Maceió', version=1)}"
     kind_line = f"🏷️ {_listing_kind_label(alert.listing_kind)}"
     price_line = f"💰 {format_brl(alert.min_price)} – {format_brl(alert.max_price)}"
     rooms_line = f"🛏 {_rooms_label(alert.min_rooms)}"
@@ -240,6 +242,7 @@ def meus_alertas_detail_view(alert: Alert) -> str:
         "📋 *Meus Alertas*\n\n"
         f"*{name}*\n"
         f"{status_line}\n"
+        f"{city_line}\n"
         f"{kind_line}\n"
         f"{price_line}\n"
         f"{rooms_line}\n"
@@ -412,8 +415,25 @@ def watchlist_change_reactivated_message(*, title: str, url: str | None) -> str:
 # —— Wizard novo alerta ——
 
 
+def wizard_cidade_intro() -> str:
+    return "🆕 *Novo alerta*\n\nEm qual cidade?"
+
+
+def wizard_cidade_escolhida(municipality: str) -> str:
+    return f"📍 *Cidade:* {escape_markdown(municipality, version=1)}"
+
+
 def wizard_novo_alerta_intro() -> str:
     return "🆕 *Novo alerta*\n\nO que você procura?"
+
+
+def wizard_bairros_vazios() -> str:
+    return (
+        "📍 *Bairros*\n\n"
+        "Ainda não há bairros desta cidade no radar. "
+        "Eles aparecem depois da primeira coleta.\n\n"
+        "Você pode concluir agora e o alerta vale para *qualquer bairro*."
+    )
 
 
 def wizard_preco_intro(*, listing_kind: str) -> str:
@@ -571,6 +591,7 @@ def confirmacao_resumo(
     nb_s: str,
     name: str,
     listing_kind: str = "aluguel",
+    municipality: str = "Maceió",
     min_rooms: int | None = None,
     categories: list[str] | None = None,
 ) -> str:
@@ -579,9 +600,11 @@ def confirmacao_resumo(
     esc_name = escape_markdown(name, version=1)
     esc_rooms = escape_markdown(_rooms_label(min_rooms), version=1)
     esc_cats = escape_markdown(_categories_label(categories), version=1)
+    esc_city = escape_markdown(municipality, version=1)
     kind_label = _listing_kind_label(listing_kind)
     return (
         "🧾 *Confirmação do alerta*\n\n"
+        f"📍 *Cidade:* {esc_city}\n"
         f"🏷️ *Tipo:* {kind_label}\n"
         f"💰 *Preço:* {esc_price}\n"
         f"🛏 *Quartos:* {esc_rooms}\n"

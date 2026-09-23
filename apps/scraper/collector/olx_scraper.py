@@ -244,10 +244,38 @@ def _listings_url(
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(params), ""))
 
 
-def base_url_for_kind(listing_kind: ListingKind) -> str:
+_PAGE_IN_TITLE = re.compile(r"Página\s+(\d+)", re.IGNORECASE)
+
+
+def returned_page_number(html: str) -> int | None:
+    """Número de página no ``<title>`` da OLX, quando a listagem o informa."""
+    soup = BeautifulSoup(html, "lxml")
+    title = soup.find("title")
+    if title is None:
+        return None
+    match = _PAGE_IN_TITLE.search(title.get_text(" ", strip=True))
+    if match is None:
+        return None
+    return int(match.group(1))
+
+
+def is_clamped_page(html: str, requested_page: int) -> bool:
+    """True quando a OLX devolve uma página anterior à pedida (teto da listagem).
+
+    ``o=101`` volta com título "Página 100" e os mesmos anúncios. Isso não é
+    fim de listagem: marcar ``completed`` dispararia deactivate do que ficou de fora.
+    """
+    if requested_page <= 1:
+        return False
+    returned = returned_page_number(html)
+    return returned is not None and returned < requested_page
+
+
+def base_url_for_kind(listing_kind: ListingKind, *, market_key: str | None = None) -> str:
+    market = config.market_by_key(market_key)
     if listing_kind == "venda":
-        return config.MACEIO_SALE_LISTINGS_URL
-    return config.MACEIO_RENT_LISTINGS_URL
+        return market.sale_url
+    return market.rent_url
 
 
 class FetchError(Exception):
@@ -275,6 +303,8 @@ class SearchChunkResult:
     listing_kind: ListingKind = "aluguel"
     # Tentativas já gastas na página ``next_page`` (0 quando a página avança).
     next_attempt: int = 0
+    # OLX devolveu uma página anterior à pedida. Não é fim de listagem.
+    clamped: bool = False
 
 
 async def close() -> None:
@@ -369,7 +399,8 @@ async def search_listings(
     """Coleta uma janela de páginas a partir de ``start_page``.
 
     Para em: página vazia (``completed=True``), limite de páginas da janela
-    (``next_page`` preenchido), tempo restante da Lambda, ou erro de fetch/parse.
+    (``next_page`` preenchido), tempo restante da Lambda, erro de fetch/parse,
+    ou clamp da OLX (``clamped=True``, sem ``completed``).
     ``attempt`` conta falhas anteriores da página inicial; após
     ``SCRAPER_PAGE_MAX_ATTEMPTS`` a página é pulada (sem ``completed``).
     """
@@ -384,6 +415,7 @@ async def search_listings(
     page = retry_page
     pages_in_window = 0
     completed = False
+    clamped = False
     next_page: int | None = None
     next_attempt = 0
 
@@ -430,6 +462,15 @@ async def search_listings(
                 if _fail(page_attempt):
                     break
                 continue
+
+            if is_clamped_page(html, page):
+                logger.error(
+                    "OLX clampou a página %s (kind=%s) — encerrando a fatia sem completed",
+                    page,
+                    listing_kind,
+                )
+                clamped = True
+                break
 
             try:
                 page_listings = extract_listings_from_search_page(html, listing_kind=listing_kind)
@@ -496,10 +537,11 @@ async def search_listings(
 
     listings = list(listings_by_id.values())
     logger.info(
-        "Chunk kind=%s: %s listings | completed=%s | next_page=%s | next_attempt=%s",
+        "Chunk kind=%s: %s listings | completed=%s | clamped=%s | next_page=%s | next_attempt=%s",
         listing_kind,
         len(listings),
         completed,
+        clamped,
         next_page,
         next_attempt,
     )
@@ -509,6 +551,7 @@ async def search_listings(
         completed=completed,
         listing_kind=listing_kind,
         next_attempt=next_attempt,
+        clamped=clamped,
     )
 
 

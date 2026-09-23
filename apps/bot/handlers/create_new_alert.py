@@ -1,7 +1,7 @@
 """
 Wizard multi-etapas para criar um alerta (comando ``/novo_alerta``).
 
-Fluxo: KIND → CATEGORIES → PRICE → ROOMS → NEIGHBOURHOODS → NAME → CONFIRM.
+Fluxo: CITY → KIND → CATEGORIES → PRICE → ROOMS → NEIGHBOURHOODS → NAME → CONFIRM.
 Ao confirmar, grava o alerta direto no Postgres compartilhado (ADR 0005)
 e busca matches.
 """
@@ -50,6 +50,13 @@ logger = logging.getLogger(__name__)
     NAME,
     CONFIRM,
 ) = range(7)
+# Estado novo no fim para não deslocar wizards persistidos que já passaram da cidade.
+CITY = 7
+
+_CITIES = {
+    "wiz_city_maceio": "Maceió",
+    "wiz_city_recife": "Recife",
+}
 
 _RENT_PRESETS = {
     "wiz_price_preset_rent_0": (0, 800),
@@ -62,6 +69,24 @@ _SALE_PRESETS = {
     "wiz_price_preset_sale_1": (150_000, 300_000),
     "wiz_price_preset_sale_2": (300_000, 500_000),
     "wiz_price_preset_sale_3": (500_000, 99_999_999),
+}
+_RENT_PRESETS_RECIFE = {
+    "wiz_price_preset_rent_recife_0": (0, 2_500),
+    "wiz_price_preset_rent_recife_1": (2_500, 4_000),
+    "wiz_price_preset_rent_recife_2": (4_000, 7_000),
+    "wiz_price_preset_rent_recife_3": (7_000, 999_999),
+}
+_SALE_PRESETS_RECIFE = {
+    "wiz_price_preset_sale_recife_0": (0, 350_000),
+    "wiz_price_preset_sale_recife_1": (350_000, 600_000),
+    "wiz_price_preset_sale_recife_2": (600_000, 1_200_000),
+    "wiz_price_preset_sale_recife_3": (1_200_000, 99_999_999),
+}
+_PRICE_PRESETS = {
+    **_RENT_PRESETS,
+    **_SALE_PRESETS,
+    **_RENT_PRESETS_RECIFE,
+    **_SALE_PRESETS_RECIFE,
 }
 
 _ROOMS_CALLBACKS: dict[str, int | None] = {
@@ -88,6 +113,13 @@ def _get_wizard_state(context: CustomContext) -> CreateAlertWizardState:
 def _draft_kind(draft: CreateAlertDraft) -> ListingKind:
     kind = draft.get("listing_kind")
     return "venda" if kind == "venda" else "aluguel"
+
+
+def _draft_municipality(draft: CreateAlertDraft) -> str:
+    city = draft.get("municipality")
+    if city in {"Maceió", "Recife"}:
+        return city
+    return "Maceió"
 
 
 def _allowed_categories(kind: ListingKind) -> set[str]:
@@ -117,7 +149,10 @@ async def _enter_price(msg: Message, context: CustomContext) -> None:
     sent = await msg.reply_text(
         menus.wizard_preco_intro(listing_kind=kind),
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=keyboards.price_range_keyboard(listing_kind=kind),
+        reply_markup=keyboards.price_range_keyboard(
+            listing_kind=kind,
+            municipality=_draft_municipality(draft),
+        ),
     )
     state = _get_wizard_state(context)
     state["price_prompt_chat_id"] = sent.chat_id
@@ -168,7 +203,10 @@ async def _enter_neighbourhoods(msg: Message, context: CustomContext) -> None:
     kind = _draft_kind(draft)
 
     try:
-        nb_options = await get_neighbourhoods(listing_kind=kind)
+        nb_options = await get_neighbourhoods(
+            municipality=_draft_municipality(draft),
+            listing_kind=kind,
+        )
         wizard_state["neighbourhood_options"] = nb_options
     except Exception:
         logger.exception("Falha ao buscar bairros do scraper")
@@ -176,8 +214,13 @@ async def _enter_neighbourhoods(msg: Message, context: CustomContext) -> None:
         return
 
     wizard_state["neighbourhood_page"] = 0
+    intro = (
+        menus.wizard_bairros_vazios()
+        if not nb_options
+        else menus.wizard_bairros_instrucao(sel)
+    )
     await msg.reply_text(
-        menus.wizard_bairros_instrucao(sel),
+        intro,
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboards.neighborhoods_keyboard(sel, nb_options, page=0),
     )
@@ -198,6 +241,31 @@ async def new_alert_cmd(update: Update, context: CustomContext) -> int:
         except Exception:
             pass
 
+    await update.effective_message.reply_text(
+        menus.wizard_cidade_intro(),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=keyboards.city_keyboard(),
+    )
+    return CITY
+
+
+async def wiz_city_cb(update: Update, context: CustomContext) -> int:
+    assert update.effective_message is not None
+    assert update.callback_query is not None
+    assert context.user_data is not None
+
+    query = update.callback_query
+    await query.answer()
+
+    if "create_alert_draft" not in context.user_data:
+        await update.effective_message.reply_text("Sessão expirada. Use /novo_alerta novamente.")
+        return ConversationHandler.END
+
+    draft = _get_draft(context)
+    assert query.data is not None
+    draft["municipality"] = _CITIES.get(query.data, "Maceió")
+
+    await _show_choice(query, menus.wizard_cidade_escolhida(_draft_municipality(draft)))
     await update.effective_message.reply_text(
         menus.wizard_novo_alerta_intro(),
         parse_mode=ParseMode.MARKDOWN,
@@ -242,7 +310,7 @@ async def wiz_price_preset_cb(update: Update, context: CustomContext) -> int:
 
     draft = _get_draft(context)
     assert query.data is not None
-    preset_map = {**_RENT_PRESETS, **_SALE_PRESETS}
+    preset_map = _PRICE_PRESETS
     pmin, pmax = preset_map.get(query.data, (0, 999_999))
     draft["min_price"] = pmin
     draft["max_price"] = pmax
@@ -470,6 +538,7 @@ async def wiz_name(update: Update, context: CustomContext) -> int:
             nb_s=nb_s,
             name=name,
             listing_kind=_draft_kind(draft),
+            municipality=_draft_municipality(draft),
             min_rooms=draft.get("min_rooms"),
             categories=draft.get("categories"),
         ),
@@ -541,6 +610,7 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
                 max_price=draft.get("max_price"),
                 neighbourhoods=draft.get("neighbourhoods", []),
                 listing_kind=_draft_kind(draft),
+                municipality=_draft_municipality(draft),
                 min_rooms=draft.get("min_rooms"),
                 categories=draft.get("categories") or None,
             )
@@ -659,6 +729,9 @@ def new_alert_conversation() -> ConversationHandler:
             CallbackQueryHandler(new_alert_cmd, pattern="^novo_alerta$"),
         ],
         states={
+            CITY: [
+                CallbackQueryHandler(wiz_city_cb, pattern="^wiz_city_(maceio|recife)$"),
+            ],
             KIND: [
                 CallbackQueryHandler(wiz_kind_cb, pattern="^wiz_kind_(aluguel|venda)$"),
             ],

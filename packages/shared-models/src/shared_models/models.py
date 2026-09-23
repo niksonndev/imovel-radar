@@ -47,6 +47,7 @@ class Alert(BaseModel):
     id: int
     chat_id: int
     alert_name: str | None = None
+    municipality: str = "Maceió"
     min_price: int | None = None
     max_price: int | None = None
     min_rooms: int | None = None

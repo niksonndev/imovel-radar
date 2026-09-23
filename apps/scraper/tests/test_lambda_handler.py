@@ -57,6 +57,7 @@ def test_next_payload_continues_same_kind() -> None:
         }
     )
     assert nxt == {
+        "market": "maceio",
         "listing_kind": "venda",
         "slice_index": 0,
         "start_page": 51,
@@ -92,6 +93,7 @@ def test_next_payload_starts_venda_after_aluguel_complete() -> None:
         }
     )
     assert nxt == {
+        "market": "maceio",
         "listing_kind": "venda",
         "slice_index": 0,
         "start_page": 1,
@@ -111,6 +113,7 @@ def test_next_payload_advances_venda_slice_same_watermark() -> None:
         }
     )
     assert nxt == {
+        "market": "maceio",
         "listing_kind": "venda",
         "slice_index": 2,
         "start_page": 1,
@@ -119,10 +122,33 @@ def test_next_payload_advances_venda_slice_same_watermark() -> None:
     }
 
 
-def test_next_payload_none_when_last_venda_slice_complete() -> None:
-    last = len(slices_for_kind("venda")) - 1
+def test_next_payload_opens_recife_after_maceio_venda() -> None:
+    last = len(slices_for_kind("venda", "maceio")) - 1
     nxt = lambda_handler._next_payload_after_chunk(
         {
+            "market": "maceio",
+            "listing_kind": "venda",
+            "completed": True,
+            "next_page": None,
+            "slice_index": last,
+            "run_started_at": "2026-01-01T00:00:00+00:00",
+        }
+    )
+    assert nxt == {
+        "market": "recife",
+        "listing_kind": "aluguel",
+        "slice_index": 0,
+        "start_page": 1,
+        "attempt": 0,
+        "run_started_at": None,
+    }
+
+
+def test_next_payload_none_when_last_recife_venda_slice_complete() -> None:
+    last = len(slices_for_kind("venda", "recife")) - 1
+    nxt = lambda_handler._next_payload_after_chunk(
+        {
+            "market": "recife",
             "listing_kind": "venda",
             "completed": True,
             "next_page": None,
@@ -131,6 +157,29 @@ def test_next_payload_none_when_last_venda_slice_complete() -> None:
         }
     )
     assert nxt is None
+
+
+def test_next_payload_clamp_advances_slice_without_deactivate_flag_lost() -> None:
+    nxt = lambda_handler._next_payload_after_chunk(
+        {
+            "market": "recife",
+            "listing_kind": "venda",
+            "completed": False,
+            "clamped": True,
+            "next_page": None,
+            "slice_index": 1,
+            "run_started_at": "2026-01-01T00:00:00+00:00",
+        }
+    )
+    assert nxt == {
+        "market": "recife",
+        "listing_kind": "venda",
+        "slice_index": 2,
+        "start_page": 1,
+        "attempt": 0,
+        "run_started_at": "2026-01-01T00:00:00+00:00",
+        "skip_deactivate": True,
+    }
 
 
 def test_root_logger_honors_config_level() -> None:

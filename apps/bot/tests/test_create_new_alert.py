@@ -1,5 +1,5 @@
 from handlers.create_new_alert import _removed_inline_keyboard, new_alert_conversation
-from handlers.ui import menus
+from handlers.ui import keyboards, menus
 
 
 def test_new_alert_conversation_is_persistent() -> None:
@@ -43,3 +43,24 @@ def test_wizard_choice_messages_replace_the_question() -> None:
         min_price=800,
         max_price=1500,
     )
+    assert menus.wizard_cidade_escolhida("Recife") == "📍 *Cidade:* Recife"
+    assert "primeira coleta" in menus.wizard_bairros_vazios()
+    assert "Maceió e Recife" in menus.start_welcome()
+
+
+def test_price_presets_depend_on_city() -> None:
+    def labels(markup) -> list[str]:
+        return [button.text for row in markup.inline_keyboard for button in row]
+
+    maceio = labels(keyboards.price_range_keyboard(listing_kind="aluguel", municipality="Maceió"))
+    recife = labels(keyboards.price_range_keyboard(listing_kind="aluguel", municipality="Recife"))
+    recife_sale = labels(
+        keyboards.price_range_keyboard(listing_kind="venda", municipality="Recife")
+    )
+
+    assert "Até R$ 800" in maceio
+    assert "Até R$ 2.500" in recife
+    assert "Até R$ 800" not in recife
+    assert "Até R$ 350 mil" in recife_sale
+    assert "Personalizado" in recife
+    assert "Personalizado" in recife_sale

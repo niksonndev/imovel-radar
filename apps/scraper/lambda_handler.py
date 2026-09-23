@@ -7,10 +7,12 @@ migrations (Alembic é step do pipeline — ADR 0004) e não importa o FastAPI.
 Event payload (EventBridge ou self-invoke)::
 
     {
+      "market": "maceio" | "recife",
       "listing_kind": "aluguel" | "venda",
       "slice_index": 0,
       "start_page": 1,
       "attempt": 0,
+      "skip_deactivate": false,
       "run_started_at": "<iso8601>"
     }
 
@@ -59,6 +61,7 @@ def _event_payload(event: dict | None) -> dict[str, Any]:
         or "start_page" in detail
         or "run_started_at" in detail
         or "slice_index" in detail
+        or "market" in detail
     ):
         return detail
     return event
@@ -85,47 +88,99 @@ def _self_invoke(payload: dict[str, Any]) -> None:
     logger.info("Self-invoke enfileirado: %s", payload)
 
 
+def _cursor(
+    *,
+    market: str,
+    listing_kind: str,
+    slice_index: int,
+    start_page: int,
+    attempt: int,
+    run_started_at: str | None,
+    skip_deactivate: bool,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "market": market,
+        "listing_kind": listing_kind,
+        "slice_index": slice_index,
+        "start_page": start_page,
+        "attempt": attempt,
+        "run_started_at": run_started_at,
+    }
+    if skip_deactivate:
+        payload["skip_deactivate"] = True
+    return payload
+
+
 def _next_payload_after_chunk(result: dict[str, Any]) -> dict[str, Any] | None:
-    """Próximo cursor: mais páginas da fatia, próxima fatia, ou venda após aluguel.
+    """Próximo cursor: mais páginas, próxima fatia, venda, ou a próxima cidade.
 
     A watermark (``run_started_at``) não muda entre fatias do mesmo kind.
-    Só zera ao abrir a venda, para o deactivate final não misturar com o aluguel.
+    Zera ao abrir a venda ou outra cidade, para o deactivate não misturar coletas.
+    Um clamp da OLX encerra a fatia sem ``completed`` e impede o deactivate
+    daquele kind; a cadeia segue para a próxima fatia ou cidade.
     """
     kind = result["listing_kind"]
+    market = str(result.get("market") or "maceio")
     run_started_at = result["run_started_at"]
     slice_index = int(result.get("slice_index") or 0)
     attempt = int(result.get("attempt") or 0)
+    skip_deactivate = bool(result.get("skip_deactivate"))
+    clamped = bool(result.get("clamped"))
 
-    if not result.get("completed") and result.get("next_page"):
-        return {
-            "listing_kind": kind,
-            "slice_index": slice_index,
-            "start_page": int(result["next_page"]),
-            "attempt": attempt,
-            "run_started_at": run_started_at,
-        }
+    if not result.get("completed") and result.get("next_page") and not clamped:
+        return _cursor(
+            market=market,
+            listing_kind=kind,
+            slice_index=slice_index,
+            start_page=int(result["next_page"]),
+            attempt=attempt,
+            run_started_at=run_started_at,
+            skip_deactivate=skip_deactivate,
+        )
 
-    if result.get("completed"):
-        next_slice = slice_index + 1
-        if next_slice < len(slices_for_kind(kind)):
-            return {
-                "listing_kind": kind,
-                "slice_index": next_slice,
-                "start_page": 1,
-                "attempt": 0,
-                "run_started_at": run_started_at,
-            }
-        if kind == "aluguel":
-            # Nova watermark para a coleta de venda (não misturar com aluguel).
-            return {
-                "listing_kind": "venda",
-                "slice_index": 0,
-                "start_page": 1,
-                "attempt": 0,
-                "run_started_at": None,
-            }
+    slice_finished = bool(result.get("completed")) or clamped
+    if not slice_finished:
+        return None
 
-    return None
+    if clamped:
+        skip_deactivate = True
+
+    next_slice = slice_index + 1
+    if next_slice < len(slices_for_kind(kind, market)):
+        return _cursor(
+            market=market,
+            listing_kind=kind,
+            slice_index=next_slice,
+            start_page=1,
+            attempt=0,
+            run_started_at=run_started_at,
+            skip_deactivate=skip_deactivate,
+        )
+
+    if kind == "aluguel":
+        # Nova watermark para a venda (não misturar com o aluguel).
+        return _cursor(
+            market=market,
+            listing_kind="venda",
+            slice_index=0,
+            start_page=1,
+            attempt=0,
+            run_started_at=None,
+            skip_deactivate=False,
+        )
+
+    nxt = config.next_market(market)
+    if nxt is None:
+        return None
+    return _cursor(
+        market=nxt.key,
+        listing_kind="aluguel",
+        slice_index=0,
+        start_page=1,
+        attempt=0,
+        run_started_at=None,
+        skip_deactivate=False,
+    )
 
 
 async def run(
@@ -135,16 +190,20 @@ async def run(
 ) -> dict[str, Any]:
     payload = _event_payload(event)
     listing_kind = normalize_kind(payload.get("listing_kind"))
+    market = str(payload.get("market") or "maceio")
     start_page = int(payload.get("start_page") or 1)
     slice_index = int(payload.get("slice_index") or 0)
     attempt = int(payload.get("attempt") or 0)
+    skip_deactivate = bool(payload.get("skip_deactivate"))
     run_started_at = parse_run_started_at(payload.get("run_started_at"))
 
     result = await job_collect_chunk(
         listing_kind=listing_kind,
+        market=market,
         start_page=start_page,
         slice_index=slice_index,
         attempt=attempt,
+        skip_deactivate=skip_deactivate,
         run_started_at=run_started_at,
         get_remaining_ms=get_remaining_ms,
     )
@@ -162,9 +221,11 @@ async def run(
     return {
         "success": result.get("success", 0),
         "count": result.get("count", 0),
+        "market": result.get("market", market),
         "listing_kind": result.get("listing_kind"),
         "slice_index": result.get("slice_index", slice_index),
         "completed": result.get("completed", False),
+        "clamped": result.get("clamped", False),
         "next_page": result.get("next_page"),
         "attempt": result.get("attempt", 0),
         "deactivated": result.get("deactivated", 0),

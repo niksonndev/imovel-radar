@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
@@ -40,14 +41,42 @@ SCRAPER_FETCH_RETRIES = int(os.getenv("SCRAPER_FETCH_RETRIES", "3"))
 # Falhas da mesma página em invocações seguidas antes de pulá-la (sem completed).
 SCRAPER_PAGE_MAX_ATTEMPTS = int(os.getenv("SCRAPER_PAGE_MAX_ATTEMPTS", "3"))
 
-# Venda Maceió: fatias (ps inclusive, pe inclusive). None = lado aberto.
-# Cortadas para cada URL ficar abaixo de ~5k anúncios pagináveis.
-SALE_PRICE_SLICES: tuple[tuple[int | None, int | None], ...] = (
+# Fatias (ps inclusive, pe inclusive). None = lado aberto.
+# Cada URL fica abaixo do teto de paginação da OLX (~5k anúncios / 100 páginas).
+PriceSlice = tuple[int | None, int | None]
+
+# Venda Maceió. Medido em 23 set 2026: maior fatia 3.504.
+SALE_PRICE_SLICES: tuple[PriceSlice, ...] = (
     (None, 300_000),
     (300_000, 500_000),
     (500_000, 700_000),
     (700_000, 1_000_000),
     (1_000_000, None),
+)
+
+# Aluguel Recife (~8.020). Uma fatia só passaria da página 100.
+RECIFE_RENT_SLICES: tuple[PriceSlice, ...] = (
+    (None, 3_000),
+    (3_000, 5_000),
+    (5_000, None),
+)
+
+# Venda Recife (~41.259). Cortada para cada faixa ficar abaixo de ~4.500.
+RECIFE_SALE_SLICES: tuple[PriceSlice, ...] = (
+    (None, 250_000),
+    (250_000, 350_000),
+    (350_000, 400_000),
+    (400_000, 450_000),
+    (450_000, 500_000),
+    (500_000, 550_000),
+    (550_000, 600_000),
+    (600_000, 700_000),
+    (700_000, 900_000),
+    (900_000, 1_200_000),
+    (1_200_000, 1_400_000),
+    (1_400_000, 1_800_000),
+    (1_800_000, 2_500_000),
+    (2_500_000, None),
 )
 
 # Marcador textual do estado "sem resultados" do OLX (fim normal da listagem)
@@ -64,7 +93,67 @@ MACEIO_SALE_LISTINGS_URL = os.getenv(
     "MACEIO_SALE_LISTINGS_URL",
     f"{OLX_BASE_URL}/imoveis/venda/estado-al/alagoas/maceio",
 ).strip()
+RECIFE_RENT_LISTINGS_URL = os.getenv(
+    "RECIFE_RENT_LISTINGS_URL",
+    f"{OLX_BASE_URL}/imoveis/aluguel/estado-pe/grande-recife/recife",
+).strip()
+RECIFE_SALE_LISTINGS_URL = os.getenv(
+    "RECIFE_SALE_LISTINGS_URL",
+    f"{OLX_BASE_URL}/imoveis/venda/estado-pe/grande-recife/recife",
+).strip()
 OLX_REFERER = (os.getenv("OLX_REFERER") or f"{OLX_BASE_URL}/").strip()
+
+
+@dataclass(frozen=True)
+class Market:
+    """Uma cidade coletada: URLs de aluguel/venda e fatias de preço."""
+
+    key: str
+    municipality: str
+    rent_url: str
+    sale_url: str
+    rent_slices: tuple[PriceSlice, ...]
+    sale_slices: tuple[PriceSlice, ...]
+
+
+# Maceió primeiro: o notify das 10:00 ainda vê a cidade atual antes de Recife.
+MARKETS: tuple[Market, ...] = (
+    Market(
+        key="maceio",
+        municipality="Maceió",
+        rent_url=MACEIO_RENT_LISTINGS_URL,
+        sale_url=MACEIO_SALE_LISTINGS_URL,
+        rent_slices=((None, None),),
+        sale_slices=SALE_PRICE_SLICES,
+    ),
+    Market(
+        key="recife",
+        municipality="Recife",
+        rent_url=RECIFE_RENT_LISTINGS_URL,
+        sale_url=RECIFE_SALE_LISTINGS_URL,
+        rent_slices=RECIFE_RENT_SLICES,
+        sale_slices=RECIFE_SALE_SLICES,
+    ),
+)
+
+
+def market_by_key(key: str | None) -> Market:
+    """Evento sem ``market`` (ou chave desconhecida) continua em Maceió."""
+    if key:
+        for market in MARKETS:
+            if market.key == key:
+                return market
+    return MARKETS[0]
+
+
+def next_market(key: str | None) -> Market | None:
+    current = market_by_key(key)
+    keys = [market.key for market in MARKETS]
+    index = keys.index(current.key) + 1
+    if index >= len(MARKETS):
+        return None
+    return MARKETS[index]
+
 
 # Páginas por invocação Lambda (cabe no timeout com margem para um GET de 90s)
 SCRAPER_PAGES_PER_INVOKE = int(os.getenv("SCRAPER_PAGES_PER_INVOKE", "50"))

@@ -114,9 +114,17 @@ async def mark_pro_subscription_canceled(chat_id: int) -> User | None:
 
 
 # ── Listings / bairros (read-only) ─────────────────────────────────────────
-async def get_neighbourhoods(*, listing_kind: ListingKind | None = None) -> list[str]:
+async def get_neighbourhoods(
+    *,
+    municipality: str = "Maceió",
+    listing_kind: ListingKind | None = None,
+) -> list[str]:
     with Session(get_engine()) as session:
-        return queries.get_neighbourhoods(session, listing_kind=listing_kind)
+        return queries.get_neighbourhoods(
+            session,
+            municipality,
+            listing_kind=listing_kind,
+        )
 
 
 # ── Alerts (dona: bot) ─────────────────────────────────────────────────────
@@ -128,6 +136,7 @@ async def create_alert(
     max_price: int | None = None,
     neighbourhoods: list[str],
     listing_kind: ListingKind = "aluguel",
+    municipality: str = "Maceió",
     min_rooms: int | None = None,
     categories: list[str] | None = None,
 ) -> CreateAlertResult:
@@ -142,6 +151,7 @@ async def create_alert(
             max_price=max_price,
             neighbourhoods=neighbourhoods,
             listing_kind=listing_kind,
+            municipality=municipality,
             min_rooms=min_rooms,
             categories=categories,
         )
@@ -163,6 +173,7 @@ async def create_alert(
             max_price=max_price,
             neighbourhoods=neighbourhoods,
             listing_kind=listing_kind,
+            municipality=municipality,
             min_rooms=min_rooms,
             categories=categories,
         )

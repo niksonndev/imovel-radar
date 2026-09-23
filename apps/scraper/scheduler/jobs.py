@@ -22,16 +22,19 @@ from database.queries import deactivate_missing_listings, upsert_listing
 
 logger = logging.getLogger(__name__)
 
-MUNICIPALITY = "Maceió"
 RemainingTimeFn = Callable[[], int | None]
 PriceSlice = tuple[int | None, int | None]
 
 
-def slices_for_kind(listing_kind: ListingKind) -> list[PriceSlice]:
-    """Fatias de preço da coleta. Aluguel é uma fatia só, sem filtro de preço."""
+def slices_for_kind(
+    listing_kind: ListingKind,
+    market: str | None = None,
+) -> list[PriceSlice]:
+    """Fatias de preço da coleta daquele mercado e tipo."""
+    chosen = config.market_by_key(market)
     if listing_kind == "venda":
-        return list(config.SALE_PRICE_SLICES)
-    return [(None, None)]
+        return list(chosen.sale_slices)
+    return list(chosen.rent_slices)
 
 
 def should_deactivate_after_slice(
@@ -39,10 +42,14 @@ def should_deactivate_after_slice(
     slice_index: int,
     *,
     completed: bool,
+    market: str | None = None,
+    skip_deactivate: bool = False,
 ) -> bool:
     """Desativa só quando a última fatia do kind terminou de verdade."""
-    slices = slices_for_kind(listing_kind)
-    return completed and slice_index == len(slices) - 1
+    if skip_deactivate or not completed:
+        return False
+    slices = slices_for_kind(listing_kind, market)
+    return slice_index == len(slices) - 1
 
 
 def parse_run_started_at(raw: str | None) -> datetime:
@@ -66,28 +73,35 @@ def normalize_kind(raw: Any) -> ListingKind:
 async def job_collect_chunk(
     *,
     listing_kind: ListingKind = "aluguel",
+    market: str | None = None,
     start_page: int = 1,
     slice_index: int = 0,
     attempt: int = 0,
+    skip_deactivate: bool = False,
     run_started_at: datetime | None = None,
     get_remaining_ms: RemainingTimeFn | None = None,
 ) -> dict[str, Any]:
     """Coleta uma janela de páginas de uma fatia e persiste.
 
     Returns:
-      success, count, listing_kind, slice_index, completed, next_page, attempt,
-      run_started_at (iso), deactivated (int, só na última fatia concluída).
+      success, count, market, listing_kind, slice_index, completed, clamped,
+      next_page, attempt, run_started_at (iso), deactivated (int, só na última
+      fatia concluída), skip_deactivate.
     """
+    chosen = config.market_by_key(market)
     started = run_started_at or datetime.now(UTC)
-    slices = slices_for_kind(listing_kind)
+    slices = slices_for_kind(listing_kind, chosen.key)
     result: dict[str, Any] = {
         "success": 0,
         "count": 0,
+        "market": chosen.key,
         "listing_kind": listing_kind,
         "slice_index": slice_index,
         "completed": False,
+        "clamped": False,
         "next_page": None,
         "attempt": attempt,
+        "skip_deactivate": skip_deactivate,
         "run_started_at": started.isoformat(),
         "deactivated": 0,
     }
@@ -103,8 +117,9 @@ async def job_collect_chunk(
     price_min, price_max = slices[slice_index]
     try:
         logger.info(
-            "Collect chunk: start kind=%s slice=%s/%s page=%s attempt=%s "
+            "Collect chunk: start market=%s kind=%s slice=%s/%s page=%s attempt=%s "
             "ps=%s pe=%s run_started_at=%s",
+            chosen.key,
             listing_kind,
             slice_index,
             len(slices) - 1,
@@ -115,7 +130,7 @@ async def job_collect_chunk(
             started.isoformat(),
         )
         chunk = await search_listings(
-            base_url_for_kind(listing_kind),
+            base_url_for_kind(listing_kind, market_key=chosen.key),
             listing_kind=listing_kind,
             start_page=start_page,
             price_min=price_min,
@@ -127,6 +142,8 @@ async def job_collect_chunk(
             listing_kind,
             slice_index,
             completed=chunk.completed,
+            market=chosen.key,
+            skip_deactivate=skip_deactivate or chunk.clamped,
         )
         with Session(engine) as session:
             for listing in chunk.listings:
@@ -135,7 +152,7 @@ async def job_collect_chunk(
             if deactivate:
                 deactivated = deactivate_missing_listings(
                     session,
-                    municipality=MUNICIPALITY,
+                    municipality=chosen.municipality,
                     listing_kind=listing_kind,
                     run_started_at=started,
                 )
@@ -156,15 +173,20 @@ async def job_collect_chunk(
         result["success"] = 1
         result["count"] = len(chunk.listings)
         result["completed"] = chunk.completed
+        result["clamped"] = chunk.clamped
         result["next_page"] = chunk.next_page
         result["attempt"] = chunk.next_attempt
+        result["skip_deactivate"] = skip_deactivate or chunk.clamped
         result["deactivated"] = deactivated
         logger.info(
-            "Collect chunk: end kind=%s slice=%s count=%s completed=%s next_page=%s attempt=%s",
+            "Collect chunk: end market=%s kind=%s slice=%s count=%s completed=%s "
+            "clamped=%s next_page=%s attempt=%s",
+            chosen.key,
             listing_kind,
             slice_index,
             result["count"],
             chunk.completed,
+            chunk.clamped,
             chunk.next_page,
             chunk.next_attempt,
         )
@@ -175,13 +197,14 @@ async def job_collect_chunk(
 
 
 async def job_daily() -> dict[str, int]:
-    """Compat local/manual: coleta aluguel até o fim (uma janela grande)."""
+    """Compat local/manual: coleta aluguel de Maceió até o fim (uma janela grande)."""
+    maceio = config.market_by_key("maceio")
     started = datetime.now(UTC)
     total = 0
     page = 1
     while True:
         chunk = await search_listings(
-            base_url_for_kind("aluguel"),
+            base_url_for_kind("aluguel", market_key=maceio.key),
             listing_kind="aluguel",
             start_page=page,
             max_pages=config.SCRAPER_MAX_PAGES,
@@ -189,10 +212,10 @@ async def job_daily() -> dict[str, int]:
         with Session(engine) as session:
             for listing in chunk.listings:
                 upsert_listing(session, listing)
-            if chunk.completed:
+            if chunk.completed and not chunk.clamped:
                 deactivate_missing_listings(
                     session,
-                    municipality=MUNICIPALITY,
+                    municipality=maceio.municipality,
                     listing_kind="aluguel",
                     run_started_at=started,
                 )

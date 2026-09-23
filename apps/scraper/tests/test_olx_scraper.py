@@ -210,6 +210,52 @@ def test_listings_url_sorts_by_recent_and_keeps_page_query() -> None:
     assert _listings_url(f"{_RENT}?sf=1", 2) == f"{_RENT}?sf=1&o=2"
 
 
+_RECIFE_SALE = "https://www.olx.com.br/imoveis/venda/estado-pe/grande-recife/recife"
+
+
+def test_listings_url_recife_keeps_recent_sort() -> None:
+    assert _listings_url(_RECIFE_SALE, 1) == f"{_RECIFE_SALE}?sf=1"
+    assert (
+        _listings_url(_RECIFE_SALE, 2, price_min=300_000, price_max=350_000)
+        == f"{_RECIFE_SALE}?sf=1&ps=300000&pe=350000&o=2"
+    )
+
+
+def test_search_listings_clamp_does_not_complete(monkeypatch) -> None:
+    async def fake_fetch(url: str, headers=None) -> str:
+        del url, headers
+        return (
+            "<html><head><title>"
+            "Imóveis à venda - Recife, PE - Página 100 | OLX"
+            "</title></head><body></body></html>"
+        )
+
+    async def fake_close() -> None:
+        return None
+
+    def explode(html: str, *, listing_kind: str = "aluguel"):
+        del html, listing_kind
+        raise AssertionError("página clampada não deve ser extraída")
+
+    monkeypatch.setattr(olx_scraper, "fetch", fake_fetch)
+    monkeypatch.setattr(olx_scraper, "close", fake_close)
+    monkeypatch.setattr(olx_scraper, "extract_listings_from_search_page", explode)
+
+    chunk = asyncio.run(
+        olx_scraper.search_listings(
+            _RECIFE_SALE,
+            listing_kind="venda",
+            start_page=101,
+            max_pages=2,
+        )
+    )
+
+    assert chunk.completed is False
+    assert chunk.clamped is True
+    assert chunk.next_page is None
+    assert chunk.listings == []
+
+
 def test_listings_url_price_slice() -> None:
     assert _listings_url(_SALE, 1, price_max=300_000) == f"{_SALE}?sf=1&pe=300000"
     assert (

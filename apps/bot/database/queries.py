@@ -216,6 +216,7 @@ def create_alert(
     max_price: int | None,
     neighbourhoods: list[str] | None,
     listing_kind: ListingKind = "aluguel",
+    municipality: str = "Maceió",
     min_rooms: int | None = None,
     categories: list[str] | None = None,
 ) -> int:
@@ -224,6 +225,7 @@ def create_alert(
         chat_id=chat_id,
         alert_name=alert_name,
         listing_kind=listing_kind,
+        municipality=municipality,
         min_price=min_price,
         max_price=max_price,
         min_rooms=min_rooms,
@@ -245,6 +247,7 @@ def find_equivalent_alert(
     max_price: int | None,
     neighbourhoods: list[str] | None,
     listing_kind: ListingKind = "aluguel",
+    municipality: str = "Maceió",
     min_rooms: int | None = None,
     categories: list[str] | None = None,
 ) -> Alert | None:
@@ -254,6 +257,7 @@ def find_equivalent_alert(
     for alert in get_alerts_for_user(session, chat_id):
         if (
             alert.listing_kind == listing_kind
+            and (alert.municipality or "Maceió") == municipality
             and alert.min_price == min_price
             and alert.max_price == max_price
             and alert.min_rooms == min_rooms
@@ -334,9 +338,11 @@ def _baseline_price(listing: Listing) -> int | None:
 
 # ── Match / notificação (lê listing, escreve alert_matches) ────────────────
 def get_unnotified_listings_for_alert(session: Session, alert: Alert) -> list[Listing]:
+    municipality = alert.municipality or "Maceió"
     conditions = [
         Listing.active.is_(True),  # type: ignore[union-attr]
         Listing.listing_kind == alert.listing_kind,
+        Listing.municipality == municipality,
         AlertMatch.listing_id.is_(None),  # type: ignore[union-attr]
     ]
     if (min_price := alert.min_price) is not None:

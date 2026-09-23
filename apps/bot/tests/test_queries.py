@@ -42,6 +42,84 @@ def test_create_alert_and_find_equivalent(session: Session) -> None:
     )
     assert missing is None
 
+    other_city = queries.find_equivalent_alert(
+        session,
+        chat_id=123456,
+        min_price=800,
+        max_price=1500,
+        neighbourhoods=["Jatiúca", "Ponta Verde"],
+        listing_kind="aluguel",
+        municipality="Recife",
+    )
+    assert other_city is None
+
+
+def test_unnotified_listings_stay_in_the_alert_city(session: Session) -> None:
+    session.add(User(chat_id=321))
+    session.add(
+        Listing(
+            listing_id=1,
+            url="https://ex/1",
+            title="Centro Maceió",
+            price_value=1200,
+            municipality="Maceió",
+            neighbourhood="Centro",
+            category="Apartamentos",
+            images=["https://img/1.webp"],
+            properties={},
+            listing_kind="aluguel",
+            active=True,
+        )
+    )
+    session.add(
+        Listing(
+            listing_id=2,
+            url="https://ex/2",
+            title="Centro Recife",
+            price_value=1200,
+            municipality="Recife",
+            neighbourhood="Centro",
+            category="Apartamentos",
+            images=["https://img/2.webp"],
+            properties={},
+            listing_kind="aluguel",
+            active=True,
+        )
+    )
+    session.commit()
+
+    alert_id = queries.create_alert(
+        session,
+        chat_id=321,
+        alert_name="Qualquer bairro",
+        min_price=500,
+        max_price=2000,
+        neighbourhoods=[],
+        listing_kind="aluguel",
+    )
+    session.commit()
+    alert = queries.get_alert_for_user(session, 321, alert_id)
+    assert alert is not None
+    assert alert.municipality == "Maceió"
+    maceio_matches = queries.get_unnotified_listings_for_alert(session, alert)
+    assert [item.listing_id for item in maceio_matches] == [1]
+
+    recife_id = queries.create_alert(
+        session,
+        chat_id=321,
+        alert_name="Recife",
+        min_price=500,
+        max_price=2000,
+        neighbourhoods=[],
+        listing_kind="aluguel",
+        municipality="Recife",
+    )
+    session.commit()
+    recife = queries.get_alert_for_user(session, 321, recife_id)
+    assert recife is not None
+    recife_matches = queries.get_unnotified_listings_for_alert(session, recife)
+    assert [item.listing_id for item in recife_matches] == [2]
+
 
 def test_equivalent_alert_differs_by_listing_kind(session: Session) -> None:
     session.add(User(chat_id=99))

@@ -165,6 +165,10 @@ class Alert(SQLModel, table=True):
             "listing_kind IN ('aluguel', 'venda')",
             name="ck_alert_listing_kind",
         ),
+        CheckConstraint(
+            "municipality IN ('Maceió', 'Recife')",
+            name="ck_alert_municipality",
+        ),
     )
 
     id: int | None = Field(default=None, primary_key=True)
@@ -179,6 +183,15 @@ class Alert(SQLModel, table=True):
             Text,
             nullable=False,
             server_default=text("'aluguel'"),
+        ),
+    )
+    municipality: str = Field(
+        default="Maceió",
+        sa_column=Column(
+            "municipality",
+            Text,
+            nullable=False,
+            server_default=text("'Maceió'"),
         ),
     )
     min_price: int | None = None

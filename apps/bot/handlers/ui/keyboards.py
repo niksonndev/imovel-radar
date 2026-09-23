@@ -37,6 +37,17 @@ def _neighbourhoods_done_caption(n_selected: int) -> str:
     return label[:_INLINE_BTN_TEXT_MAX]
 
 
+def city_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("Maceió", callback_data="wiz_city_maceio"),
+                InlineKeyboardButton("Recife", callback_data="wiz_city_recife"),
+            ]
+        ]
+    )
+
+
 def listing_kind_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
@@ -48,8 +59,26 @@ def listing_kind_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def price_range_keyboard(*, listing_kind: str = "aluguel") -> InlineKeyboardMarkup:
-    if listing_kind == "venda":
+def price_range_keyboard(
+    *,
+    listing_kind: str = "aluguel",
+    municipality: str = "Maceió",
+) -> InlineKeyboardMarkup:
+    if municipality == "Recife" and listing_kind == "venda":
+        presets = [
+            ("wiz_price_preset_sale_recife_0", "Até R$ 350 mil"),
+            ("wiz_price_preset_sale_recife_1", "R$ 350 – 600 mil"),
+            ("wiz_price_preset_sale_recife_2", "R$ 600 mil – 1,2 mi"),
+            ("wiz_price_preset_sale_recife_3", "R$ 1,2 mi+"),
+        ]
+    elif municipality == "Recife":
+        presets = [
+            ("wiz_price_preset_rent_recife_0", "Até R$ 2.500"),
+            ("wiz_price_preset_rent_recife_1", "R$ 2.500 – R$ 4.000"),
+            ("wiz_price_preset_rent_recife_2", "R$ 4.000 – R$ 7.000"),
+            ("wiz_price_preset_rent_recife_3", "R$ 7.000+"),
+        ]
+    elif listing_kind == "venda":
         presets = [
             ("wiz_price_preset_sale_0", "Até R$ 150 mil"),
             ("wiz_price_preset_sale_1", "R$ 150 – 300 mil"),

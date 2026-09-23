@@ -19,6 +19,7 @@ class CreateAlertDraft(TypedDict, total=False):
     """Estado parcial durante o fluxo incremental de criação de alerta."""
 
     alert_name: str
+    municipality: str
     listing_kind: ListingKind
     min_price: int
     max_price: int
