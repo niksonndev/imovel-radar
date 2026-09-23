@@ -1,11 +1,12 @@
 import { DatabaseClient, CommentLogRecord } from '../../infrastructure/database/client.js';
 import { LLMService, CommentAnalysis } from '../../infrastructure/ai/llm-service.js';
-import { InstagramClient, InstagramComment } from '../../infrastructure/instagram/types.js';
+import { SocialClient, SocialComment } from '../../infrastructure/social/types.js';
 
 export interface CommentAgentOptions {
   db: DatabaseClient;
   llm: LLMService;
-  instagramClient: InstagramClient;
+  instagramClient?: SocialClient;
+  socialClient?: SocialClient;
   autoHideSpam?: boolean;
   autoReply?: boolean;
 }
@@ -23,7 +24,7 @@ export interface ProcessedCommentResult {
 export class CommentAgent {
   private db: DatabaseClient;
   private llm: LLMService;
-  private instagramClient: InstagramClient;
+  private socialClient: SocialClient;
   private autoHideSpam: boolean;
   private autoReply: boolean;
   private processedCommentIds: Set<string> = new Set();
@@ -31,16 +32,24 @@ export class CommentAgent {
   constructor(options: CommentAgentOptions) {
     this.db = options.db;
     this.llm = options.llm;
-    this.instagramClient = options.instagramClient;
+    const client = options.socialClient || options.instagramClient;
+    if (!client) {
+      throw new Error('CommentAgent requer socialClient ou instagramClient');
+    }
+    this.socialClient = client;
     this.autoHideSpam = options.autoHideSpam ?? true;
     this.autoReply = options.autoReply ?? true;
+  }
+
+  get instagramClient(): SocialClient {
+    return this.socialClient;
   }
 
   /**
    * Processa um comentário recebido (por polling ou por webhook em tempo real)
    */
   async processComment(
-    comment: InstagramComment,
+    comment: SocialComment,
     mediaId: string
   ): Promise<ProcessedCommentResult> {
     if (this.processedCommentIds.has(comment.id) || (comment.replies && comment.replies.length > 0)) {
@@ -68,13 +77,21 @@ export class CommentAgent {
 
     // 2. Se for SPAM e autoHide ativo -> oculta o comentário
     if (analysis.intent === 'SPAM' && analysis.shouldHide && this.autoHideSpam) {
-      await this.instagramClient.hideComment(comment.id);
-      actionTaken = 'HIDDEN';
+      if (this.socialClient.capabilities.hideComment) {
+        await this.socialClient.hideComment(comment.id);
+        actionTaken = 'HIDDEN';
+      } else {
+        actionTaken = 'IGNORED';
+      }
     } else if (this.autoReply && analysis.suggestedReply) {
       // 3. Responde comentários legítimos
-      await this.instagramClient.replyComment(comment.id, analysis.suggestedReply);
-      actionTaken = 'REPLIED';
-      replyText = analysis.suggestedReply;
+      if (this.socialClient.capabilities.replyComment) {
+        await this.socialClient.replyComment(comment.id, analysis.suggestedReply);
+        actionTaken = 'REPLIED';
+        replyText = analysis.suggestedReply;
+      } else {
+        actionTaken = 'IGNORED';
+      }
     }
 
     // 4. Marca como processado
@@ -83,6 +100,7 @@ export class CommentAgent {
     // 5. Registra log para auditoria e histórico
     const log: CommentLogRecord = {
       id: `comment_log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      platform: this.socialClient.platform,
       commentId: comment.id,
       mediaId,
       username: comment.username,
@@ -109,7 +127,7 @@ export class CommentAgent {
    * Varre e processa todos os comentários de uma mídia específica
    */
   async processMediaComments(mediaId: string): Promise<ProcessedCommentResult[]> {
-    const comments = await this.instagramClient.getComments(mediaId);
+    const comments = await this.socialClient.getComments(mediaId);
     const results: ProcessedCommentResult[] = [];
 
     for (const comment of comments) {
@@ -124,24 +142,21 @@ export class CommentAgent {
   }
 
   /**
-   * Varre e processa comentários em todas as mídias recentes da conta
+   * Varre os posts mais recentes da conta e modera novos comentários
    */
-  async processRecentPostsComments(mediaLimit = 5): Promise<ProcessedCommentResult[]> {
-    const recentMedia = await this.instagramClient.getRecentMedia(mediaLimit);
+  async processRecentPostsComments(limit = 3): Promise<ProcessedCommentResult[]> {
+    const recent = await this.socialClient.getRecentMedia(limit);
     const allResults: ProcessedCommentResult[] = [];
 
-    for (const media of recentMedia) {
-      const results = await this.processMediaComments(media.id);
+    for (const item of recent) {
+      const results = await this.processMediaComments(item.id);
       allResults.push(...results);
     }
 
     return allResults;
   }
 
-  /**
-   * Retorna os logs de interações salvas no banco
-   */
   async getLogs(): Promise<CommentLogRecord[]> {
-    return this.db.getCommentLogs();
+    return this.db.getCommentLogs(this.socialClient.platform);
   }
 }

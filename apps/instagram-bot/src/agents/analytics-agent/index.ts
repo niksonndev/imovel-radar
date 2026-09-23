@@ -5,21 +5,22 @@ import {
 import { LLMService, PerformanceAnalysis } from '../../infrastructure/ai/llm-service.js';
 import {
   AccountInsights,
-  InstagramClient,
-  InstagramMedia,
+  SocialClient,
+  SocialMedia,
   MediaInsights,
-} from '../../infrastructure/instagram/types.js';
+} from '../../infrastructure/social/types.js';
 import { ContentManagerAgent } from '../content-manager/index.js';
 
 export interface AnalyticsAgentOptions {
   db: DatabaseClient;
   llm: LLMService;
-  instagramClient: InstagramClient;
+  instagramClient?: SocialClient;
+  socialClient?: SocialClient;
   contentManager?: ContentManagerAgent;
 }
 
 export interface MediaPerformanceItem {
-  media: InstagramMedia;
+  media: SocialMedia;
   insights: MediaInsights;
   engagementRate: number;
 }
@@ -44,14 +45,22 @@ export interface AnalyticsReport {
 export class AnalyticsAgent {
   private db: DatabaseClient;
   private llm: LLMService;
-  private instagramClient: InstagramClient;
+  private socialClient: SocialClient;
   private contentManager?: ContentManagerAgent;
 
   constructor(options: AnalyticsAgentOptions) {
     this.db = options.db;
     this.llm = options.llm;
-    this.instagramClient = options.instagramClient;
+    const client = options.socialClient || options.instagramClient;
+    if (!client) {
+      throw new Error('AnalyticsAgent requer socialClient ou instagramClient');
+    }
+    this.socialClient = client;
     this.contentManager = options.contentManager;
+  }
+
+  get instagramClient(): SocialClient {
+    return this.socialClient;
   }
 
   /**
@@ -59,8 +68,8 @@ export class AnalyticsAgent {
    * e gera o relatório completo de performance com IA.
    */
   async generateReport(period: 'day' | 'week' | 'days_28' = 'week'): Promise<AnalyticsReport> {
-    const account = await this.instagramClient.getAccountInsights(period);
-    const recentMedia = await this.instagramClient.getRecentMedia(10);
+    const account = await this.socialClient.getAccountInsights(period);
+    const recentMedia = await this.socialClient.getRecentMedia(10);
 
     const mediaPerformance: MediaPerformanceItem[] = [];
     let totalReach = 0;
@@ -70,7 +79,7 @@ export class AnalyticsAgent {
     let totalInteractions = 0;
 
     for (const media of recentMedia) {
-      const insights = await this.instagramClient.getMediaInsights(media.id);
+      const insights = await this.socialClient.getMediaInsights(media.id);
       const reach = Math.max(insights.reach, 1);
       const engagement = insights.engagement || (insights.likes + insights.comments + insights.saved + insights.shares);
       const engagementRate = Math.min(1, engagement / reach);
@@ -112,6 +121,7 @@ export class AnalyticsAgent {
     // Salva snapshot no banco para histórico
     const snapshotRecord: AnalyticsSnapshotRecord = {
       id: `analytics_${Date.now()}`,
+      platform: this.socialClient.platform,
       period,
       reach: totalReach,
       impressions: totalImpressions,
@@ -160,11 +170,14 @@ export class AnalyticsAgent {
     for (const pauta of report.strategicPautas) {
       try {
         const post = await this.contentManager.generatePost({
-          type: 'PRICE_RANKING',
-          angle: pauta.title,
+          topicOverride: {
+            type: 'PRICE_RANKING',
+            angle: pauta.title,
+          },
+          platform: this.socialClient.platform,
         });
         createdPosts.push({ title: pauta.title, postId: post.id });
-      } catch (err: any) {
+      } catch {
         createdPosts.push({ title: pauta.title });
       }
     }
@@ -177,8 +190,9 @@ export class AnalyticsAgent {
    */
   formatReportMarkdown(report: AnalyticsReport): string {
     const ratePercent = (report.totals.averageEngagementRate * 100).toFixed(2);
+    const platformName = this.socialClient.platform === 'tiktok' ? 'TikTok' : 'Instagram';
     return `
-# 📊 Relatório Executivo de Performance Instagram - Imóvel Radar
+# 📊 Relatório Executivo de Performance ${platformName} - Imóvel Radar
 **Período:** ${report.period} | **Gerado em:** ${report.generatedAt.toISOString()}
 
 ---

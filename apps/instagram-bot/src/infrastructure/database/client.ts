@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import pg from 'pg';
 import dotenv from 'dotenv';
+import { SocialPlatform } from '../social/types.js';
 
 dotenv.config();
 
@@ -64,13 +65,15 @@ export interface ListingItem {
 
 export interface InstagramPostRecord {
   id: string;
+  platform?: SocialPlatform;
   title: string;
   caption: string;
-  postType: 'CAROUSEL' | 'SINGLE_IMAGE';
+  postType: 'CAROUSEL' | 'SINGLE_IMAGE' | 'VIDEO';
   status: 'DRAFT' | 'APPROVED' | 'SCHEDULED' | 'PUBLISHED';
   scheduledFor?: Date;
   publishedAt?: Date;
   mediaId?: string;
+  videoUrl?: string;
   slides: Array<{
     slideNumber: number;
     title: string;
@@ -82,8 +85,11 @@ export interface InstagramPostRecord {
   createdAt: Date;
 }
 
+export type SocialPostRecord = InstagramPostRecord;
+
 export interface CommentLogRecord {
   id: string;
+  platform?: SocialPlatform;
   commentId: string;
   mediaId: string;
   username: string;
@@ -96,6 +102,7 @@ export interface CommentLogRecord {
 
 export interface AnalyticsSnapshotRecord {
   id: string;
+  platform?: SocialPlatform;
   period: string;
   reach: number;
   impressions: number;
@@ -149,6 +156,7 @@ export class DatabaseClient {
           for (const p of parsed.posts) {
             this.inMemoryPosts.set(p.id, {
               ...p,
+              platform: p.platform || 'instagram',
               createdAt: new Date(p.createdAt),
               scheduledFor: p.scheduledFor ? new Date(p.scheduledFor) : undefined,
               publishedAt: p.publishedAt ? new Date(p.publishedAt) : undefined,
@@ -158,12 +166,14 @@ export class DatabaseClient {
         if (Array.isArray(parsed.comments)) {
           this.inMemoryComments = parsed.comments.map((c: any) => ({
             ...c,
+            platform: c.platform || 'instagram',
             repliedAt: c.repliedAt ? new Date(c.repliedAt) : undefined,
           }));
         }
         if (Array.isArray(parsed.analytics)) {
           this.inMemoryAnalytics = parsed.analytics.map((a: any) => ({
             ...a,
+            platform: a.platform || 'instagram',
             recordedAt: new Date(a.recordedAt),
           }));
         }
@@ -197,11 +207,16 @@ export class DatabaseClient {
         );
         if (res.rows.length > 0) {
           const row = res.rows[0];
-          return {
-            collected_on: row.collected_on,
-            collected_at: row.collected_at,
-            payload: typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload,
-          };
+          const parsedPayload = typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload;
+          // Validar se o payload tem a estrutura esperada pelo gerador de conteúdo
+          const muniKey = municipality.toLowerCase();
+          if (parsedPayload?.[muniKey]?.rental || parsedPayload?.maceio?.rental) {
+            return {
+              collected_on: row.collected_on,
+              collected_at: row.collected_at,
+              payload: parsedPayload,
+            };
+          }
         }
       } catch (err) {
         console.warn('[DatabaseClient] Falha ao consultar market_snapshot do Postgres. Usando dados mockados locais.', err);
@@ -343,9 +358,13 @@ export class DatabaseClient {
     ];
   }
 
-  // Métodos de Estado do Bot do Instagram
+  // Métodos de Estado do Bot
   async savePost(post: InstagramPostRecord): Promise<void> {
-    this.inMemoryPosts.set(post.id, post);
+    const normalized: InstagramPostRecord = {
+      ...post,
+      platform: post.platform || 'instagram',
+    };
+    this.inMemoryPosts.set(normalized.id, normalized);
     this.saveStateToFile();
   }
 
@@ -353,16 +372,21 @@ export class DatabaseClient {
     return this.inMemoryPosts.get(id) || null;
   }
 
-  async getAllPosts(): Promise<InstagramPostRecord[]> {
-    return Array.from(this.inMemoryPosts.values()).sort(
+  async getAllPosts(platform?: SocialPlatform): Promise<InstagramPostRecord[]> {
+    const posts = Array.from(this.inMemoryPosts.values()).sort(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
     );
+    if (!platform) return posts;
+    return posts.filter((p) => (p.platform || 'instagram') === platform);
   }
 
-  async getScheduledPosts(): Promise<InstagramPostRecord[]> {
-    return Array.from(this.inMemoryPosts.values()).filter(
-      (p) => p.status === 'SCHEDULED' || p.status === 'APPROVED'
-    );
+  async getScheduledPosts(platform?: SocialPlatform): Promise<InstagramPostRecord[]> {
+    return Array.from(this.inMemoryPosts.values()).filter((p) => {
+      const matchesStatus = p.status === 'SCHEDULED' || p.status === 'APPROVED';
+      if (!matchesStatus) return false;
+      if (!platform) return true;
+      return (p.platform || 'instagram') === platform;
+    });
   }
 
   async updatePostStatus(
@@ -382,21 +406,33 @@ export class DatabaseClient {
   }
 
   async logCommentInteraction(log: CommentLogRecord): Promise<void> {
-    this.inMemoryComments.push(log);
+    const normalized: CommentLogRecord = {
+      ...log,
+      platform: log.platform || 'instagram',
+    };
+    this.inMemoryComments.push(normalized);
     this.saveStateToFile();
   }
 
-  async getCommentLogs(): Promise<CommentLogRecord[]> {
-    return [...this.inMemoryComments];
+  async getCommentLogs(platform?: SocialPlatform): Promise<CommentLogRecord[]> {
+    if (!platform) return [...this.inMemoryComments];
+    return this.inMemoryComments.filter((c) => (c.platform || 'instagram') === platform);
   }
 
   async saveAnalyticsSnapshot(snapshot: AnalyticsSnapshotRecord): Promise<void> {
-    this.inMemoryAnalytics.unshift(snapshot);
+    const normalized: AnalyticsSnapshotRecord = {
+      ...snapshot,
+      platform: snapshot.platform || 'instagram',
+    };
+    this.inMemoryAnalytics.unshift(normalized);
     this.saveStateToFile();
   }
 
-  async getRecentAnalytics(limit = 10): Promise<AnalyticsSnapshotRecord[]> {
-    return this.inMemoryAnalytics.slice(0, limit);
+  async getRecentAnalytics(limit = 10, platform?: SocialPlatform): Promise<AnalyticsSnapshotRecord[]> {
+    const list = platform
+      ? this.inMemoryAnalytics.filter((a) => (a.platform || 'instagram') === platform)
+      : this.inMemoryAnalytics;
+    return list.slice(0, limit);
   }
 
   async close(): Promise<void> {
