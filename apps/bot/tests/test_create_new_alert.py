@@ -1,4 +1,4 @@
-from handlers.create_new_alert import new_alert_conversation
+from handlers.create_new_alert import _removed_inline_keyboard, new_alert_conversation
 from handlers.ui import menus
 
 
@@ -7,6 +7,10 @@ def test_new_alert_conversation_is_persistent() -> None:
     assert handler.name == "new_alert"
     assert handler.persistent is True
     assert handler.allow_reentry is True
+
+
+def test_removed_inline_keyboard_sends_empty_rows() -> None:
+    assert _removed_inline_keyboard().to_dict() == {"inline_keyboard": []}
 
 
 def test_wizard_choice_messages_replace_the_question() -> None:
