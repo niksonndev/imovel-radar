@@ -35,6 +35,21 @@ def test_keyboard_encodes_target_index() -> None:
     assert actions[1].callback_data == "wch_1525220692"
 
 
+def test_watchlist_keyboard_uses_remove_action() -> None:
+    kb = _carousel_keyboard(
+        "wl42",
+        0,
+        1,
+        "https://example.com/ad",
+        listing_id=1525220692,
+        mode="watchlist",
+        watch_id=7,
+    )
+    actions = kb.inline_keyboard[0]
+    assert actions[0].url == "https://example.com/ad"
+    assert actions[1].callback_data == "wl_rm_7"
+
+
 def test_listing_to_card_is_slim() -> None:
     listing = SimpleNamespace(
         title="Apt Centro",
@@ -44,6 +59,7 @@ def test_listing_to_card_is_slim() -> None:
         images=["https://img/1.jpg", "https://img/2.jpg"],
         properties={"rooms": 2, "size": 60.0, "real_estate_type": "Apartamento"},
         listing_id=1,
+        active=True,
         first_seen_at="should-not-appear",
         updated_at="should-not-appear",
     )
@@ -59,10 +75,12 @@ def test_listing_to_card_is_slim() -> None:
         "rooms",
         "size",
         "real_estate_type",
+        "listing_active",
     }
     assert card["listing_id"] == 1
     assert card["image_url"] == "https://img/1.jpg"
     assert card["file_id"] is None
+    assert card["listing_active"] is True
     assert "first_seen_at" not in card
 
 
@@ -95,6 +113,7 @@ def test_send_carousel_stores_slim_cards_and_file_id() -> None:
         url="https://olx.com.br/2",
         images=["https://img/casa.jpg"],
         properties={"rooms": 3, "size": 80, "real_estate_type": "Casa"},
+        active=True,
     )
     bot = AsyncMock()
     bot.send_photo = AsyncMock(

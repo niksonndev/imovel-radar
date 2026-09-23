@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import MutableMapping
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
 from shared_models.tables import Listing
 from shared_models.utils import format_brl
@@ -36,12 +36,14 @@ logger = logging.getLogger(__name__)
 
 MAX_TITLE_LEN = 80
 CAROUSEL_CALLBACK_PREFIX = "crs_"
+CarouselMode = Literal["matches", "watchlist"]
 # Espelha o TTL de drafts (ADR 0006); carrosséis velhos são podados no store.
 CAROUSEL_TTL_SECONDS = int(config.DYNAMODB_TTL_HOURS * 3600)
 
 
 class CarouselCard(TypedDict, total=False):
     listing_id: int
+    watch_id: int
     title: str
     price_value: int | None
     neighbourhood: str
@@ -51,16 +53,21 @@ class CarouselCard(TypedDict, total=False):
     rooms: Any
     size: Any
     real_estate_type: str
+    listing_active: bool
 
 
 def _truncate(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def _listing_to_card(listing: Listing) -> CarouselCard:
+def _listing_to_card(
+    listing: Listing,
+    *,
+    watch_id: int | None = None,
+) -> CarouselCard:
     props = listing.properties if isinstance(listing.properties, dict) else {}
     images = listing.images or []
-    return {
+    card: CarouselCard = {
         "listing_id": listing.listing_id,
         "title": listing.title or "",
         "price_value": listing.price_value,
@@ -71,10 +78,20 @@ def _listing_to_card(listing: Listing) -> CarouselCard:
         "rooms": props.get("rooms"),
         "size": props.get("size"),
         "real_estate_type": str(props.get("real_estate_type") or "—"),
+        "listing_active": bool(listing.active),
     }
+    if watch_id is not None:
+        card["watch_id"] = watch_id
+    return card
 
 
-def _card_caption(card: CarouselCard, index: int, total: int) -> str:
+def _card_caption(
+    card: CarouselCard,
+    index: int,
+    total: int,
+    *,
+    mode: CarouselMode = "matches",
+) -> str:
     title = _truncate(card.get("title") or "", MAX_TITLE_LEN)
     price = format_brl(card.get("price_value"))
     bedrooms = card.get("rooms")
@@ -85,12 +102,16 @@ def _card_caption(card: CarouselCard, index: int, total: int) -> str:
     rental_or_sale = card.get("real_estate_type") or "—"
     counter = f"{index + 1} de {total}"
 
-    return (
-        f"🏠 {title}\n"
-        f"💰 {price} | 🛏 {bedrooms_label} | 📐 {area_label}\n"
-        f"📍 {neighbourhood} · {rental_or_sale}\n\n"
-        f"{counter}"
-    )
+    lines = [
+        f"🏠 {title}",
+        f"💰 {price} | 🛏 {bedrooms_label} | 📐 {area_label}",
+        f"📍 {neighbourhood} · {rental_or_sale}",
+    ]
+    if mode == "watchlist":
+        status = "✅ No ar" if card.get("listing_active", True) else "❌ Fora do ar"
+        lines.append(status)
+    lines.extend(["", counter])
+    return "\n".join(lines)
 
 
 def _carousel_keyboard(
@@ -99,6 +120,9 @@ def _carousel_keyboard(
     total: int,
     url: str | None,
     listing_id: int | None = None,
+    *,
+    mode: CarouselMode = "matches",
+    watch_id: int | None = None,
 ) -> InlineKeyboardMarkup:
     nav_row: list[InlineKeyboardButton] = []
     if index > 0:
@@ -121,7 +145,15 @@ def _carousel_keyboard(
     action_row: list[InlineKeyboardButton] = []
     if isinstance(url, str) and url.startswith("http"):
         action_row.append(InlineKeyboardButton("🔗 Ver anúncio", url=url))
-    if listing_id is not None:
+    if mode == "watchlist":
+        if watch_id is not None:
+            action_row.append(
+                InlineKeyboardButton(
+                    "🗑️ Parar de acompanhar",
+                    callback_data=f"wl_rm_{watch_id}",
+                )
+            )
+    elif listing_id is not None:
         action_row.append(
             InlineKeyboardButton("👀 Acompanhar", callback_data=f"wch_{listing_id}")
         )
@@ -202,15 +234,37 @@ async def send_carousel(
     listings: list[Listing],
     carousel_id: str,
     state_store: MutableMapping[str, object],
+    *,
+    mode: CarouselMode = "matches",
+    watch_ids: list[int] | None = None,
 ) -> None:
     prune_expired_carousels(state_store)
 
-    total = len(listings)
-    cards = [_listing_to_card(item) for item in listings]
+    if mode == "watchlist":
+        if watch_ids is None or len(watch_ids) != len(listings):
+            raise ValueError("watchlist carousel requires watch_ids aligned with listings")
+        cards = [
+            _listing_to_card(item, watch_id=watch_id)
+            for item, watch_id in zip(listings, watch_ids, strict=True)
+        ]
+    else:
+        cards = [_listing_to_card(item) for item in listings]
+
+    total = len(cards)
+    if total == 0:
+        raise ValueError("carousel requires at least one listing")
+
     card = cards[0]
-    caption = _card_caption(card, 0, total)
+    caption = _card_caption(card, 0, total, mode=mode)
+    watch_id = card.get("watch_id")
     keyboard = _carousel_keyboard(
-        carousel_id, 0, total, card.get("url"), card.get("listing_id")
+        carousel_id,
+        0,
+        total,
+        card.get("url"),
+        card.get("listing_id"),
+        mode=mode,
+        watch_id=watch_id if isinstance(watch_id, int) else None,
     )
 
     message = await bot.send_photo(
@@ -226,6 +280,7 @@ async def send_carousel(
     state_store[_state_key(carousel_id)] = {
         "chat_id": chat_id,
         "cards": cards,
+        "mode": mode,
         "created_at": time.time(),
     }
 
@@ -245,13 +300,16 @@ async def carousel_nav_cb(update: Update, context: CustomContext) -> None:
     key = _state_key(carousel_id)
     state = bot_data.get(key) if bot_data is not None else None
 
+    expired_hint = (
+        "Carrossel expirado. Abra Anúncios acompanhados de novo."
+        if isinstance(state, dict) and state.get("mode") == "watchlist"
+        else "Carrossel expirado. Crie um novo alerta para ver os imoveis."
+    )
+
     if not isinstance(state, dict) or _is_expired(state):
         if isinstance(state, dict) and bot_data is not None:
             bot_data.pop(key, None)
-        await query.answer(
-            "Carrossel expirado. Crie um novo alerta para ver os imoveis.",
-            show_alert=False,
-        )
+        await query.answer(expired_hint, show_alert=False)
         return
 
     cards_raw = state.get("cards")
@@ -259,10 +317,7 @@ async def carousel_nav_cb(update: Update, context: CustomContext) -> None:
         # Legacy payload (listings completos) ou vazio — trata como expirado.
         if bot_data is not None:
             bot_data.pop(key, None)
-        await query.answer(
-            "Carrossel expirado. Crie um novo alerta para ver os imoveis.",
-            show_alert=False,
-        )
+        await query.answer(expired_hint, show_alert=False)
         return
 
     total = len(cards_raw)
@@ -278,14 +333,19 @@ async def carousel_nav_cb(update: Update, context: CustomContext) -> None:
     # Spinner some antes da troca de mídia (potealmente lenta na 1ª visita).
     await query.answer()
 
-    caption = _card_caption(card, new_index, total)  # type: ignore[arg-type]
+    mode_raw = state.get("mode")
+    mode: CarouselMode = "watchlist" if mode_raw == "watchlist" else "matches"
+    caption = _card_caption(card, new_index, total, mode=mode)  # type: ignore[arg-type]
     listing_id = card.get("listing_id")
+    watch_id = card.get("watch_id")
     keyboard = _carousel_keyboard(
         carousel_id,
         new_index,
         total,
         card.get("url"),
         listing_id if isinstance(listing_id, int) else None,
+        mode=mode,
+        watch_id=watch_id if isinstance(watch_id, int) else None,
     )
 
     try:
