@@ -34,6 +34,25 @@ describe('Server & Webhook HTTP', () => {
     const body = (await res.json()) as any;
     expect(body.status).toBe('ok');
     expect(body.service).toBe('instagram-bot');
+    expect(body.platforms).toContain('instagram');
+    expect(body.platforms).toContain('tiktok');
+  });
+
+  it('GET e POST /webhook/tiktok devem responder corretamente', async () => {
+    const getRes = await fetch(`${baseUrl}/webhook/tiktok`);
+    expect(getRes.status).toBe(200);
+    const getBody = (await getRes.json()) as any;
+    expect(getBody.status).toBe('ok');
+
+    const postRes = await fetch(`${baseUrl}/webhook/tiktok`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'publish.status', status: 'SUCCESS' }),
+    });
+    expect(postRes.status).toBe(200);
+    const postBody = (await postRes.json()) as any;
+    expect(postBody.received).toBe(true);
+    expect(postBody.platform).toBe('tiktok');
   });
 
   it('GET /webhook deve verificar hub.challenge da Meta com token correto', async () => {

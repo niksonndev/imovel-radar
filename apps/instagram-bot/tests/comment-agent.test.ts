@@ -3,6 +3,7 @@ import { CommentAgent } from '../src/agents/comment-agent/index.js';
 import { DatabaseClient } from '../src/infrastructure/database/client.js';
 import { LLMService } from '../src/infrastructure/ai/llm-service.js';
 import { MockInstagramClient } from '../src/infrastructure/instagram/mock-client.js';
+import { MockTikTokClient } from '../src/infrastructure/tiktok/mock-client.js';
 
 describe('CommentAgent', () => {
   let db: DatabaseClient;
@@ -92,5 +93,33 @@ describe('CommentAgent', () => {
     const results = await agent.processRecentPostsComments(2);
     expect(results).toBeDefined();
     expect(Array.isArray(results)).toBe(true);
+  });
+
+  it('deve processar comentários no TikTok respeitando capabilities', async () => {
+    const tiktokClient = new MockTikTokClient();
+    const tiktokAgent = new CommentAgent({
+      db,
+      llm,
+      socialClient: tiktokClient,
+      autoHideSpam: true,
+      autoReply: true,
+    });
+
+    const mediaList = await tiktokClient.getRecentMedia(1);
+    const mediaId = mediaList[0].id;
+    const comment = tiktokClient.addMockComment(
+      mediaId,
+      'usuario_tiktok_alerta',
+      'Como recebo alertas no WhatsApp ou Telegram?'
+    );
+
+    const result = await tiktokAgent.processComment(comment, mediaId);
+    expect(result.actionTaken).toBe('REPLIED');
+    expect(result.replyText).toContain('@imovelradar_bot');
+
+    const logs = await tiktokAgent.getLogs();
+    const logged = logs.find((l) => l.commentId === comment.id);
+    expect(logged).toBeDefined();
+    expect(logged?.platform).toBe('tiktok');
   });
 });
