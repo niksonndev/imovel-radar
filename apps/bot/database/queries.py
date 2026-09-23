@@ -20,7 +20,8 @@ from shared_models.tables import (
     WatchedListing,
     WatchedListingChange,
 )
-from sqlalchemy import Integer, cast, delete, func, or_
+from shared_models.utils import effective_listing_price
+from sqlalchemy import Integer, case, cast, delete, func, or_
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlmodel import Session, select
 
@@ -306,6 +307,31 @@ def delete_alert_for_user(session: Session, chat_id: int, alert_id: int) -> bool
     return True
 
 
+def _json_fee(key: str):
+    """Condomínio/IPTU do JSON. Ausente, nulo ou ≤ 0 conta como zero."""
+    raw = cast(Listing.properties[key].as_string(), Integer)
+    return func.coalesce(func.greatest(raw, 0), 0)
+
+
+def effective_price_expr():
+    """Aluguel + condomínio + IPTU. Venda permanece o preço pedido."""
+    fees = _json_fee("condominio") + _json_fee("iptu")
+    return case(
+        (Listing.listing_kind == "aluguel", Listing.price_value + fees),
+        else_=Listing.price_value,
+    )
+
+
+def _baseline_price(listing: Listing) -> int | None:
+    props = listing.properties if isinstance(listing.properties, dict) else {}
+    return effective_listing_price(
+        listing.price_value,
+        listing_kind=listing.listing_kind,
+        condominio=props.get("condominio"),
+        iptu=props.get("iptu"),
+    )
+
+
 # ── Match / notificação (lê listing, escreve alert_matches) ────────────────
 def get_unnotified_listings_for_alert(session: Session, alert: Alert) -> list[Listing]:
     conditions = [
@@ -314,9 +340,9 @@ def get_unnotified_listings_for_alert(session: Session, alert: Alert) -> list[Li
         AlertMatch.listing_id.is_(None),  # type: ignore[union-attr]
     ]
     if (min_price := alert.min_price) is not None:
-        conditions.append(Listing.price_value >= min_price)  # type: ignore[union-attr]
+        conditions.append(effective_price_expr() >= min_price)
     if (max_price := alert.max_price) is not None:
-        conditions.append(Listing.price_value <= max_price)  # type: ignore[union-attr]
+        conditions.append(effective_price_expr() <= max_price)
     if (min_rooms := alert.min_rooms) is not None:
         rooms = cast(Listing.properties["rooms"].as_string(), Integer)
         conditions.append(or_(rooms.is_(None), rooms >= min_rooms))
@@ -431,7 +457,7 @@ def create_watch(session: Session, *, chat_id: int, listing_id: int) -> tuple[st
     watch = WatchedListing(
         chat_id=chat_id,
         listing_id=listing_id,
-        last_known_price=listing.price_value,
+        last_known_price=_baseline_price(listing),
         last_known_active=listing.active,
     )
     session.add(watch)
@@ -461,7 +487,7 @@ def get_changed_watches(session: Session) -> list[WatchedListingChange]:
         .join(Listing, Listing.listing_id == WatchedListing.listing_id)
         .where(
             or_(
-                Listing.price_value.is_distinct_from(WatchedListing.last_known_price),
+                effective_price_expr().is_distinct_from(WatchedListing.last_known_price),
                 Listing.active.is_distinct_from(WatchedListing.last_known_active),
             )
         )

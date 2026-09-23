@@ -12,6 +12,7 @@ import asyncio
 import logging
 from collections import defaultdict
 
+from shared_models.utils import effective_listing_price
 from sqlmodel import Session
 from telegram.constants import ParseMode
 from telegram.ext import Application
@@ -137,13 +138,20 @@ async def _process_watch_chat(
         if watch.id is None:
             continue
 
+        props = listing.properties if isinstance(listing.properties, dict) else {}
+        current_price = effective_listing_price(
+            listing.price_value,
+            listing_kind=listing.listing_kind,
+            condominio=props.get("condominio"),
+            iptu=props.get("iptu"),
+        )
         messages: list[str] = []
-        if listing.price_value != watch.last_known_price:
+        if current_price != watch.last_known_price:
             messages.append(
                 menus.watchlist_change_price_message(
                     title=listing.title or "",
                     old_price=watch.last_known_price,
-                    new_price=listing.price_value,
+                    new_price=current_price,
                     url=listing.url,
                 )
             )
@@ -181,7 +189,7 @@ async def _process_watch_chat(
             )
             await asyncio.sleep(0.5)
 
-        baselines.append((watch.id, listing.price_value, listing.active))
+        baselines.append((watch.id, current_price, listing.active))
 
     if baselines:
         await update_watch_baselines(baselines)

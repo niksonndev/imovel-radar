@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 
 from handlers.carousel import (
     CAROUSEL_TTL_SECONDS,
+    _card_caption,
     _carousel_keyboard,
     _listing_to_card,
     _parse_nav_callback,
@@ -86,6 +87,9 @@ def test_listing_to_card_is_slim() -> None:
         "listing_id",
         "title",
         "price_value",
+        "condominio",
+        "iptu",
+        "listing_kind",
         "neighbourhood",
         "url",
         "image_url",
@@ -96,6 +100,9 @@ def test_listing_to_card_is_slim() -> None:
         "listing_active",
     }
     assert card["listing_id"] == 1
+    assert card["listing_kind"] == "aluguel"
+    assert card["condominio"] is None
+    assert card["iptu"] is None
     assert card["image_url"] == "https://img/1.jpg"
     assert card["file_id"] is None
     assert card["listing_active"] is True
@@ -113,6 +120,65 @@ def test_prune_expired_carousels() -> None:
     assert "carousel_old" not in store
     assert "carousel_new" in store
     assert store["other"] == {"keep": True}
+
+
+def test_card_caption_rent_includes_fees() -> None:
+    listing = SimpleNamespace(
+        title="Apt Centro",
+        price_value=2300,
+        listing_kind="aluguel",
+        neighbourhood="Pajuçara",
+        url="https://olx.com.br/1",
+        images=["https://img/1.jpg"],
+        properties={
+            "rooms": 2,
+            "size": 60,
+            "real_estate_type": "Apartamento",
+            "condominio": 700,
+            "iptu": 200,
+        },
+        listing_id=1,
+        active=True,
+    )
+    caption = _card_caption(_listing_to_card(listing), 0, 1)  # type: ignore[arg-type]
+    assert "R$ 3.200,00" in caption
+    assert "aluguel R$ 2.300,00" in caption
+    assert "cond. R$ 700,00" in caption
+    assert "IPTU R$ 200,00" in caption
+
+
+def test_card_caption_ignores_zero_fees_and_sale_price() -> None:
+    rent = SimpleNamespace(
+        title="Kit",
+        price_value=2300,
+        listing_kind="aluguel",
+        neighbourhood="Centro",
+        url="https://olx.com.br/2",
+        images=["https://img/2.jpg"],
+        properties={"condominio": 0, "iptu": 0, "real_estate_type": "Apartamento"},
+        listing_id=2,
+        active=True,
+    )
+    rent_caption = _card_caption(_listing_to_card(rent), 0, 1)  # type: ignore[arg-type]
+    assert "R$ 2.300,00" in rent_caption
+    assert "cond." not in rent_caption
+    assert "IPTU" not in rent_caption
+
+    sale = SimpleNamespace(
+        title="Casa",
+        price_value=200_000,
+        listing_kind="venda",
+        neighbourhood="Centro",
+        url="https://olx.com.br/3",
+        images=["https://img/3.jpg"],
+        properties={"condominio": 450, "iptu": 100, "real_estate_type": "Casa"},
+        listing_id=3,
+        active=True,
+    )
+    sale_caption = _card_caption(_listing_to_card(sale), 0, 1)  # type: ignore[arg-type]
+    assert "R$ 200.000,00" in sale_caption
+    assert "cond." not in sale_caption
+    assert "IPTU" not in sale_caption
 
 
 def test_photo_file_id_from_message() -> None:

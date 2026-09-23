@@ -300,6 +300,11 @@ def menu_watchlist() -> str:
     return "👀 *Anúncios acompanhados*"
 
 
+def watchlist_carousel_header(*, count: int, cap: int) -> str:
+    """Texto em que o loading se transforma quando o carrossel vai abaixo."""
+    return f"👀 *Anúncios acompanhados* ({count}/{cap})"
+
+
 def watchlist_erro() -> str:
     return (
         "👀 *Anúncios acompanhados*\n\n"
@@ -413,9 +418,13 @@ def wizard_novo_alerta_intro() -> str:
 
 def wizard_preco_intro(*, listing_kind: str) -> str:
     label = "compra" if listing_kind == "venda" else "aluguel"
+    fees = ""
+    if listing_kind != "venda":
+        fees = "\n\nCondomínio e IPTU entram na conta."
     return (
         f"💰 *Faixa de preço ({label})*\n\n"
         "Toque em uma opção ou *Personalizado*."
+        f"{fees}"
     )
 
 

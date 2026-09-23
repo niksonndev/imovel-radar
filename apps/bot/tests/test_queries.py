@@ -658,6 +658,8 @@ def _add_listing(
     *,
     price: int = 1500,
     active: bool = True,
+    listing_kind: str = "aluguel",
+    properties: dict | None = None,
 ) -> None:
     session.add(
         Listing(
@@ -669,11 +671,55 @@ def _add_listing(
             neighbourhood="Jatiúca",
             category="Apartamentos",
             images=[f"https://img/{listing_id}.webp"],
-            properties={},
-            listing_kind="aluguel",
+            properties={} if properties is None else properties,
+            listing_kind=listing_kind,  # type: ignore[arg-type]
             active=active,
         )
     )
+
+
+def test_unnotified_rent_price_includes_fees_sale_does_not(session: Session) -> None:
+    session.add(User(chat_id=78))
+    _add_listing(session, 301, price=2300, properties={"condominio": 700})
+    _add_listing(session, 302, price=2300)
+    _add_listing(session, 304, price=2300, properties={"iptu": 200})
+    _add_listing(session, 305, price=2400, properties={"condominio": 0, "iptu": 0})
+    _add_listing(
+        session,
+        303,
+        price=200_000,
+        listing_kind="venda",
+        properties={"condominio": 700, "iptu": 200},
+    )
+    session.commit()
+
+    rent_id = queries.create_alert(
+        session,
+        chat_id=78,
+        alert_name="teto aluguel",
+        min_price=None,
+        max_price=2500,
+        neighbourhoods=["Jatiúca"],
+        listing_kind="aluguel",
+    )
+    sale_id = queries.create_alert(
+        session,
+        chat_id=78,
+        alert_name="teto venda",
+        min_price=None,
+        max_price=200_000,
+        neighbourhoods=["Jatiúca"],
+        listing_kind="venda",
+    )
+    session.commit()
+
+    rent = queries.get_alert_for_user(session, 78, rent_id)
+    sale = queries.get_alert_for_user(session, 78, sale_id)
+    assert rent is not None and sale is not None
+    rent_matches = queries.get_unnotified_listings_for_alert(session, rent)
+    sale_matches = queries.get_unnotified_listings_for_alert(session, sale)
+    assert sorted(item.listing_id for item in rent_matches) == [302, 304, 305]
+    assert [item.listing_id for item in sale_matches] == [303]
 
 
 def test_create_watch_sets_baselines_and_duplicate(session: Session, monkeypatch) -> None:
@@ -757,6 +803,36 @@ def test_changed_watches_and_baseline_update(session: Session, monkeypatch) -> N
     assert changed2[0].listing.active is False
 
     queries.update_watch_baselines(session, [(watch_id, 1700, False)])
+    session.commit()
+    assert queries.get_changed_watches(session) == []
+
+
+def test_watch_baseline_uses_rent_plus_fees(session: Session, monkeypatch) -> None:
+    monkeypatch.setattr("config.WATCHLIST_FREE_CAP", 2)
+    session.add(User(chat_id=505))
+    _add_listing(session, 5050, price=2000, properties={"condominio": 500, "iptu": 100})
+    session.commit()
+
+    status, watch_id = queries.create_watch(session, chat_id=505, listing_id=5050)
+    session.commit()
+    assert status == "created"
+    assert watch_id is not None
+    row = queries.get_watch_for_user(session, 505, watch_id)
+    assert row is not None
+    assert row.watch.last_known_price == 2600
+    assert queries.get_changed_watches(session) == []
+
+    listing = queries.get_listing(session, 5050)
+    assert listing is not None
+    listing.properties = {"condominio": 800, "iptu": 100}
+    session.add(listing)
+    session.commit()
+
+    changed = queries.get_changed_watches(session)
+    assert len(changed) == 1
+    assert changed[0].watch.id == watch_id
+
+    queries.update_watch_baselines(session, [(watch_id, 2900, True)])
     session.commit()
     assert queries.get_changed_watches(session) == []
 

@@ -18,15 +18,17 @@ from collections.abc import MutableMapping
 from typing import Any, Literal, TypedDict
 
 from shared_models.tables import Listing
-from shared_models.utils import format_brl
+from shared_models.utils import format_listing_price
 from telegram import (
     Bot,
+    CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     InputMediaPhoto,
     Message,
     Update,
 )
+from telegram.error import BadRequest
 from telegram.ext import Application, CallbackQueryHandler
 
 import config
@@ -46,6 +48,9 @@ class CarouselCard(TypedDict, total=False):
     watch_id: int
     title: str
     price_value: int | None
+    condominio: Any
+    iptu: Any
+    listing_kind: str
     neighbourhood: str
     url: str | None
     image_url: str
@@ -71,6 +76,9 @@ def _listing_to_card(
         "listing_id": listing.listing_id,
         "title": listing.title or "",
         "price_value": listing.price_value,
+        "condominio": props.get("condominio"),
+        "iptu": props.get("iptu"),
+        "listing_kind": str(getattr(listing, "listing_kind", None) or "aluguel"),
         "neighbourhood": listing.neighbourhood or "",
         "url": listing.url,
         "image_url": images[0],
@@ -93,7 +101,12 @@ def _card_caption(
     mode: CarouselMode = "matches",
 ) -> str:
     title = _truncate(card.get("title") or "", MAX_TITLE_LEN)
-    price = format_brl(card.get("price_value"))
+    price = format_listing_price(
+        card.get("price_value"),
+        listing_kind=card.get("listing_kind"),
+        condominio=card.get("condominio"),
+        iptu=card.get("iptu"),
+    )
     bedrooms = card.get("rooms")
     bedrooms_label = f"{bedrooms} quarto(s)" if bedrooms is not None else "—"
     area = card.get("size")
@@ -229,6 +242,34 @@ def prune_expired_carousels(
     return removed
 
 
+async def _send_or_edit_carousel_photo(
+    bot: Bot,
+    chat_id: int,
+    card: CarouselCard,
+    caption: str,
+    keyboard: InlineKeyboardMarkup,
+    *,
+    query: CallbackQuery | None,
+) -> Message | bool | None:
+    """Foto nova, ou a mesma bolha quando o callback já é um card."""
+    media = _media_source(card)
+    photo_message = query.message if query is not None else None
+    if query is not None and photo_message is not None and photo_message.photo:
+        try:
+            return await query.edit_message_media(
+                media=InputMediaPhoto(media=media, caption=caption),
+                reply_markup=keyboard,
+            )
+        except BadRequest:
+            logger.debug("edit do carrossel falhou; enviando foto nova", exc_info=True)
+    return await bot.send_photo(
+        chat_id=chat_id,
+        photo=media,
+        caption=caption,
+        reply_markup=keyboard,
+    )
+
+
 async def send_carousel(
     bot: Bot,
     chat_id: int,
@@ -238,6 +279,7 @@ async def send_carousel(
     *,
     mode: CarouselMode = "matches",
     watch_ids: list[int] | None = None,
+    query: CallbackQuery | None = None,
 ) -> None:
     prune_expired_carousels(state_store)
 
@@ -268,11 +310,13 @@ async def send_carousel(
         watch_id=watch_id if isinstance(watch_id, int) else None,
     )
 
-    message = await bot.send_photo(
-        chat_id=chat_id,
-        photo=_media_source(card),
-        caption=caption,
-        reply_markup=keyboard,
+    message = await _send_or_edit_carousel_photo(
+        bot,
+        chat_id,
+        card,
+        caption,
+        keyboard,
+        query=query,
     )
     file_id = _photo_file_id(message)
     if file_id:
