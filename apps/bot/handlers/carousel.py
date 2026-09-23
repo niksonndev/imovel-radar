@@ -123,6 +123,7 @@ def _carousel_keyboard(
     *,
     mode: CarouselMode = "matches",
     watch_id: int | None = None,
+    can_add: bool = True,
 ) -> InlineKeyboardMarkup:
     nav_row: list[InlineKeyboardButton] = []
     if index > 0:
@@ -142,6 +143,10 @@ def _carousel_keyboard(
     rows: list[list[InlineKeyboardButton]] = []
     if nav_row:
         rows.append(nav_row)
+    if mode == "watchlist" and can_add:
+        rows.append(
+            [InlineKeyboardButton("➕ Adicionar por link", callback_data="wl_add")]
+        )
     action_row: list[InlineKeyboardButton] = []
     if isinstance(url, str) and url.startswith("http"):
         action_row.append(InlineKeyboardButton("🔗 Ver anúncio", url=url))
@@ -159,6 +164,10 @@ def _carousel_keyboard(
         )
     if action_row:
         rows.append(action_row)
+    if mode == "watchlist":
+        rows.append(
+            [InlineKeyboardButton("🏠 Menu principal", callback_data="wl_m")]
+        )
     return InlineKeyboardMarkup(rows)
 
 
@@ -237,6 +246,7 @@ async def send_carousel(
     *,
     mode: CarouselMode = "matches",
     watch_ids: list[int] | None = None,
+    can_add: bool = True,
 ) -> None:
     prune_expired_carousels(state_store)
 
@@ -265,6 +275,7 @@ async def send_carousel(
         card.get("listing_id"),
         mode=mode,
         watch_id=watch_id if isinstance(watch_id, int) else None,
+        can_add=can_add,
     )
 
     message = await bot.send_photo(
@@ -281,6 +292,7 @@ async def send_carousel(
         "chat_id": chat_id,
         "cards": cards,
         "mode": mode,
+        "can_add": can_add,
         "created_at": time.time(),
     }
 
@@ -335,6 +347,7 @@ async def carousel_nav_cb(update: Update, context: CustomContext) -> None:
 
     mode_raw = state.get("mode")
     mode: CarouselMode = "watchlist" if mode_raw == "watchlist" else "matches"
+    can_add = bool(state.get("can_add", True))
     caption = _card_caption(card, new_index, total, mode=mode)  # type: ignore[arg-type]
     listing_id = card.get("listing_id")
     watch_id = card.get("watch_id")
@@ -346,6 +359,7 @@ async def carousel_nav_cb(update: Update, context: CustomContext) -> None:
         listing_id if isinstance(listing_id, int) else None,
         mode=mode,
         watch_id=watch_id if isinstance(watch_id, int) else None,
+        can_add=can_add,
     )
 
     try:

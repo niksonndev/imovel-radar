@@ -104,27 +104,25 @@ async def _send_watchlist_view(
         return
 
     listings, watch_ids = _rows_with_photos(rows)
-    header = (
-        menus.watchlist_carousel_header(count=len(rows), cap=cap)
-        if listings
-        else menus.watchlist_sem_fotos(count=len(rows), cap=cap)
-    )
-    await context.bot.send_message(
-        chat_id=user_id,
-        text=header,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=header_markup,
-    )
-    if listings:
-        await send_carousel(
-            context.application.bot,
-            user_id,
-            listings,
-            _watchlist_carousel_id(user_id),
-            context.application.bot_data,
-            mode="watchlist",
-            watch_ids=watch_ids,
+    if not listings:
+        await context.bot.send_message(
+            chat_id=user_id,
+            text=menus.watchlist_sem_fotos(count=len(rows), cap=cap),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=header_markup,
         )
+        return
+
+    await send_carousel(
+        context.application.bot,
+        user_id,
+        listings,
+        _watchlist_carousel_id(user_id),
+        context.application.bot_data,
+        mode="watchlist",
+        watch_ids=watch_ids,
+        can_add=can_add,
+    )
 
 
 async def _render_watchlist_list(
@@ -156,37 +154,39 @@ async def _render_watchlist_list(
         return
 
     listings, watch_ids = _rows_with_photos(rows)
-    header = (
-        menus.watchlist_carousel_header(count=len(rows), cap=cap)
-        if listings
-        else menus.watchlist_sem_fotos(count=len(rows), cap=cap)
+    if not listings:
+        try:
+            await query.edit_message_text(
+                text=menus.watchlist_sem_fotos(count=len(rows), cap=cap),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=header_markup,
+            )
+        except BadRequest:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=menus.watchlist_sem_fotos(count=len(rows), cap=cap),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=header_markup,
+            )
+        return
+
+    # Carrossel só — sem mensagem de cabeçalho acima da foto.
+    if query.message is not None:
+        try:
+            await query.message.delete()
+        except Exception:
+            logger.debug("Não foi possível apagar a mensagem anterior", exc_info=True)
+
+    await send_carousel(
+        context.application.bot,
+        user_id,
+        listings,
+        _watchlist_carousel_id(user_id),
+        context.application.bot_data,
+        mode="watchlist",
+        watch_ids=watch_ids,
+        can_add=can_add,
     )
-
-    # Prefer edit when the callback message is text (menu / header).
-    try:
-        await query.edit_message_text(
-            text=header,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=header_markup,
-        )
-    except BadRequest:
-        await context.bot.send_message(
-            chat_id=user_id,
-            text=header,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=header_markup,
-        )
-
-    if listings:
-        await send_carousel(
-            context.application.bot,
-            user_id,
-            listings,
-            _watchlist_carousel_id(user_id),
-            context.application.bot_data,
-            mode="watchlist",
-            watch_ids=watch_ids,
-        )
 
 
 async def watchlist_menu_callback(update: Update, context: CustomContext) -> None:
@@ -213,18 +213,32 @@ async def watchlist_actions_callback(update: Update, context: CustomContext) -> 
 
     if data == "wl_m":
         await query.answer()
+        menu_text = menus.menu_principal_inline()
+        menu_markup = keyboards.main_menu_keyboard()
+        if query.message is not None and query.message.photo:
+            try:
+                await query.message.delete()
+            except Exception:
+                logger.debug("Não foi possível apagar o card do carrossel", exc_info=True)
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=menu_text,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=menu_markup,
+            )
+            return
         try:
             await query.edit_message_text(
-                text=menus.menu_principal_inline(),
+                text=menu_text,
                 parse_mode=ParseMode.MARKDOWN,
-                reply_markup=keyboards.main_menu_keyboard(),
+                reply_markup=menu_markup,
             )
         except BadRequest:
             await context.bot.send_message(
                 chat_id=user_id,
-                text=menus.menu_principal_inline(),
+                text=menu_text,
                 parse_mode=ParseMode.MARKDOWN,
-                reply_markup=keyboards.main_menu_keyboard(),
+                reply_markup=menu_markup,
             )
         return
 

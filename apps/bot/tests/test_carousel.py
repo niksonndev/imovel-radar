@@ -39,15 +39,35 @@ def test_watchlist_keyboard_uses_remove_action() -> None:
     kb = _carousel_keyboard(
         "wl42",
         0,
-        1,
+        2,
         "https://example.com/ad",
         listing_id=1525220692,
         mode="watchlist",
         watch_id=7,
+        can_add=True,
     )
-    actions = kb.inline_keyboard[0]
+    # nav → add → actions → menu
+    assert kb.inline_keyboard[0][0].callback_data == "crs_wl42_1"
+    assert kb.inline_keyboard[1][0].callback_data == "wl_add"
+    actions = kb.inline_keyboard[2]
     assert actions[0].url == "https://example.com/ad"
     assert actions[1].callback_data == "wl_rm_7"
+    assert kb.inline_keyboard[3][0].callback_data == "wl_m"
+
+
+def test_watchlist_keyboard_hides_add_at_cap() -> None:
+    kb = _carousel_keyboard(
+        "wl42",
+        0,
+        1,
+        "https://example.com/ad",
+        mode="watchlist",
+        watch_id=7,
+        can_add=False,
+    )
+    assert kb.inline_keyboard[0][0].url == "https://example.com/ad"
+    assert kb.inline_keyboard[0][1].callback_data == "wl_rm_7"
+    assert kb.inline_keyboard[1][0].callback_data == "wl_m"
 
 
 def test_listing_to_card_is_slim() -> None:

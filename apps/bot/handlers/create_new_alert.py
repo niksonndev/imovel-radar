@@ -553,7 +553,7 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
         assert alert_id is not None
 
         if not wizard_state.get("seed_done"):
-            await query.message.reply_text("⏳ Procurando imóveis que combinam com seu alerta…")  # type: ignore[union-attr]
+            await query.message.reply_text(menus.wizard_seed_loading())  # type: ignore[union-attr]
 
             rows = await get_unnotified_listings(user.id)
             listings: list[Listing] = [row.listing for row in rows if row.alert_id == alert_id]

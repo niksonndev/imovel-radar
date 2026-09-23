@@ -296,7 +296,7 @@ def meus_alertas_view(alerts: list[Alert]) -> str:
 
 
 def menu_watchlist() -> str:
-    """Fallback curto; a listagem real usa ``watchlist_carousel_header``."""
+    """Fallback curto; lista vazia usa ``watchlist_empty_message``."""
     return "👀 *Anúncios acompanhados*"
 
 
@@ -304,13 +304,6 @@ def watchlist_erro() -> str:
     return (
         "👀 *Anúncios acompanhados*\n\n"
         "Não consegui carregar seus acompanhamentos agora. Tente de novo em instantes."
-    )
-
-
-def watchlist_carousel_header(*, count: int, cap: int) -> str:
-    return (
-        f"👀 *Anúncios acompanhados* ({count}/{cap})\n\n"
-        "Os anúncios que você acompanha estão no carrossel abaixo."
     )
 
 
@@ -593,6 +586,14 @@ def wizard_salvar_falha() -> str:
 
 def wizard_nao_salvo() -> str:
     return "Ok! O alerta não foi salvo."
+
+
+def db_loading() -> str:
+    """Loading explícito enquanto o Postgres (Neon) acorda / responde."""
+    return (
+        "⏳ *Carregando…*\n\n"
+        "Isso pode levar alguns segundos."
+    )
 
 
 def wizard_seed_loading() -> str:

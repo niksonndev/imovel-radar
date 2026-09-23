@@ -9,6 +9,7 @@ from telegram.ext import Application, BasePersistence, ContextTypes
 
 import config
 from handlers.setup import setup
+from handlers.ui.loading import callback_needs_db_loading, show_db_loading
 from handlers.user_guard import ensure_user
 
 logger = logging.getLogger(__name__)
@@ -24,12 +25,20 @@ class RadarApplication(Application):
     ou seja, sem impedir que os handlers específicos sejam chamados. Em vez de
     depender de um ``MessageHandler`` global, sobrepomos :meth:`process_update`.
 
+    Em callbacks que batem no Postgres, mostra um loading com ⏳ *antes* do
+    ``ensure_user``, para o wake do Neon (free tier) ficar visível na mensagem
+    — não só no latejar do botão.
+
     Falhas de garantia são apenas logadas aqui; a resposta de erro amigável fica
     a cargo dos handlers específicos, caso queiram.
     """
 
     async def process_update(self, update: object) -> None:
         if isinstance(update, Update):
+            query = update.callback_query
+            if query is not None and callback_needs_db_loading(query.data):
+                await show_db_loading(query)
+
             user = update.effective_user
             if user is not None and not await ensure_user(user.id):
                 logger.warning("Não foi possível garantir usuário %s no banco", user.id)
