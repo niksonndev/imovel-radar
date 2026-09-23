@@ -15,7 +15,7 @@ modelos Pydantic de domínio (``shared_models.models``). Importe de
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any, Literal, NamedTuple
 
 from sqlalchemy import (
@@ -26,6 +26,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Text,
     UniqueConstraint,
     func,
@@ -44,6 +45,12 @@ class Listing(SQLModel, table=True):
         CheckConstraint(
             "listing_kind IN ('aluguel', 'venda')",
             name="ck_listing_listing_kind",
+        ),
+        Index(
+            "ix_listing_active_kind_municipality",
+            "active",
+            "listing_kind",
+            "municipality",
         ),
     )
 
@@ -82,6 +89,22 @@ class Listing(SQLModel, table=True):
             onupdate=lambda: datetime.now(UTC),
         ),
     )
+
+
+class MarketSnapshot(SQLModel, table=True):
+    """Agregado diário dos anúncios ativos. Uma linha por dia UTC.
+
+    ``payload`` é o JSON público do painel (Maceió e Recife). O scraper grava
+    no fim da cadeia de coleta; o site só lê.
+    """
+
+    __tablename__ = "market_snapshot"  # type: ignore
+
+    collected_on: date = Field(primary_key=True)
+    collected_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    payload: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
 
 
 class User(SQLModel, table=True):
