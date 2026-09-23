@@ -33,6 +33,8 @@ class CreateAlertWizardState(TypedDict, total=False):
     """Estado temporário da interface do wizard, fora do draft persistível."""
 
     awaiting: Literal["price_min", "price_max"]
+    price_prompt_chat_id: int
+    price_prompt_message_id: int
     neighbourhood_options: list[str]
     neighbourhood_page: int
     confirming: bool

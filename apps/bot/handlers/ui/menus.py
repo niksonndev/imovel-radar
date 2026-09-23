@@ -550,6 +550,52 @@ def wizard_bairros_instrucao(selected: list[str]) -> str:
     return f"*Bairros selecionados:* {names}\nToque em mais bairros ou conclua."
 
 
+def price_range_label(min_price: int | None, max_price: int | None) -> str:
+    if min_price is None:
+        return f"Até {format_brl(max_price)}"
+    if max_price is None:
+        return f"A partir de {format_brl(min_price)}"
+    return f"{format_brl(min_price)} – {format_brl(max_price)}"
+
+
+def wizard_tipo_escolhido(*, listing_kind: str) -> str:
+    return f"🏷️ *Tipo:* {_listing_kind_label(listing_kind)}"
+
+
+def wizard_preco_escolhido(
+    *,
+    listing_kind: str,
+    min_price: int | None,
+    max_price: int | None,
+) -> str:
+    kind_label = "compra" if listing_kind == "venda" else "aluguel"
+    price = escape_markdown(price_range_label(min_price, max_price), version=1)
+    return f"💰 *Faixa de preço ({kind_label}):* {price}"
+
+
+def wizard_preco_personalizado(*, listing_kind: str) -> str:
+    kind_label = "compra" if listing_kind == "venda" else "aluguel"
+    return f"💰 *Faixa de preço ({kind_label}):* personalizado"
+
+
+def wizard_quartos_escolhido(min_rooms: int | None) -> str:
+    rooms = escape_markdown(_rooms_label(min_rooms), version=1)
+    return f"🛏 *Quartos:* {rooms}"
+
+
+def wizard_categorias_escolhido(selected: list[str] | None) -> str:
+    label = escape_markdown(_categories_label(selected), version=1)
+    return f"🏠 *Tipo de imóvel:* {label}"
+
+
+def wizard_bairros_escolhido(selected: list[str]) -> str:
+    if not selected:
+        names = "Qualquer bairro"
+    else:
+        names = ", ".join(sorted(selected))
+    return f"📍 *Bairros:* {escape_markdown(names, version=1)}"
+
+
 def wizard_nome_invalido() -> str:
     return "Nome inválido. Tente de novo."
 
