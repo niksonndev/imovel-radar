@@ -189,7 +189,7 @@ class Alert(SQLModel, table=True):
             name="ck_alert_listing_kind",
         ),
         CheckConstraint(
-            "municipality IN ('Maceió', 'Recife')",
+            "municipality IN ('Maceió', 'Recife', 'Natal')",
             name="ck_alert_municipality",
         ),
     )
