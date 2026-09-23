@@ -14,7 +14,7 @@ export function FaqSection() {
               key={item.question}
               className="group reveal-on-scroll py-4"
             >
-              <summary className="cursor-pointer list-none font-heading text-base text-white marker:content-none [&::-webkit-details-marker]:hidden sm:text-lg">
+              <summary className="cursor-pointer list-none font-sans text-base font-semibold leading-6 text-white marker:content-none [&::-webkit-details-marker]:hidden sm:text-lg sm:leading-7">
                 <span className="flex items-start justify-between gap-4">
                   {item.question}
                   <span
