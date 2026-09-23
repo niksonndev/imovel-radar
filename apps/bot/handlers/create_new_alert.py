@@ -1,7 +1,7 @@
 """
 Wizard multi-etapas para criar um alerta (comando ``/novo_alerta``).
 
-Fluxo: KIND → PRICE → ROOMS → CATEGORIES → NEIGHBOURHOODS → NAME → CONFIRM.
+Fluxo: KIND → CATEGORIES → PRICE → ROOMS → NEIGHBOURHOODS → NAME → CONFIRM.
 Ao confirmar, grava o alerta direto no Postgres compartilhado (ADR 0005)
 e busca matches.
 """
@@ -12,8 +12,7 @@ import logging
 import re
 
 from shared_models.tables import Listing, ListingKind
-from shared_models.utils import format_brl
-from telegram import Message, Update
+from telegram import CallbackQuery, Message, Update
 from telegram.constants import ParseMode
 from telegram.ext import (
     CallbackQueryHandler,
@@ -91,6 +90,43 @@ def _draft_kind(draft: CreateAlertDraft) -> ListingKind:
 
 def _allowed_categories(kind: ListingKind) -> set[str]:
     return {value for _, value, _ in keyboards.category_options_for_kind(kind)}
+
+
+async def _show_choice(query: CallbackQuery, text: str) -> None:
+    """Substitui a pergunta pela escolha e remove o teclado daquela mensagem."""
+    await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN)
+    await query.edit_message_reply_markup(reply_markup=None)
+
+
+async def _enter_price(msg: Message, context: CustomContext) -> None:
+    draft = _get_draft(context)
+    kind = _draft_kind(draft)
+    sent = await msg.reply_text(
+        menus.wizard_preco_intro(listing_kind=kind),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=keyboards.price_range_keyboard(listing_kind=kind),
+    )
+    state = _get_wizard_state(context)
+    state["price_prompt_chat_id"] = sent.chat_id
+    state["price_prompt_message_id"] = sent.message_id
+
+
+async def _edit_price_choice(context: CustomContext, draft: CreateAlertDraft) -> None:
+    state = _get_wizard_state(context)
+    chat_id = state.get("price_prompt_chat_id")
+    message_id = state.get("price_prompt_message_id")
+    if chat_id is None or message_id is None:
+        return
+    await context.bot.edit_message_text(
+        chat_id=chat_id,
+        message_id=message_id,
+        text=menus.wizard_preco_escolhido(
+            listing_kind=_draft_kind(draft),
+            min_price=draft.get("min_price"),
+            max_price=draft.get("max_price"),
+        ),
+        parse_mode=ParseMode.MARKDOWN,
+    )
 
 
 async def _enter_rooms(msg: Message) -> None:
@@ -174,13 +210,9 @@ async def wiz_kind_cb(update: Update, context: CustomContext) -> int:
     kind: ListingKind = "venda" if query.data == "wiz_kind_venda" else "aluguel"
     draft["listing_kind"] = kind
 
-    await query.edit_message_reply_markup(reply_markup=None)
-    await update.effective_message.reply_text(
-        menus.wizard_preco_intro(listing_kind=kind),
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=keyboards.price_range_keyboard(listing_kind=kind),
-    )
-    return PRICE
+    await _show_choice(query, menus.wizard_tipo_escolhido(listing_kind=kind))
+    await _enter_categories(update.effective_message, context)
+    return CATEGORIES
 
 
 async def wiz_price_preset_cb(update: Update, context: CustomContext) -> int:
@@ -202,7 +234,14 @@ async def wiz_price_preset_cb(update: Update, context: CustomContext) -> int:
     draft["min_price"] = pmin
     draft["max_price"] = pmax
 
-    await query.edit_message_reply_markup(reply_markup=None)
+    await _show_choice(
+        query,
+        menus.wizard_preco_escolhido(
+            listing_kind=_draft_kind(draft),
+            min_price=pmin,
+            max_price=pmax,
+        ),
+    )
     await _enter_rooms(update.effective_message)
     return ROOMS
 
@@ -211,8 +250,12 @@ async def wiz_price_custom_cb(update: Update, context: CustomContext) -> int:
     query = update.callback_query
     assert query is not None
     await query.answer()
-    await query.edit_message_reply_markup(reply_markup=None)
+    draft = _get_draft(context)
     _get_wizard_state(context)["awaiting"] = "price_min"
+    await _show_choice(
+        query,
+        menus.wizard_preco_personalizado(listing_kind=_draft_kind(draft)),
+    )
     await query.message.reply_text("Digite o preço mínimo (só números):")  # type: ignore[union-attr]
     return PRICE
 
@@ -241,6 +284,7 @@ async def wiz_price_text(update: Update, context: CustomContext) -> int:
 
     draft["max_price"] = value
     wizard_state.pop("awaiting", None)
+    await _edit_price_choice(context, draft)
     await _enter_rooms(update.effective_message)
     return ROOMS
 
@@ -263,9 +307,9 @@ async def wiz_rooms_cb(update: Update, context: CustomContext) -> int:
         return ROOMS
     draft["min_rooms"] = _ROOMS_CALLBACKS[query.data]
 
-    await query.edit_message_reply_markup(reply_markup=None)
-    await _enter_categories(update.effective_message, context)
-    return CATEGORIES
+    await _show_choice(query, menus.wizard_quartos_escolhido(draft["min_rooms"]))
+    await _enter_neighbourhoods(update.effective_message, context)
+    return NEIGHBOURHOODS
 
 
 async def wiz_categories_cb(update: Update, context: CustomContext) -> int:
@@ -285,9 +329,9 @@ async def wiz_categories_cb(update: Update, context: CustomContext) -> int:
     sel: list[str] = draft.setdefault("categories", [])
 
     if data == "wiz_cat_done":
-        await query.edit_message_reply_markup(reply_markup=None)
-        await _enter_neighbourhoods(update.effective_message, context)
-        return NEIGHBOURHOODS
+        await _show_choice(query, menus.wizard_categorias_escolhido(sel))
+        await _enter_price(update.effective_message, context)
+        return PRICE
 
     if data.startswith("wiz_cat_"):
         slug = data.removeprefix("wiz_cat_")
@@ -334,7 +378,7 @@ async def wiz_neighbourhoods_cb(update: Update, context: CustomContext) -> int:
     if data == "nbd_done":
         wizard_state.pop("neighbourhood_options", None)
         wizard_state.pop("neighbourhood_page", None)
-        await query.edit_message_reply_markup(reply_markup=None)
+        await _show_choice(query, menus.wizard_bairros_escolhido(sel))
         await query.message.reply_text(  # type: ignore[union-attr]
             menus.wizard_nome_prompt(),
             parse_mode=ParseMode.MARKDOWN,
@@ -405,14 +449,7 @@ async def wiz_name(update: Update, context: CustomContext) -> int:
     sel = draft.get("neighbourhoods", [])
     nb_s = ", ".join(sorted(sel)) if sel else "Qualquer bairro"
 
-    pmin = draft.get("min_price")
-    pmax = draft.get("max_price")
-    if pmin is None:
-        price_s = f"Até {format_brl(pmax)}"
-    elif pmax is None:
-        price_s = f"A partir de {format_brl(pmin)}"
-    else:
-        price_s = f"{format_brl(pmin)} – {format_brl(pmax)}"
+    price_s = menus.price_range_label(draft.get("min_price"), draft.get("max_price"))
 
     await update.effective_message.reply_text(
         menus.confirmacao_resumo(
