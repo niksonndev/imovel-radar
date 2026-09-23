@@ -1,5 +1,5 @@
+import { TelegramDemo } from "@/components/landing/TelegramDemo";
 import { TrackedCta } from "@/components/tracked-cta";
-import { TelegramAlertMock } from "@/components/telegram-alert-mock";
 import {
   HERO_HEADLINE,
   HERO_HEADLINE_LINE2,
@@ -18,7 +18,7 @@ export function HeroSection() {
         <div className="absolute left-1/2 top-1/3 h-[360px] w-[min(720px,100vw)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/15 blur-[120px] lg:left-[30%]" />
       </div>
 
-      <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:gap-16">
+      <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-12 lg:items-start lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:gap-16">
         <div className="flex flex-col items-center gap-6 text-center lg:items-start lg:text-left">
           <p className="font-heading text-sm uppercase tracking-[0.2em] text-primary-on-surface animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-500">
             {SITE_NAME}
@@ -46,7 +46,7 @@ export function HeroSection() {
         </div>
 
         <div className="animate-in fade-in slide-in-from-bottom-4 fill-mode-both duration-700 delay-200">
-          <TelegramAlertMock />
+          <TelegramDemo />
         </div>
       </div>
     </section>
