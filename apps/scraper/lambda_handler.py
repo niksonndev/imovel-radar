@@ -8,7 +8,9 @@ Event payload (EventBridge ou self-invoke)::
 
     {
       "listing_kind": "aluguel" | "venda",
+      "slice_index": 0,
       "start_page": 1,
+      "attempt": 0,
       "run_started_at": "<iso8601>"
     }
 
@@ -26,12 +28,22 @@ import os
 from typing import Any
 
 import config
-from scheduler.jobs import job_collect_chunk, normalize_kind, parse_run_started_at
+from scheduler.jobs import (
+    job_collect_chunk,
+    normalize_kind,
+    parse_run_started_at,
+    slices_for_kind,
+)
 
+# O runtime da Lambda já configura o root logger (basicConfig vira no-op)
+# e o nível fica acima de INFO. Força o nível para os logs da coleta aparecerem.
+_LOG_LEVEL = getattr(logging, config.LOG_LEVEL, logging.INFO)
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    level=getattr(logging, config.LOG_LEVEL, logging.INFO),
+    level=_LOG_LEVEL,
+    force=True,
 )
+logging.getLogger().setLevel(_LOG_LEVEL)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -43,7 +55,10 @@ def _event_payload(event: dict | None) -> dict[str, Any]:
     # EventBridge may wrap custom input under "detail"
     detail = event.get("detail")
     if isinstance(detail, dict) and (
-        "listing_kind" in detail or "start_page" in detail or "run_started_at" in detail
+        "listing_kind" in detail
+        or "start_page" in detail
+        or "run_started_at" in detail
+        or "slice_index" in detail
     ):
         return detail
     return event
@@ -71,24 +86,44 @@ def _self_invoke(payload: dict[str, Any]) -> None:
 
 
 def _next_payload_after_chunk(result: dict[str, Any]) -> dict[str, Any] | None:
-    """Decide o próximo cursor: mais páginas do mesmo kind, ou venda após aluguel."""
+    """Próximo cursor: mais páginas da fatia, próxima fatia, ou venda após aluguel.
+
+    A watermark (``run_started_at``) não muda entre fatias do mesmo kind.
+    Só zera ao abrir a venda, para o deactivate final não misturar com o aluguel.
+    """
     kind = result["listing_kind"]
     run_started_at = result["run_started_at"]
+    slice_index = int(result.get("slice_index") or 0)
+    attempt = int(result.get("attempt") or 0)
 
     if not result.get("completed") and result.get("next_page"):
         return {
             "listing_kind": kind,
+            "slice_index": slice_index,
             "start_page": int(result["next_page"]),
+            "attempt": attempt,
             "run_started_at": run_started_at,
         }
 
-    if result.get("completed") and kind == "aluguel":
-        # Nova watermark para a coleta de venda (não misturar com aluguel).
-        return {
-            "listing_kind": "venda",
-            "start_page": 1,
-            "run_started_at": None,
-        }
+    if result.get("completed"):
+        next_slice = slice_index + 1
+        if next_slice < len(slices_for_kind(kind)):
+            return {
+                "listing_kind": kind,
+                "slice_index": next_slice,
+                "start_page": 1,
+                "attempt": 0,
+                "run_started_at": run_started_at,
+            }
+        if kind == "aluguel":
+            # Nova watermark para a coleta de venda (não misturar com aluguel).
+            return {
+                "listing_kind": "venda",
+                "slice_index": 0,
+                "start_page": 1,
+                "attempt": 0,
+                "run_started_at": None,
+            }
 
     return None
 
@@ -101,11 +136,15 @@ async def run(
     payload = _event_payload(event)
     listing_kind = normalize_kind(payload.get("listing_kind"))
     start_page = int(payload.get("start_page") or 1)
+    slice_index = int(payload.get("slice_index") or 0)
+    attempt = int(payload.get("attempt") or 0)
     run_started_at = parse_run_started_at(payload.get("run_started_at"))
 
     result = await job_collect_chunk(
         listing_kind=listing_kind,
         start_page=start_page,
+        slice_index=slice_index,
+        attempt=attempt,
         run_started_at=run_started_at,
         get_remaining_ms=get_remaining_ms,
     )
@@ -124,8 +163,10 @@ async def run(
         "success": result.get("success", 0),
         "count": result.get("count", 0),
         "listing_kind": result.get("listing_kind"),
+        "slice_index": result.get("slice_index", slice_index),
         "completed": result.get("completed", False),
         "next_page": result.get("next_page"),
+        "attempt": result.get("attempt", 0),
         "deactivated": result.get("deactivated", 0),
     }
 

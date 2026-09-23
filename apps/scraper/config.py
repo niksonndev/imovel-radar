@@ -31,9 +31,24 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 SCRAPER_DELAY_MIN = float(os.getenv("SCRAPER_DELAY_MIN", "2.0"))
 SCRAPER_DELAY_MAX = float(os.getenv("SCRAPER_DELAY_MAX", "4.0"))
 
-# Número máximo de páginas a iterar no total por kind (proteção contra loop infinito).
-# Venda Maceió pode passar de 100 páginas — 500 cobre ~25k ads a 50/página.
+# Número máximo de páginas a iterar por fatia (proteção contra loop infinito).
+# Cada fatia de preço fica abaixo do teto de paginação da OLX (~5k ads).
 SCRAPER_MAX_PAGES = int(os.getenv("SCRAPER_MAX_PAGES", "500"))
+
+# HTTP 403/429/502: tentativas dentro da mesma invocação, com UA novo.
+SCRAPER_FETCH_RETRIES = int(os.getenv("SCRAPER_FETCH_RETRIES", "3"))
+# Falhas da mesma página em invocações seguidas antes de pulá-la (sem completed).
+SCRAPER_PAGE_MAX_ATTEMPTS = int(os.getenv("SCRAPER_PAGE_MAX_ATTEMPTS", "3"))
+
+# Venda Maceió: fatias (ps inclusive, pe inclusive). None = lado aberto.
+# Cortadas para cada URL ficar abaixo de ~5k anúncios pagináveis.
+SALE_PRICE_SLICES: tuple[tuple[int | None, int | None], ...] = (
+    (None, 300_000),
+    (300_000, 500_000),
+    (500_000, 700_000),
+    (700_000, 1_000_000),
+    (1_000_000, None),
+)
 
 # Marcador textual do estado "sem resultados" do OLX (fim normal da listagem)
 OLX_EMPTY_RESULTS_TEXT = os.getenv("OLX_EMPTY_RESULTS_TEXT", "Nenhum anúncio foi encontrado")

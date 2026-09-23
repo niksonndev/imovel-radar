@@ -16,6 +16,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import cloudscraper
 from bs4 import BeautifulSoup
@@ -28,6 +29,10 @@ logger = logging.getLogger(__name__)
 
 _http = cloudscraper.create_scraper()
 _cycle_headers: dict[str, str] | None = None
+
+# Lambda: o cwd é read-only. Dump de parse vai para /tmp (ou só o log, se falhar).
+DEBUG_HTML_PATH = Path("/tmp/debug_last_response.html")
+_RETRYABLE_HTTP = frozenset({403, 429, 502})
 
 RemainingTimeFn = Callable[[], int | None]
 
@@ -149,9 +154,7 @@ def _extract_ads_container_from_rsc(html: str) -> dict[str, Any]:
                 "Página sem resultados (fim da listagem) — nenhum anúncio no payload RSC"
             )
 
-        debug_path = Path("debug_last_response.html")
-        debug_path.write_text(html, encoding="utf-8")
-
+        saved = _dump_debug_html(html)
         title = soup.find("title")
 
         logger.error(
@@ -162,7 +165,7 @@ def _extract_ads_container_from_rsc(html: str) -> dict[str, Any]:
             title.string if title else None,
             len(candidates),
             len(candidates_with_list_id),
-            debug_path.resolve(),
+            saved or "não salvo",
         )
 
         raise ParseError("Nenhum array de anúncios válido encontrado no payload RSC")
@@ -204,10 +207,41 @@ def extract_listings_from_search_page(
     return listings
 
 
-def _listings_url(base_url: str, page: int) -> str:
-    if page <= 1:
-        return base_url
-    return f"{base_url}?o={page}"
+def _dump_debug_html(html: str) -> str | None:
+    """Grava o HTML de debug. Falha de disco não vira exceção (cwd da Lambda é read-only)."""
+    try:
+        DEBUG_HTML_PATH.write_text(html, encoding="utf-8")
+    except OSError as exc:
+        logger.error(
+            "Não foi possível salvar HTML de debug em %s: %s",
+            DEBUG_HTML_PATH,
+            exc,
+        )
+        return None
+    return str(DEBUG_HTML_PATH)
+
+
+def _listings_url(
+    base_url: str,
+    page: int,
+    *,
+    price_min: int | None = None,
+    price_max: int | None = None,
+) -> str:
+    """URL de listagem ordenada por mais recentes (``sf=1``), com preço e página.
+
+    A query é montada do zero: ``base?sf=1&o=2`` (nunca ``base?sf=1?o=2``).
+    ``ps`` = preço mínimo, ``pe`` = preço máximo (inclusivos na OLX).
+    """
+    parts = urlsplit(base_url)
+    params: list[tuple[str, str]] = [("sf", "1")]
+    if price_min is not None:
+        params.append(("ps", str(int(price_min))))
+    if price_max is not None:
+        params.append(("pe", str(int(price_max))))
+    if page > 1:
+        params.append(("o", str(page)))
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(params), ""))
 
 
 def base_url_for_kind(listing_kind: ListingKind) -> str:
@@ -239,6 +273,8 @@ class SearchChunkResult:
     next_page: int | None = None
     completed: bool = False
     listing_kind: ListingKind = "aluguel"
+    # Tentativas já gastas na página ``next_page`` (0 quando a página avança).
+    next_attempt: int = 0
 
 
 async def close() -> None:
@@ -281,16 +317,33 @@ def _sync_get(url: str, headers: dict[str, str]) -> tuple[int, str]:
 
 
 async def fetch(url: str, headers: dict[str, str] | None = None) -> str:
-    await _delay()
-    req_headers = headers or _cycle_headers or _build_headers()
-    try:
-        status_code, text = await asyncio.to_thread(_sync_get, url, req_headers)
-    except CloudflareChallengeError as e:
-        logger.error("CloudflareChallengeError em fetch (%s): %s", url, e)
-        raise
-    if status_code >= 400:
-        raise FetchError(status_code, url)
-    return text
+    """GET com delay. 403/429/502 são retentados com pausa maior e User-Agent novo."""
+    retries = max(1, config.SCRAPER_FETCH_RETRIES)
+    for try_index in range(retries):
+        if try_index == 0:
+            await _delay()
+            req_headers = headers or _cycle_headers or _build_headers()
+        else:
+            await asyncio.sleep(config.SCRAPER_DELAY_MAX * try_index)
+            req_headers = _build_headers()
+        try:
+            status_code, text = await asyncio.to_thread(_sync_get, url, req_headers)
+        except CloudflareChallengeError as e:
+            logger.error("CloudflareChallengeError em fetch (%s): %s", url, e)
+            raise
+        if status_code in _RETRYABLE_HTTP and try_index + 1 < retries:
+            logger.warning(
+                "HTTP %s em %s — nova tentativa (%s/%s)",
+                status_code,
+                url,
+                try_index + 1,
+                retries,
+            )
+            continue
+        if status_code >= 400:
+            raise FetchError(status_code, url)
+        return text
+    raise FetchError(0, url)
 
 
 def _out_of_time(get_remaining_ms: RemainingTimeFn | None) -> bool:
@@ -308,22 +361,48 @@ async def search_listings(
     listing_kind: ListingKind,
     start_page: int = 1,
     max_pages: int | None = None,
+    price_min: int | None = None,
+    price_max: int | None = None,
+    attempt: int = 0,
     get_remaining_ms: RemainingTimeFn | None = None,
 ) -> SearchChunkResult:
     """Coleta uma janela de páginas a partir de ``start_page``.
 
     Para em: página vazia (``completed=True``), limite de páginas da janela
     (``next_page`` preenchido), tempo restante da Lambda, ou erro de fetch/parse.
+    ``attempt`` conta falhas anteriores da página inicial; após
+    ``SCRAPER_PAGE_MAX_ATTEMPTS`` a página é pulada (sem ``completed``).
     """
     global _cycle_headers
     window = max_pages if max_pages is not None else config.SCRAPER_PAGES_PER_INVOKE
     hard_cap = config.SCRAPER_MAX_PAGES
+    max_attempts = max(1, config.SCRAPER_PAGE_MAX_ATTEMPTS)
     listings_by_id: dict[int, RawAd] = {}
     _cycle_headers = _build_headers()
-    page = max(1, start_page)
+    retry_page = max(1, start_page)
+    retry_attempt = max(0, attempt)
+    page = retry_page
     pages_in_window = 0
     completed = False
     next_page: int | None = None
+    next_attempt = 0
+
+    def _fail(page_attempt: int) -> bool:
+        """Registra falha da página atual. True = interromper a janela e reenfileirar."""
+        nonlocal page, next_page, next_attempt
+        failed = page_attempt + 1
+        if failed >= max_attempts:
+            logger.warning(
+                "Página %s falhou %s vezes (kind=%s) — pulando para a próxima",
+                page,
+                failed,
+                listing_kind,
+            )
+            page += 1
+            return False
+        next_page = page
+        next_attempt = failed
+        return True
 
     try:
         while pages_in_window < window and page <= hard_cap:
@@ -334,23 +413,26 @@ async def search_listings(
                     listing_kind,
                 )
                 next_page = page
+                next_attempt = retry_attempt if page == retry_page else 0
                 break
 
-            url = _listings_url(base_url, page)
+            page_attempt = retry_attempt if page == retry_page else 0
+            url = _listings_url(
+                base_url,
+                page,
+                price_min=price_min,
+                price_max=price_max,
+            )
             try:
                 html = await fetch(url)
-            except CloudflareChallengeError:
-                next_page = page
-                break
             except Exception as e:
                 logger.exception("Erro ao buscar %s: %s", url, e)
-                next_page = page
-                break
+                if _fail(page_attempt):
+                    break
+                continue
 
             try:
-                page_listings = extract_listings_from_search_page(
-                    html, listing_kind=listing_kind
-                )
+                page_listings = extract_listings_from_search_page(html, listing_kind=listing_kind)
             except EmptyResultsError:
                 logger.info(
                     "Página %s: fim da listagem (sem resultados) — kind=%s",
@@ -359,20 +441,19 @@ async def search_listings(
                 )
                 completed = True
                 break
-            except ParseError as e:
-                logger.exception("Erro ao extrair listings de %s: %s", url, e)
-                next_page = page
-                break
             except Exception as e:
                 logger.exception("Erro ao extrair listings de %s: %s", url, e)
-                next_page = page
-                break
+                if _fail(page_attempt):
+                    break
+                continue
 
             logger.info(
-                "Página %s: %s listings extraídos (kind=%s)",
+                "Página %s: %s listings extraídos (kind=%s ps=%s pe=%s)",
                 page,
                 len(page_listings),
                 listing_kind,
+                price_min,
+                price_max,
             )
             if not page_listings:
                 completed = True
@@ -415,17 +496,19 @@ async def search_listings(
 
     listings = list(listings_by_id.values())
     logger.info(
-        "Chunk kind=%s: %s listings | completed=%s | next_page=%s",
+        "Chunk kind=%s: %s listings | completed=%s | next_page=%s | next_attempt=%s",
         listing_kind,
         len(listings),
         completed,
         next_page,
+        next_attempt,
     )
     return SearchChunkResult(
         listings=listings,
         next_page=next_page,
         completed=completed,
         listing_kind=listing_kind,
+        next_attempt=next_attempt,
     )
 
 
