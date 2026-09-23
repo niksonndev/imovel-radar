@@ -144,11 +144,33 @@ def test_next_payload_opens_recife_after_maceio_venda() -> None:
     }
 
 
-def test_next_payload_none_when_last_recife_venda_slice_complete() -> None:
+def test_next_payload_opens_natal_after_recife_venda() -> None:
     last = len(slices_for_kind("venda", "recife")) - 1
     nxt = lambda_handler._next_payload_after_chunk(
         {
             "market": "recife",
+            "listing_kind": "venda",
+            "completed": True,
+            "next_page": None,
+            "slice_index": last,
+            "run_started_at": "2026-01-01T00:00:00+00:00",
+        }
+    )
+    assert nxt == {
+        "market": "natal",
+        "listing_kind": "aluguel",
+        "slice_index": 0,
+        "start_page": 1,
+        "attempt": 0,
+        "run_started_at": None,
+    }
+
+
+def test_next_payload_none_when_last_natal_venda_slice_complete() -> None:
+    last = len(slices_for_kind("venda", "natal")) - 1
+    nxt = lambda_handler._next_payload_after_chunk(
+        {
+            "market": "natal",
             "listing_kind": "venda",
             "completed": True,
             "next_page": None,

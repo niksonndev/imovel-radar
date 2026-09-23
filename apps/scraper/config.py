@@ -101,6 +101,14 @@ RECIFE_SALE_LISTINGS_URL = os.getenv(
     "RECIFE_SALE_LISTINGS_URL",
     f"{OLX_BASE_URL}/imoveis/venda/estado-pe/grande-recife/recife",
 ).strip()
+NATAL_RENT_LISTINGS_URL = os.getenv(
+    "NATAL_RENT_LISTINGS_URL",
+    f"{OLX_BASE_URL}/imoveis/aluguel/estado-rn/rio-grande-do-norte/natal",
+).strip()
+NATAL_SALE_LISTINGS_URL = os.getenv(
+    "NATAL_SALE_LISTINGS_URL",
+    f"{OLX_BASE_URL}/imoveis/venda/estado-rn/rio-grande-do-norte/natal",
+).strip()
 OLX_REFERER = (os.getenv("OLX_REFERER") or f"{OLX_BASE_URL}/").strip()
 
 
@@ -133,6 +141,14 @@ MARKETS: tuple[Market, ...] = (
         sale_url=RECIFE_SALE_LISTINGS_URL,
         rent_slices=RECIFE_RENT_SLICES,
         sale_slices=RECIFE_SALE_SLICES,
+    ),
+    Market(
+        key="natal",
+        municipality="Natal",
+        rent_url=NATAL_RENT_LISTINGS_URL,
+        sale_url=NATAL_SALE_LISTINGS_URL,
+        rent_slices=((None, None),),
+        sale_slices=SALE_PRICE_SLICES,
     ),
 )
 

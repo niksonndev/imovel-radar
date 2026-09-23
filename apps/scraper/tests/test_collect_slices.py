@@ -126,6 +126,35 @@ def test_recife_last_slice_deactivates_recife(monkeypatch) -> None:
     assert calls[0]["listing_kind"] == "venda"
 
 
+def test_natal_rent_deactivates_on_last_slice() -> None:
+    # Natal rent tem apenas 1 fatia aberta (índice 0 é a última)
+    assert should_deactivate_after_slice("aluguel", 0, completed=True, market="natal") is True
+
+
+def test_natal_last_slice_deactivates_natal(monkeypatch) -> None:
+    calls: list[dict] = []
+    last = len(slices_for_kind("venda", "natal")) - 1
+
+    async def fake_search(*_args, **_kwargs) -> SearchChunkResult:
+        return SearchChunkResult(listings=[], completed=True, listing_kind="venda")
+
+    monkeypatch.setattr(jobs, "search_listings", fake_search)
+    monkeypatch.setattr(jobs, "Session", _Session)
+    monkeypatch.setattr(
+        jobs,
+        "deactivate_missing_listings",
+        lambda *_a, **kwargs: calls.append(kwargs) or 3,
+    )
+
+    result = asyncio.run(
+        jobs.job_collect_chunk(listing_kind="venda", market="natal", slice_index=last)
+    )
+
+    assert result["deactivated"] == 3
+    assert calls[0]["municipality"] == "Natal"
+    assert calls[0]["listing_kind"] == "venda"
+
+
 def test_clamped_slice_does_not_deactivate(monkeypatch) -> None:
     calls: list[dict] = []
     last = len(slices_for_kind("venda", "recife")) - 1

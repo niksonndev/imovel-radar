@@ -62,6 +62,7 @@ def test_snapshot_median_ignores_other_city_kind_and_outliers(session: Session) 
     payload = build_market_snapshot(session)
     maceio = next(city for city in payload["cities"] if city["key"] == "maceio")
     recife = next(city for city in payload["cities"] if city["key"] == "recife")
+    natal = next(city for city in payload["cities"] if city["key"] == "natal")
     rent = maceio["kinds"]["aluguel"]
 
     assert rent["sample"] == MIN_SAMPLE + 2
@@ -87,6 +88,7 @@ def test_snapshot_median_ignores_other_city_kind_and_outliers(session: Session) 
 
     assert recife["kinds"]["aluguel"]["sample"] == 1
     assert recife["kinds"]["aluguel"]["median_price"] == 5_000
+    assert natal["municipality"] == "Natal"
     assert maceio["kinds"]["venda"]["sample"] == 1
     assert maceio["kinds"]["venda"]["median_rent_plus_condo"] is None
 
@@ -126,51 +128,55 @@ def _terminal_result(*, market: str, listing_kind: str, slice_index: int, **extr
     return last_fields
 
 
-def test_should_publish_only_after_last_recife_sale_slice() -> None:
+def test_should_publish_only_after_last_natal_sale_slice() -> None:
+    natal_last = len(slices_for_kind("venda", "natal")) - 1
     recife_last = len(slices_for_kind("venda", "recife")) - 1
     maceio_last = len(slices_for_kind("venda", "maceio")) - 1
 
     assert lambda_handler._should_publish_snapshot(
-        _terminal_result(market="recife", listing_kind="venda", slice_index=recife_last)
+        _terminal_result(market="natal", listing_kind="venda", slice_index=natal_last)
     )
     assert lambda_handler._should_publish_snapshot(
         _terminal_result(
-            market="recife",
+            market="natal",
             listing_kind="venda",
-            slice_index=recife_last,
+            slice_index=natal_last,
             completed=False,
             clamped=True,
         )
+    )
+    assert not lambda_handler._should_publish_snapshot(
+        _terminal_result(market="recife", listing_kind="venda", slice_index=recife_last)
     )
     assert not lambda_handler._should_publish_snapshot(
         _terminal_result(market="maceio", listing_kind="venda", slice_index=maceio_last)
     )
     assert not lambda_handler._should_publish_snapshot(
         _terminal_result(
-            market="recife",
+            market="natal",
             listing_kind="venda",
-            slice_index=recife_last,
+            slice_index=natal_last,
             completed=False,
             next_page=None,
         )
     )
     assert not lambda_handler._should_publish_snapshot(
-        _terminal_result(market="recife", listing_kind="aluguel", slice_index=0)
+        _terminal_result(market="natal", listing_kind="aluguel", slice_index=0)
     )
 
 
 def test_run_publishes_snapshot_when_chain_ends(monkeypatch) -> None:
-    recife_last = len(slices_for_kind("venda", "recife")) - 1
+    natal_last = len(slices_for_kind("venda", "natal")) - 1
     published: list[bool] = []
 
     async def _fake(**kwargs: object) -> dict:
         del kwargs
-        return _terminal_result(market="recife", listing_kind="venda", slice_index=recife_last)
+        return _terminal_result(market="natal", listing_kind="venda", slice_index=natal_last)
 
     monkeypatch.setattr(lambda_handler, "job_collect_chunk", _fake)
     monkeypatch.setattr(lambda_handler, "publish_market_snapshot", lambda: published.append(True))
 
-    result = asyncio.run(lambda_handler.run({"market": "recife", "listing_kind": "venda"}))
+    result = asyncio.run(lambda_handler.run({"market": "natal", "listing_kind": "venda"}))
 
     assert published == [True]
     assert result["snapshot"] == 1

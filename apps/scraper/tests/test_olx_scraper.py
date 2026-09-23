@@ -211,6 +211,8 @@ def test_listings_url_sorts_by_recent_and_keeps_page_query() -> None:
 
 
 _RECIFE_SALE = "https://www.olx.com.br/imoveis/venda/estado-pe/grande-recife/recife"
+_NATAL_SALE = "https://www.olx.com.br/imoveis/venda/estado-rn/rio-grande-do-norte/natal"
+_NATAL_RENT = "https://www.olx.com.br/imoveis/aluguel/estado-rn/rio-grande-do-norte/natal"
 
 
 def test_listings_url_recife_keeps_recent_sort() -> None:
@@ -218,6 +220,16 @@ def test_listings_url_recife_keeps_recent_sort() -> None:
     assert (
         _listings_url(_RECIFE_SALE, 2, price_min=300_000, price_max=350_000)
         == f"{_RECIFE_SALE}?sf=1&ps=300000&pe=350000&o=2"
+    )
+
+
+def test_listings_url_natal_keeps_recent_sort() -> None:
+    assert _listings_url(_NATAL_RENT, 1) == f"{_NATAL_RENT}?sf=1"
+    assert _listings_url(_NATAL_RENT, 2) == f"{_NATAL_RENT}?sf=1&o=2"
+    assert _listings_url(_NATAL_SALE, 1) == f"{_NATAL_SALE}?sf=1"
+    assert (
+        _listings_url(_NATAL_SALE, 2, price_min=300_000, price_max=500_000)
+        == f"{_NATAL_SALE}?sf=1&ps=300000&pe=500000&o=2"
     )
 
 

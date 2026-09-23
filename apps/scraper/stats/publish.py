@@ -1,4 +1,4 @@
-"""Grava o snapshot do dia. Chamado só no fim da cadeia Maceió → Recife."""
+"""Grava o snapshot do dia. Chamado só no fim da cadeia Maceió → Recife → Natal."""
 
 from __future__ import annotations
 

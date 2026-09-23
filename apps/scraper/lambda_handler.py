@@ -7,7 +7,7 @@ migrations (Alembic é step do pipeline — ADR 0004) e não importa o FastAPI.
 Event payload (EventBridge ou self-invoke)::
 
     {
-      "market": "maceio" | "recife",
+      "market": "maceio" | "recife" | "natal",
       "listing_kind": "aluguel" | "venda",
       "slice_index": 0,
       "start_page": 1,
@@ -127,7 +127,7 @@ def _is_market_stats_request(event: dict | None) -> bool:
 
 
 def _should_publish_snapshot(result: dict[str, Any]) -> bool:
-    """True só no último chunk da última cidade (venda de Recife concluída).
+    """True só no último chunk da última cidade (venda de Natal concluída).
 
     ``_next_payload_after_chunk`` também devolve None quando a fatia quebra
     no meio. Esse caso não publica — o snapshot anterior fica no ar.
