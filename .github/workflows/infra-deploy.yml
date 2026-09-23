@@ -105,7 +105,7 @@ jobs:
           uv pip install --target dist/python -r /tmp/requirements-no-shared.txt
           cp -r ../../packages/shared-models/src/shared_models dist/python/shared_models
           cp lambda_handler.py config.py dist/python/
-          cp -r scheduler collector database dist/python/
+          cp -r scheduler collector database stats dist/python/
           cd dist/python && zip -q -r ../lambda.zip .
 
       - name: Bot lint + tests + Build bot Lambda zip
