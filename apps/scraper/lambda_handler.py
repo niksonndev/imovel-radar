@@ -36,6 +36,7 @@ from scheduler.jobs import (
     parse_run_started_at,
     slices_for_kind,
 )
+from stats.publish import publish_market_snapshot
 
 # O runtime da Lambda já configura o root logger (basicConfig vira no-op)
 # e o nível fica acima de INFO. Força o nível para os logs da coleta aparecerem.
@@ -109,6 +110,41 @@ def _cursor(
     if skip_deactivate:
         payload["skip_deactivate"] = True
     return payload
+
+
+def _is_market_stats_request(event: dict | None) -> bool:
+    if not isinstance(event, dict):
+        return False
+    request_context = event.get("requestContext")
+    if not isinstance(request_context, dict):
+        return False
+    http = request_context.get("http")
+    if not isinstance(http, dict):
+        return False
+    method = str(http.get("method") or "").upper()
+    path = str(http.get("path") or event.get("rawPath") or "")
+    return method == "GET" and path.rstrip("/").endswith("/market-stats")
+
+
+def _should_publish_snapshot(result: dict[str, Any]) -> bool:
+    """True só no último chunk da última cidade (venda de Recife concluída).
+
+    ``_next_payload_after_chunk`` também devolve None quando a fatia quebra
+    no meio. Esse caso não publica — o snapshot anterior fica no ar.
+    """
+    if not result.get("success"):
+        return False
+    if _next_payload_after_chunk(result) is not None:
+        return False
+    if not (result.get("completed") or result.get("clamped")):
+        return False
+    if result.get("listing_kind") != "venda":
+        return False
+    market = str(result.get("market") or "maceio")
+    if config.next_market(market) is not None:
+        return False
+    last_slice = len(slices_for_kind("venda", market)) - 1
+    return int(result.get("slice_index") or 0) == last_slice
 
 
 def _next_payload_after_chunk(result: dict[str, Any]) -> dict[str, Any] | None:
@@ -208,6 +244,7 @@ async def run(
         get_remaining_ms=get_remaining_ms,
     )
 
+    snapshot = 0
     if result.get("success"):
         nxt = _next_payload_after_chunk(result)
         if nxt is not None:
@@ -217,6 +254,12 @@ async def run(
 
                 nxt["run_started_at"] = datetime.now(UTC).isoformat()
             _self_invoke(nxt)
+        elif _should_publish_snapshot(result):
+            try:
+                publish_market_snapshot()
+                snapshot = 1
+            except Exception:
+                logger.exception("Falha ao gravar market_snapshot")
 
     return {
         "success": result.get("success", 0),
@@ -229,11 +272,16 @@ async def run(
         "next_page": result.get("next_page"),
         "attempt": result.get("attempt", 0),
         "deactivated": result.get("deactivated", 0),
+        "snapshot": snapshot,
     }
 
 
 def lambda_handler(event: dict | None, context: object | None = None) -> dict[str, Any]:
-    """Handler AWS Lambda (EventBridge cron + self-invoke)."""
+    """Handler AWS Lambda (EventBridge cron, self-invoke ou GET /market-stats)."""
+    if _is_market_stats_request(event):
+        from stats.public import market_stats_http_response
+
+        return market_stats_http_response()
 
     def get_remaining_ms() -> int | None:
         if context is None:

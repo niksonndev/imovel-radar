@@ -17,6 +17,7 @@ from fastapi import FastAPI
 import config
 from alembic import command
 from api.health import router as health_router
+from api.market_stats import router as market_stats_router
 
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
@@ -56,3 +57,4 @@ app = FastAPI(
 )
 
 app.include_router(health_router)
+app.include_router(market_stats_router)
