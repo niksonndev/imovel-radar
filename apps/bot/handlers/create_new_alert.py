@@ -479,6 +479,22 @@ async def wiz_name(update: Update, context: CustomContext) -> int:
     return CONFIRM
 
 
+async def _set_seed_message(
+    query: CallbackQuery,
+    text: str,
+    *,
+    reply_markup: InlineKeyboardMarkup | None = None,
+) -> None:
+    """A confirmação vira loading e depois o texto final, na mesma bolha."""
+    markup = reply_markup if reply_markup is not None else InlineKeyboardMarkup([])
+    try:
+        await query.edit_message_text(text, reply_markup=markup)
+    except BadRequest:
+        if query.message is None:
+            return
+        await query.message.reply_text(text, reply_markup=markup)
+
+
 def _clear_wizard(context: CustomContext) -> None:
     assert context.user_data is not None
     context.user_data.pop("create_alert_draft", None)
@@ -554,7 +570,7 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
         assert alert_id is not None
 
         if not wizard_state.get("seed_done"):
-            await query.message.reply_text(menus.wizard_seed_loading())  # type: ignore[union-attr]
+            await _set_seed_message(query, menus.wizard_seed_loading())
 
             rows = await get_unnotified_listings(user.id)
             listings: list[Listing] = [row.listing for row in rows if row.alert_id == alert_id]
@@ -565,11 +581,18 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
                     if alert_was_created
                     else menus.seed_alert_already_exists()
                 )
-                await query.message.reply_text(  # type: ignore[union-attr]
+                await _set_seed_message(
+                    query,
                     empty_msg,
                     reply_markup=keyboards.main_menu_keyboard(),
                 )
             else:
+                await _set_seed_message(
+                    query,
+                    menus.seed_alert_created()
+                    if alert_was_created
+                    else menus.seed_alert_new_matches(),
+                )
                 await send_carousel(
                     context.application.bot,
                     user.id,
@@ -577,23 +600,17 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
                     str(alert_id),
                     context.application.bot_data,
                 )
-                # Mark before follow-up UI so a later failure cannot re-notify.
+                # Mark before the seed flag so a later failure cannot re-notify.
                 pairs = [(alert_id, item.listing_id) for item in listings]
                 await mark_listings_notified(user.id, pairs)
-
-                await query.message.reply_text(  # type: ignore[union-attr]
-                    menus.seed_alert_created()
-                    if alert_was_created
-                    else menus.seed_alert_new_matches(),
-                    reply_markup=keyboards.main_menu_keyboard(),
-                )
 
             wizard_state["seed_done"] = True
 
     except Exception:
         wizard_state["confirming"] = False
         logger.exception("Falha ao salvar alerta no banco")
-        await query.message.reply_text(  # type: ignore[union-attr]
+        await _set_seed_message(
+            query,
             "Não foi possível salvar o alerta. Tente novamente.",
             reply_markup=keyboards.main_menu_keyboard(),
         )
