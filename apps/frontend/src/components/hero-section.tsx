@@ -26,7 +26,7 @@ export function HeroSection() {
 
           <h1 className="font-heading text-4xl leading-tight tracking-tight text-white animate-in fade-in slide-in-from-bottom-3 fill-mode-both duration-500 delay-100 sm:text-5xl md:text-6xl">
             {HERO_HEADLINE}
-            <span className="mt-1 block text-white/90">{HERO_HEADLINE_LINE2}</span>
+            <span className="mt-1 block text-primary-on-surface">{HERO_HEADLINE_LINE2}</span>
           </h1>
 
           <p className="max-w-xl text-lg leading-relaxed text-white/70 animate-in fade-in slide-in-from-bottom-3 fill-mode-both duration-500 delay-200 sm:text-xl">
@@ -37,7 +37,7 @@ export function HeroSection() {
             <TrackedCta
               href={TELEGRAM_BOT_URL}
               ctaId="hero"
-              className="btn-shine mt-2 h-11 px-6 text-base"
+              className="btn-shine mt-2"
             >
               {HERO_CTA_LABEL}
             </TrackedCta>
