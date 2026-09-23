@@ -8,6 +8,7 @@ import {
   InstagramMedia,
   MediaInsights,
   PublishResult,
+  SocialCapabilities,
 } from './types.js';
 
 interface MockState {
@@ -38,6 +39,14 @@ interface MockState {
 }
 
 export class MockInstagramClient implements InstagramClient {
+  readonly platform = 'instagram' as const;
+  readonly capabilities: SocialCapabilities = {
+    singleImage: true,
+    carousel: true,
+    video: false,
+    replyComment: true,
+    hideComment: true,
+  };
   private filePath: string;
   private state: MockState;
 
@@ -145,6 +154,15 @@ export class MockInstagramClient implements InstagramClient {
     this.saveState(this.state);
 
     return { mediaId: id, permalink, publishedAt };
+  }
+
+  async publishVideo(
+    _caption: string,
+    _videoUrl: string
+  ): Promise<PublishResult> {
+    throw new Error(
+      'Publicação de vídeo não é suportada no InstagramClient nesta versão.'
+    );
   }
 
   async getRecentMedia(limit = 10): Promise<InstagramMedia[]> {

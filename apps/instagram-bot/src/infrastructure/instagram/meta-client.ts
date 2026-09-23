@@ -6,6 +6,7 @@ import {
   InstagramMedia,
   MediaInsights,
   PublishResult,
+  SocialCapabilities,
 } from './types.js';
 
 export interface MetaGraphConfig {
@@ -16,6 +17,14 @@ export interface MetaGraphConfig {
 }
 
 export class MetaGraphInstagramClient implements InstagramClient {
+  readonly platform = 'instagram' as const;
+  readonly capabilities: SocialCapabilities = {
+    singleImage: true,
+    carousel: true,
+    video: false,
+    replyComment: true,
+    hideComment: true,
+  };
   private accountId: string;
   private accessToken: string;
   private baseUrl: string;
@@ -144,6 +153,15 @@ export class MetaGraphInstagramClient implements InstagramClient {
       mediaId: published.id,
       publishedAt: new Date(),
     };
+  }
+
+  async publishVideo(
+    _caption: string,
+    _videoUrl: string
+  ): Promise<PublishResult> {
+    throw new Error(
+      'Publicação de vídeo não é suportada no InstagramClient nesta versão.'
+    );
   }
 
   async getRecentMedia(limit = 10): Promise<InstagramMedia[]> {
