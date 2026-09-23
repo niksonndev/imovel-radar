@@ -99,6 +99,6 @@ variable "bot_memory" {
 }
 
 variable "bot_timeout" {
-  description = "Timeout da Bot Lambda (s) — webhook precisa responder em ≤ 29s via API Gateway"
-  default     = 60
+  description = "Timeout da Bot Lambda (s). Webhook still capped at ≤ 29s by API Gateway; EventBridge daily notify needs headroom (~2s sleep/chat × users + carousel sends)."
+  default     = 600
 }
