@@ -19,7 +19,7 @@ export const HERO_CTA_HINT =
 export const MOCK_ALERT = {
   appName: "Imóvel Radar",
   time: "10:12",
-  title: "Novo imóvel encontrado",
+  title: "🔥 Novo imóvel com 97% de match",
   property: "Apartamento em Ponta Verde",
   price: "R$ 1.800/mês",
   details: "2 quartos · 65m²",
@@ -38,7 +38,7 @@ export const STEP_1_DESC = "Aluguel · Ponta Verde · até R$2.000";
 export const STEP_2_TITLE = "O Radar monitora";
 export const STEP_2_DESC = "17 anúncios novos encontrados";
 export const STEP_3_TITLE = "Você recebe o match";
-export const STEP_3_DESC = "Telegram · “Novo imóvel encontrado…”";
+export const STEP_3_DESC = "Telegram · “🔥 97% de match” · “📉 Preço caiu…”";
 
 // Example searches (“Does it work in my case?”)
 export const EXAMPLE_SEARCHES_HEADLINE = "Funciona no seu caso";

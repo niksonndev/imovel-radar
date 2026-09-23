@@ -2,13 +2,13 @@
 
 > Deixe o Imóvel Radar encontrar no OLX de Maceió e avisar no Telegram. Comece grátis com 1 alerta; ganhe 1 mês de Radar Pro cadastrando o e-mail no bot.
 
-Produto independente. Não afiliado à OLX. Anúncios vêm do OLX Maceió; preços e disponibilidade podem mudar.
+Produto independente. Não afiliado à OLX. Anúncios vêm do OLX de Maceió e Recife; preços e disponibilidade podem mudar.
 
 ## Product facts
 
-- Imóvel Radar é um bot no Telegram que monitora o OLX de Maceió e avisa quando aparece imóvel compatível com o alerta do usuário.
-- Por enquanto, o monitoramento cobre apenas Maceió (Alagoas), em aluguel e venda.
-- Os anúncios vêm de listagens públicas do OLX Maceió. Imóvel Radar não é afiliado à OLX.
+- Imóvel Radar é um bot no Telegram que monitora o OLX de Maceió e Recife e avisa quando aparece imóvel compatível com o alerta do usuário.
+- Por enquanto, o monitoramento cobre apenas Maceió e Recife (Alagoas e Pernambuco), em aluguel e venda.
+- Os anúncios vêm de listagens públicas do OLX Maceió e Recife. Imóvel Radar não é afiliado à OLX.
 - O plano free inclui 1 alerta ativo. O Radar Pro (1 mês grátis com e-mail no bot) inclui até 5 alertas, prioridade e alertas de queda de preço.
 - Para começar: abra https://t.me/imovel_radar_bot, configure aluguel ou venda, bairro e preço — sem formulário no site.
 

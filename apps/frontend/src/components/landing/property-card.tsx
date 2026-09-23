@@ -1,3 +1,4 @@
+import { MOCK_ALERT } from "@/content/page-content";
 import { cn } from "@/lib/utils";
 
 import { LISTING } from "./script";
@@ -22,7 +23,7 @@ export function PropertyCard() {
             </div>
           </div>
           <p className="absolute left-2.5 top-2.5 rounded-full bg-black/55 px-2 py-1 text-[11px] font-medium text-white">
-            Novo imóvel encontrado
+            {MOCK_ALERT.title}
           </p>
         </div>
 

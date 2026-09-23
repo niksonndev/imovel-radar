@@ -40,7 +40,7 @@ export function TelegramAlertMock({ className = "" }: { className?: string }) {
               </div>
 
               <p className="mt-1.5 text-sm font-medium text-primary-on-surface lg:mt-3">
-                🔔 {MOCK_ALERT.title}
+                {MOCK_ALERT.title}
               </p>
 
               <p className="mt-1.5 text-sm font-medium leading-tight text-white lg:mt-3 lg:text-base lg:leading-snug">

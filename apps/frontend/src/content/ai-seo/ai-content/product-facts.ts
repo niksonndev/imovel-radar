@@ -41,8 +41,8 @@ export const PRODUCT_FACTS = {
     "Produto independente. Não afiliado à OLX. Anúncios vêm do OLX de Maceió e Recife; preços e disponibilidade podem mudar.",
   howItWorks: [
     "Usuário abre o bot no Telegram e define aluguel ou venda, bairros e faixa de preço.",
-    "O Radar monitora anúncios públicos do OLX em Maceió.",
-    "Quando há match, o usuário recebe alerta no Telegram com link para o anúncio.",
+    "O Radar monitora anúncios públicos do OLX em Maceió e Recife.",
+    "Quando há match, o usuário recebe no Telegram o motivo (queda de preço, match alto, anúncio novo ou volta ao ar) e o link do anúncio.",
   ],
   faqs: FAQ_ITEMS.map((item) => ({
     question: item.question,
