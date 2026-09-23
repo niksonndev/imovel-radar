@@ -10,6 +10,11 @@ output "lambda_arn" {
   value = aws_lambda_function.collect.arn
 }
 
+output "market_stats_url" {
+  description = "GET público do snapshot (Cache-Control 1h). Defina NEXT_PUBLIC_MARKET_STATS_URL no frontend."
+  value       = "${aws_apigatewayv2_api.market_stats.api_endpoint}/market-stats"
+}
+
 output "eventbridge_rule_arn" {
   value = aws_cloudwatch_event_rule.collect_schedule.arn
 }

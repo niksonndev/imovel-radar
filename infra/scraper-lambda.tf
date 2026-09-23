@@ -120,6 +120,46 @@ resource "aws_sns_topic_subscription" "alarms_email" {
   endpoint  = var.alarm_email
 }
 
+# ── API Gateway — JSON público do snapshot (cache no cliente, 1h) ──────────
+resource "aws_apigatewayv2_api" "market_stats" {
+  name          = "${var.project}-${var.environment}-market-stats"
+  protocol_type = "HTTP"
+
+  cors_configuration {
+    allow_origins = var.market_stats_cors_origins
+    allow_methods = ["GET", "OPTIONS"]
+    allow_headers = ["content-type"]
+    max_age       = 3600
+  }
+}
+
+resource "aws_apigatewayv2_integration" "market_stats" {
+  api_id                 = aws_apigatewayv2_api.market_stats.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.collect.invoke_arn
+  payload_format_version = "2.0"
+  timeout_milliseconds   = 29000
+}
+
+resource "aws_apigatewayv2_route" "market_stats_get" {
+  api_id    = aws_apigatewayv2_api.market_stats.id
+  route_key = "GET /market-stats"
+  target    = "integrations/${aws_apigatewayv2_integration.market_stats.id}"
+}
+
+resource "aws_apigatewayv2_stage" "market_stats" {
+  api_id      = aws_apigatewayv2_api.market_stats.id
+  name        = "$default"
+  auto_deploy = true
+}
+
+resource "aws_lambda_permission" "market_stats_apigw" {
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.collect.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.market_stats.execution_arn}/*/*"
+}
+
 resource "aws_cloudwatch_metric_alarm" "collect_errors" {
   alarm_name          = "${var.project}-${var.environment}-scraper-collect-errors"
   comparison_operator = "GreaterThanThreshold"

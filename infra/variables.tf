@@ -98,6 +98,12 @@ variable "bot_memory" {
   default     = 512
 }
 
+variable "market_stats_cors_origins" {
+  description = "Origens com CORS no GET /market-stats (domínio do site)"
+  type        = list(string)
+  default     = ["https://imovel-radar.vercel.app"]
+}
+
 variable "bot_timeout" {
   description = "Timeout da Bot Lambda (s). Webhook still capped at ≤ 29s by API Gateway; EventBridge daily notify needs headroom (~2s sleep/chat × users + carousel sends)."
   default     = 600
