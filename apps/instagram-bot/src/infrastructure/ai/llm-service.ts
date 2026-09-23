@@ -1,10 +1,16 @@
 import { ListingItem, MarketKindStats } from '../database/client.js';
+import { SocialPlatform } from '../social/types.js';
 
 export interface ContentTopic {
   type: 'PRICE_RANKING' | 'OPPORTUNITY_DEAL' | 'MARKET_TREND' | 'EDUCATIONAL_TIPS';
   neighborhood?: string;
   listingKind?: 'aluguel' | 'venda';
   angle?: string;
+}
+
+export interface ContentCopyOptions {
+  platform?: SocialPlatform;
+  format?: 'photo' | 'video';
 }
 
 export interface GeneratedContentCopy {
@@ -41,7 +47,7 @@ export interface PerformanceAnalysis {
   nextPautas: Array<{
     title: string;
     reason: string;
-    suggestedFormat: 'CAROUSEL' | 'SINGLE_IMAGE';
+    suggestedFormat: 'CAROUSEL' | 'SINGLE_IMAGE' | 'VIDEO';
   }>;
 }
 
@@ -61,11 +67,12 @@ export class LLMService {
   async generateContentCopy(
     topic: ContentTopic,
     marketData: MarketKindStats,
-    deals: ListingItem[] = []
+    deals: ListingItem[] = [],
+    options: ContentCopyOptions = {}
   ): Promise<GeneratedContentCopy> {
     if (this.provider === 'openai' && this.openaiKey) {
       try {
-        return await this.generateWithOpenAI(topic, marketData, deals);
+        return await this.generateWithOpenAI(topic, marketData, deals, options);
       } catch (err) {
         console.warn('[LLMService] OpenAI falhou, usando gerador heurístico:', err);
       }
@@ -79,13 +86,14 @@ export class LLMService {
       }
     }
 
-    return this.generateHeuristicCopy(topic, marketData, deals);
+    return this.generateHeuristicCopy(topic, marketData, deals, options);
   }
 
   private generateHeuristicCopy(
     topic: ContentTopic,
     marketData: MarketKindStats,
-    deals: ListingItem[]
+    deals: ListingItem[],
+    options: ContentCopyOptions = {}
   ): GeneratedContentCopy {
     const sortedNeighbours = [...marketData.neighbourhoods].sort(
       (a, b) => (b.median_price_m2 || 0) - (a.median_price_m2 || 0)
@@ -94,13 +102,18 @@ export class LLMService {
     const cheapest = sortedNeighbours[sortedNeighbours.length - 1] || { name: 'Benedito Bentes', median_price_m2: 18, median_price: 1100 };
     const deal = deals[0];
 
+    const isTikTok = options.platform === 'tiktok';
+    const defaultHashtags = isTikTok
+      ? ['#fyp', '#tiktokimoveis', '#maceio', '#imoveis', '#aluguelmaceio']
+      : ['#maceio', '#aluguelmaceio', '#pontavertemaceio', '#jatiuca', '#imovelradar'];
+
     if (topic.type === 'OPPORTUNITY_DEAL' && deal) {
       const dropText = deal.old_price && deal.price_value && deal.old_price > deal.price_value
         ? `Caiu de R$ ${deal.old_price} para R$ ${deal.price_value}!`
         : `Por apenas R$ ${deal.price_value}/mês`;
 
       return {
-        title: `Achado na ${deal.neighbourhood}: ${deal.title}`,
+        title: isTikTok ? `Achado na ${deal.neighbourhood}: ${deal.title}`.slice(0, 90) : `Achado na ${deal.neighbourhood}: ${deal.title}`,
         hook: `Achamos esse imóvel abaixo da mediana na ${deal.neighbourhood}! 🎯`,
         caption: `Oportunidade real monitorada pelo robô do Imóvel Radar.\n\n📍 Bairro: ${deal.neighbourhood}\n💰 Preço: ${dropText}\n📐 Características: ${deal.properties?.size || 60}m², ${deal.properties?.rooms || 2} quartos.\n\nQuer receber alertas assim no seu Telegram assim que um proprietário baixar o preço ou anunciar?\n\n👉 Comente ALERTA abaixo ou clique no link da bio para ativar o @${this.telegramBotUser}!`,
         slides: [
@@ -130,13 +143,15 @@ export class LLMService {
           },
         ],
         cta: `Comente "ALERTA" para receber imóveis assim direto no seu Telegram pelo @${this.telegramBotUser}!`,
-        hashtags: ['#maceio', '#imoveismaceio', '#aluguelmaceio', `#${deal.neighbourhood.toLowerCase().replace(/\s+/g, '')}`, '#imovelradar'],
+        hashtags: isTikTok
+          ? ['#fyp', '#tiktokimoveis', '#maceio', '#imoveis', `#${deal.neighbourhood.toLowerCase().replace(/\s+/g, '')}`]
+          : ['#maceio', '#imoveismaceio', '#aluguelmaceio', `#${deal.neighbourhood.toLowerCase().replace(/\s+/g, '')}`, '#imovelradar'],
       };
     }
 
     if (topic.type === 'MARKET_TREND') {
       return {
-        title: `Maceió: ${marketData.new_count || 48} novos imóveis entraram no radar`,
+        title: isTikTok ? `Maceió: novos imóveis no radar`.slice(0, 90) : `Maceió: ${marketData.new_count || 48} novos imóveis entraram no radar`,
         hook: `O que está acontecendo com os preços de aluguel em Maceió? 📊`,
         caption: `Analisamos ${marketData.summary.sample} anúncios ativos em Maceió nesta semana.\n\n📈 Mediana geral: R$ ${marketData.summary.median_price || 2800}/mês (R$ ${marketData.summary.median_price_m2 || 38}/m²)\n🔻 Imóveis que baixaram de preço: ${marketData.price_drop_count || 32} oportunidades\n🆕 Anúncios novos monitorados: ${marketData.new_count || 48}\n\nNão alugue sem consultar o radar.\n\nComente ALERTA para receber novidades personalizadas!`,
         slides: [
@@ -166,13 +181,13 @@ export class LLMService {
           },
         ],
         cta: `Comente "ALERTA" para ativar seu radar gratuito no Telegram @${this.telegramBotUser}!`,
-        hashtags: ['#maceio', '#aluguelmaceio', '#imoveismaceio', '#pontavertemaceio', '#jatiuca', '#imovelradar'],
+        hashtags: defaultHashtags,
       };
     }
 
     // Default: PRICE_RANKING
     return {
-      title: 'Ranking do m² em Maceió: Bairros Mais Caros e Baratos',
+      title: isTikTok ? 'Ranking do m² em Maceió 2026' : 'Ranking do m² em Maceió: Bairros Mais Caros e Baratos',
       hook: `Quanto custa de verdade morar nos bairros de Maceió em 2026? 🏢`,
       caption: `Você sabe qual bairro tem o metro quadrado mais disputado de Maceió?\n\n🥇 Mais valorizado: ${topExpensive.name} (R$ ${topExpensive.median_price_m2}/m²)\n💡 Melhor custo por m²: ${cheapest.name} (R$ ${cheapest.median_price_m2}/m²)\n\nVeja no carrossel o ranking completo e comente ALERTA para ser avisado de imóveis vagos nesses bairros!`,
       slides: [
@@ -202,7 +217,7 @@ export class LLMService {
         },
       ],
       cta: `Comente "ALERTA" para ativar seu monitor no Telegram @${this.telegramBotUser}!`,
-      hashtags: ['#maceio', '#aluguelmaceio', '#pontavertemaceio', '#jatiuca', '#imovelradar'],
+      hashtags: defaultHashtags,
     };
   }
 
@@ -320,16 +335,42 @@ export class LLMService {
     };
   }
 
+  buildContentPrompt(
+    topic: ContentTopic,
+    marketData: MarketKindStats,
+    deals: ListingItem[],
+    options: ContentCopyOptions = {}
+  ): string {
+    const isTikTok = options.platform === 'tiktok';
+    const platformLabel = isTikTok ? 'TikTok' : 'Instagram';
+    const formatRule = isTikTok
+      ? options.format === 'video'
+        ? 'vídeo vertical 9:16 (slideshow dinâmico com textos curtos e impactantes)'
+        : 'Photo Mode vertical 9:16 (carrossel de fotos)'
+      : 'carrossel portrait 4:5 (1080x1350)';
+    const titleRule = isTikTok
+      ? 'título com no máximo 90 caracteres'
+      : 'título chamativo';
+    const hashtagRule = isTikTok
+      ? 'inclua hashtags virais locais (#maceio, #aluguelmaceio, #tiktokimoveis, #fyp)'
+      : 'hashtags locais do mercado imobiliário de Maceió';
+
+    return `Gere uma publicação para o ${platformLabel} do Imóvel Radar Maceió.
+Tema: ${topic.type} (${topic.neighborhood || 'Maceió'}).
+Formato: ${formatRule}.
+Regras: ${titleRule}, ${hashtagRule}, CTA para comentar "ALERTA" ou acessar Telegram @${this.telegramBotUser}.
+Dados de mercado: ${JSON.stringify({ summary: marketData.summary, deals: deals.slice(0, 2) })}.
+Retorne um JSON com os campos: title, hook, caption, slides (array com slideNumber, title, body, highlightedMetric), cta, hashtags.`;
+  }
+
   // Métodos remotos com fallback gracioso
   private async generateWithOpenAI(
     topic: ContentTopic,
     marketData: MarketKindStats,
-    deals: ListingItem[]
+    deals: ListingItem[],
+    options: ContentCopyOptions = {}
   ): Promise<GeneratedContentCopy> {
-    const prompt = `Gere uma publicação para o Instagram do Imóvel Radar Maceió.
-Tema: ${topic.type} (${topic.neighborhood || 'Maceió'}).
-Dados: ${JSON.stringify({ summary: marketData.summary, deals: deals.slice(0, 2) })}.
-Retorne um JSON com os campos: title, hook, caption, slides (array com slideNumber, title, body, highlightedMetric), cta, hashtags.`;
+    const prompt = this.buildContentPrompt(topic, marketData, deals, options);
 
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
