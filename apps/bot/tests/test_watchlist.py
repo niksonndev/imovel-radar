@@ -55,6 +55,16 @@ def test_toast_for_create_status_stars(monkeypatch) -> None:
     assert "19,90" in cap
 
 
+def test_watchlist_carousel_header_names_the_section() -> None:
+    header = menus.watchlist_carousel_header(count=1, cap=2)
+    assert "Anúncios acompanhados" in header
+    assert "(1/2)" in header
+    assert "carrossel" in header.lower()
+    empty = menus.watchlist_empty_message(cap=2)
+    assert "Anúncios acompanhados" in empty
+    assert "(0/2)" in empty
+
+
 def test_watchlist_cap_reached_email_trial(monkeypatch) -> None:
     monkeypatch.setattr("config.BILLING_ENABLED", False)
     monkeypatch.setattr("config.WATCHLIST_FREE_CAP", 2)

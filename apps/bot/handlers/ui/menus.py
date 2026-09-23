@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from shared_models.tables import Alert, WatchedListingChange
+from shared_models.tables import Alert
 from shared_models.utils import format_brl
 from telegram.helpers import escape_markdown
 
@@ -296,73 +296,36 @@ def meus_alertas_view(alerts: list[Alert]) -> str:
 
 
 def menu_watchlist() -> str:
-    """Fallback curto; a listagem real usa ``watchlist_list_message``."""
-    return "👀 *Acompanhar anúncio*"
+    """Fallback curto; a listagem real usa ``watchlist_carousel_header``."""
+    return "👀 *Anúncios acompanhados*"
 
 
 def watchlist_erro() -> str:
     return (
-        "👀 *Acompanhar anúncio*\n\n"
+        "👀 *Anúncios acompanhados*\n\n"
         "Não consegui carregar seus acompanhamentos agora. Tente de novo em instantes."
     )
 
 
-def _watchlist_format_one(row: WatchedListingChange) -> str:
-    listing = row.listing
-    title = escape_markdown(str(listing.title or "Sem título")[:80], version=1)
-    price = format_brl(listing.price_value)
-    nh = escape_markdown(str(listing.neighbourhood or "—"), version=1)
-    status = "✅ No ar" if listing.active else "❌ Fora do ar"
-    return f"*{title}*\n💰 {price} · 📍 {nh}\n{status}"
-
-
-def watchlist_list_message(
-    rows: list[WatchedListingChange],
-    *,
-    cap: int | None = None,
-) -> tuple[str, list[WatchedListingChange]]:
-    limit = config.WATCHLIST_FREE_CAP if cap is None else cap
-    header = f"👀 *Acompanhar anúncio* ({len(rows)}/{limit})\n\n"
-    if not rows:
-        return (
-            header
-            + "Cole o link de um anúncio do OLX para acompanhar preço e status.\n"
-            "Também dá para acompanhar direto pelo carrossel de matches.",
-            [],
-        )
-
-    hint = "_Toque num anúncio abaixo para ver detalhes ou parar de acompanhar._\n\n"
-    blocks = [_watchlist_format_one(r) for r in rows]
-    max_len = 4080
-    visible_count = len(blocks)
-    while visible_count > 0:
-        body = "\n\n".join(blocks[:visible_count])
-        full = header + hint + body
-        omitted = len(rows) - visible_count
-        suffix = ""
-        if omitted > 0:
-            suffix = f"\n\n_… e mais {omitted} anúncio(s)._"
-        if len(full) + len(suffix) <= max_len:
-            return full + suffix, rows[:visible_count]
-        visible_count -= 1
-    return header + hint + "Não coube listar nesta mensagem.", []
-
-
-def watchlist_detail_view(row: WatchedListingChange) -> str:
-    listing = row.listing
-    title = escape_markdown(str(listing.title or "Sem título"), version=1)
-    price = format_brl(listing.price_value)
-    nh = escape_markdown(str(listing.neighbourhood or "—"), version=1)
-    status = "✅ No ar" if listing.active else "❌ Fora do ar"
-    url = listing.url or ""
-    url_line = f"\n🔗 {escape_markdown(url, version=1)}" if url else ""
+def watchlist_carousel_header(*, count: int, cap: int) -> str:
     return (
-        "👀 *Anúncio acompanhado*\n\n"
-        f"*{title}*\n"
-        f"💰 {price}\n"
-        f"📍 {nh}\n"
-        f"{status}"
-        f"{url_line}"
+        f"👀 *Anúncios acompanhados* ({count}/{cap})\n\n"
+        "Os anúncios que você acompanha estão no carrossel abaixo."
+    )
+
+
+def watchlist_empty_message(*, cap: int) -> str:
+    return (
+        f"👀 *Anúncios acompanhados* (0/{cap})\n\n"
+        "Cole o link de um anúncio do OLX para acompanhar preço e status.\n"
+        "Também dá para acompanhar direto pelo carrossel de matches."
+    )
+
+
+def watchlist_sem_fotos(*, count: int, cap: int) -> str:
+    return (
+        f"👀 *Anúncios acompanhados* ({count}/{cap})\n\n"
+        "Seus acompanhamentos estão salvos, mas nenhum tem foto para o carrossel agora."
     )
 
 
@@ -390,7 +353,7 @@ def watchlist_cap_reached(*, is_pro_user: bool = False) -> str:
         return (
             f"Você já acompanha {config.WATCHLIST_PRO_CAP} anúncios "
             "(limite do Radar Pro).\n\n"
-            "Remova um em *Acompanhar anúncio* para liberar vaga."
+            "Remova um em *Anúncios acompanhados* para liberar vaga."
         )
     return (
         f"Você já acompanha {config.WATCHLIST_FREE_CAP} anúncios "
@@ -398,7 +361,7 @@ def watchlist_cap_reached(*, is_pro_user: bool = False) -> str:
         f"No *Radar Pro* você sobe para até {config.WATCHLIST_PRO_CAP} "
         f"acompanhados e {config.ALERT_PRO_CAP} alertas "
         f"— {pro_upsell_hint()}.\n\n"
-        "Ou remova um em *Acompanhar anúncio* para liberar vaga no free."
+        "Ou remova um em *Anúncios acompanhados* para liberar vaga no free."
     )
 
 

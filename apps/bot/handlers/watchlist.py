@@ -1,6 +1,6 @@
 """
-Handlers de *Acompanhar anúncio*: lista, detalhe, remoção, wizard por URL
-e botão do carrossel.
+Handlers de *Anúncios acompanhados*: carrossel, remoção, wizard por URL
+e botão do carrossel de matches.
 """
 
 from __future__ import annotations
@@ -8,8 +8,10 @@ from __future__ import annotations
 import logging
 import re
 
+from shared_models.tables import Listing, WatchedListingChange
 from telegram import CallbackQuery, Update
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
@@ -18,11 +20,11 @@ from telegram.ext import (
     filters,
 )
 
+from handlers.carousel import send_carousel
 from handlers.data import (
     create_watch,
     delete_watch,
     get_listing,
-    get_watch_for_user,
     get_watches_for_user,
     user_is_pro,
     watch_cap_for_user,
@@ -63,7 +65,73 @@ def _clear_draft(context: CustomContext) -> None:
     context.user_data.pop("watchlist_draft", None)
 
 
-async def _render_watchlist_list(query: CallbackQuery, user_id: int) -> None:
+def _watchlist_carousel_id(user_id: int) -> str:
+    return f"wl{user_id}"
+
+
+def _rows_with_photos(
+    rows: list[WatchedListingChange],
+) -> tuple[list[Listing], list[int]]:
+    listings: list[Listing] = []
+    watch_ids: list[int] = []
+    for row in rows:
+        images = row.listing.images or []
+        watch_id = row.watch.id
+        if not images or watch_id is None:
+            continue
+        listings.append(row.listing)
+        watch_ids.append(watch_id)
+    return listings, watch_ids
+
+
+async def _send_watchlist_view(
+    context: CustomContext,
+    user_id: int,
+    *,
+    rows: list[WatchedListingChange],
+    cap: int,
+) -> None:
+    can_add = len(rows) < cap
+    header_markup = keyboards.watchlist_header_keyboard(can_add=can_add)
+
+    if not rows:
+        await context.bot.send_message(
+            chat_id=user_id,
+            text=menus.watchlist_empty_message(cap=cap),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=header_markup,
+        )
+        return
+
+    listings, watch_ids = _rows_with_photos(rows)
+    header = (
+        menus.watchlist_carousel_header(count=len(rows), cap=cap)
+        if listings
+        else menus.watchlist_sem_fotos(count=len(rows), cap=cap)
+    )
+    await context.bot.send_message(
+        chat_id=user_id,
+        text=header,
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=header_markup,
+    )
+    if listings:
+        await send_carousel(
+            context.application.bot,
+            user_id,
+            listings,
+            _watchlist_carousel_id(user_id),
+            context.application.bot_data,
+            mode="watchlist",
+            watch_ids=watch_ids,
+        )
+
+
+async def _render_watchlist_list(
+    query: CallbackQuery,
+    user_id: int,
+    context: CustomContext,
+) -> None:
     try:
         rows = await get_watches_for_user(user_id)
         cap = await watch_cap_for_user(user_id)
@@ -76,18 +144,49 @@ async def _render_watchlist_list(query: CallbackQuery, user_id: int) -> None:
         )
         return
 
-    text, visible = menus.watchlist_list_message(rows, cap=cap)
     can_add = len(rows) < cap
-    markup = (
-        keyboards.watchlist_list_keyboard(visible, can_add=can_add)
-        if visible
-        else keyboards.watchlist_empty_keyboard(can_add=can_add)
+    header_markup = keyboards.watchlist_header_keyboard(can_add=can_add)
+
+    if not rows:
+        await query.edit_message_text(
+            text=menus.watchlist_empty_message(cap=cap),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=header_markup,
+        )
+        return
+
+    listings, watch_ids = _rows_with_photos(rows)
+    header = (
+        menus.watchlist_carousel_header(count=len(rows), cap=cap)
+        if listings
+        else menus.watchlist_sem_fotos(count=len(rows), cap=cap)
     )
-    await query.edit_message_text(
-        text=text,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=markup,
-    )
+
+    # Prefer edit when the callback message is text (menu / header).
+    try:
+        await query.edit_message_text(
+            text=header,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=header_markup,
+        )
+    except BadRequest:
+        await context.bot.send_message(
+            chat_id=user_id,
+            text=header,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=header_markup,
+        )
+
+    if listings:
+        await send_carousel(
+            context.application.bot,
+            user_id,
+            listings,
+            _watchlist_carousel_id(user_id),
+            context.application.bot_data,
+            mode="watchlist",
+            watch_ids=watch_ids,
+        )
 
 
 async def watchlist_menu_callback(update: Update, context: CustomContext) -> None:
@@ -98,7 +197,7 @@ async def watchlist_menu_callback(update: Update, context: CustomContext) -> Non
     if user is None:
         return
     await query.answer()
-    await _render_watchlist_list(query, user.id)
+    await _render_watchlist_list(query, user.id, context)
 
 
 async def watchlist_actions_callback(update: Update, context: CustomContext) -> None:
@@ -114,37 +213,24 @@ async def watchlist_actions_callback(update: Update, context: CustomContext) -> 
 
     if data == "wl_m":
         await query.answer()
-        await query.edit_message_text(
-            text=menus.menu_principal_inline(),
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=keyboards.main_menu_keyboard(),
-        )
-        return
-
-    if data == "wl_b":
-        await query.answer()
-        await _render_watchlist_list(query, user_id)
-        return
-
-    m_pick = WL_PICK_RE.match(data)
-    if m_pick is not None:
-        watch_id = int(m_pick.group(1))
-        await query.answer()
         try:
-            row = await get_watch_for_user(watch_id, user_id)
-        except Exception:
-            logger.exception("Falha ao carregar acompanhamento")
-            await query.answer("Não foi possível abrir o anúncio.", show_alert=True)
-            return
-        if row is None:
-            await query.answer("Anúncio não encontrado.", show_alert=True)
-            await _render_watchlist_list(query, user_id)
-            return
-        await query.edit_message_text(
-            text=menus.watchlist_detail_view(row),
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=keyboards.watchlist_detail_keyboard(watch_id),
-        )
+            await query.edit_message_text(
+                text=menus.menu_principal_inline(),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=keyboards.main_menu_keyboard(),
+            )
+        except BadRequest:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=menus.menu_principal_inline(),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=keyboards.main_menu_keyboard(),
+            )
+        return
+
+    if data == "wl_b" or WL_PICK_RE.match(data):
+        await query.answer()
+        await _render_watchlist_list(query, user_id, context)
         return
 
     m_rm = WL_RM_RE.match(data)
@@ -157,7 +243,28 @@ async def watchlist_actions_callback(update: Update, context: CustomContext) -> 
             await query.answer("Não foi possível remover.", show_alert=True)
             return
         await query.answer("Removido da lista.")
-        await _render_watchlist_list(query, user_id)
+
+        if query.message is not None and query.message.photo:
+            try:
+                await query.message.delete()
+            except Exception:
+                logger.debug("Não foi possível apagar o card do carrossel", exc_info=True)
+            try:
+                rows = await get_watches_for_user(user_id)
+                cap = await watch_cap_for_user(user_id)
+            except Exception:
+                logger.exception("Falha ao relistar após remover")
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text=menus.watchlist_erro(),
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=keyboards.main_menu_keyboard(),
+                )
+                return
+            await _send_watchlist_view(context, user_id, rows=rows, cap=cap)
+            return
+
+        await _render_watchlist_list(query, user_id, context)
         return
 
     logger.warning("Callback wl_* não reconhecido: %s", data)

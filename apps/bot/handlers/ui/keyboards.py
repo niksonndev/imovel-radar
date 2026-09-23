@@ -4,7 +4,7 @@ Teclados inline do Telegram para o menu principal e para o wizard de alerta.
 
 from __future__ import annotations
 
-from shared_models.tables import Alert, WatchedListingChange
+from shared_models.tables import Alert
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 import config
@@ -217,7 +217,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
         [
             [InlineKeyboardButton("🔔 Novo Alerta", callback_data="novo_alerta")],
             [InlineKeyboardButton("📋 Meus Alertas", callback_data="menu_meus_alertas")],
-            [InlineKeyboardButton("👀 Acompanhar anúncio", callback_data="menu_watchlist")],
+            [InlineKeyboardButton("👀 Anúncios acompanhados", callback_data="menu_watchlist")],
             [InlineKeyboardButton("❓ Ajuda", callback_data="menu_ajuda")],
         ]
     )
@@ -282,37 +282,7 @@ def meus_alertas_edit_stub_keyboard(alert_id: int) -> InlineKeyboardMarkup:
     )
 
 
-def _watchlist_pick_button_label(row: WatchedListingChange) -> str:
-    title = str(row.listing.title or "Sem título").strip() or "Sem título"
-    prefix = "▶ "
-    max_name = 64 - len(prefix)
-    return prefix + title[:max_name]
-
-
-def watchlist_list_keyboard(
-    rows: list[WatchedListingChange],
-    *,
-    can_add: bool,
-) -> InlineKeyboardMarkup:
-    button_rows: list[list[InlineKeyboardButton]] = [
-        [
-            InlineKeyboardButton(
-                _watchlist_pick_button_label(row),
-                callback_data=f"wl_p_{row.watch.id}",
-            )
-        ]
-        for row in rows
-        if row.watch.id is not None
-    ]
-    if can_add:
-        button_rows.append(
-            [InlineKeyboardButton("➕ Adicionar por link", callback_data="wl_add")]
-        )
-    button_rows.append([InlineKeyboardButton("🏠 Menu principal", callback_data="wl_m")])
-    return InlineKeyboardMarkup(button_rows)
-
-
-def watchlist_empty_keyboard(*, can_add: bool = True) -> InlineKeyboardMarkup:
+def watchlist_header_keyboard(*, can_add: bool = True) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     if can_add:
         rows.append([InlineKeyboardButton("➕ Adicionar por link", callback_data="wl_add")])
@@ -320,13 +290,8 @@ def watchlist_empty_keyboard(*, can_add: bool = True) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
-def watchlist_detail_keyboard(watch_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton("🗑️ Parar de acompanhar", callback_data=f"wl_rm_{watch_id}")],
-            [InlineKeyboardButton("⬅️ Voltar à lista", callback_data="wl_b")],
-        ]
-    )
+def watchlist_empty_keyboard(*, can_add: bool = True) -> InlineKeyboardMarkup:
+    return watchlist_header_keyboard(can_add=can_add)
 
 
 def watchlist_confirm_keyboard() -> InlineKeyboardMarkup:
