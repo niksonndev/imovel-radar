@@ -83,6 +83,11 @@ variable "bot_ssm_token_name" {
   default     = "/imovel-radar/prod/telegram_bot_token"
 }
 
+variable "bot_ssm_openai_param" {
+  description = "Caminho do parâmetro SSM com a OpenAI API Key (criado no bootstrap, fora do Terraform)"
+  default     = "/imovel-radar/prod/openai_api_key"
+}
+
 variable "conversation_ttl_hours" {
   description = "TTL (horas) dos drafts de conversa no DynamoDB (ADR 0006)"
   default     = 4

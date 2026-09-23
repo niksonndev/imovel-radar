@@ -29,6 +29,7 @@ data "aws_iam_policy_document" "bot_lambda_secrets_and_state" {
     actions = ["ssm:GetParameter"]
     resources = [
       "arn:aws:ssm:${var.region}:*:parameter/${var.project}/${var.environment}/telegram_bot_token",
+      "arn:aws:ssm:${var.region}:*:parameter/${var.project}/${var.environment}/openai_api_key",
       aws_ssm_parameter.database_url.arn,
     ]
   }
@@ -82,8 +83,12 @@ resource "aws_lambda_function" "bot" {
       DYNAMODB_TABLE          = aws_dynamodb_table.conversation_state.name
       DYNAMODB_TTL_HOURS      = tostring(var.conversation_ttl_hours)
       SSM_TOKEN_PARAM         = var.bot_ssm_token_name
+      SSM_OPENAI_PARAM        = var.bot_ssm_openai_param
       TELEGRAM_WEBHOOK_SECRET = random_password.bot_webhook_secret.result
       LOG_LEVEL               = "INFO"
+      ALERT_NL_ENABLED        = "true"
+      LLM_PROVIDER            = "openai"
+      LLM_MODEL               = "gpt-4o-mini"
     }
   }
 }

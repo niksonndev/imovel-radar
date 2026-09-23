@@ -101,3 +101,33 @@ PRO_SUBSCRIPTION_PERIOD_SECONDS = 2592000
 # DynamoDB (ADR 0006).
 def get_persistence_file() -> str:
     return os.getenv("PERSISTENCE_FILE", "carousel_state.pickle").strip()
+
+
+# ── IA / Onboarding em linguagem natural ─────────────────────────────────────
+ALERT_NL_ENABLED = _env_bool("ALERT_NL_ENABLED", True)
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "mock").strip().lower()
+LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini").strip()
+LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "8.0"))
+
+SSM_OPENAI_PARAM = os.getenv(
+    "SSM_OPENAI_PARAM", "/imovel-radar/prod/openai_api_key"
+).strip()
+_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+
+
+@lru_cache(maxsize=1)
+def resolve_openai_api_key() -> str:
+    """Resolve a OpenAI API key: env primeiro; senão lê do SSM Parameter Store (Lambda)."""
+    if _OPENAI_API_KEY:
+        return _OPENAI_API_KEY
+    if not SSM_OPENAI_PARAM:
+        return ""
+    try:
+        import boto3
+
+        ssm = boto3.client("ssm")
+        resp = ssm.get_parameter(Name=SSM_OPENAI_PARAM, WithDecryption=True)
+        return resp.get("Parameter", {}).get("Value", "").strip()
+    except Exception:
+        return ""
+
