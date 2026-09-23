@@ -31,6 +31,7 @@ from handlers.data import (
     mark_listings_notified,
     user_is_pro,
 )
+from handlers.home import MENU_NAV_CALLBACK_RE, route_menu_callback
 from handlers.ui import keyboards, menus
 from models import (
     CreateAlertDraft,
@@ -602,6 +603,13 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
     return ConversationHandler.END
 
 
+async def abort_wizard_for_menu(update: Update, context: CustomContext) -> int:
+    """Descarta o rascunho e honra o botão de menu clicado no meio do wizard."""
+    _clear_wizard(context)
+    await route_menu_callback(update, context)
+    return ConversationHandler.END
+
+
 async def cancel_wiz(update: Update, context: CustomContext) -> int:
     assert update.effective_message is not None
     _clear_wizard(context)
@@ -661,5 +669,6 @@ def new_alert_conversation() -> ConversationHandler:
         fallbacks=[
             CommandHandler("cancelar", cancel_wiz),
             CommandHandler("start", start_fallback),
+            CallbackQueryHandler(abort_wizard_for_menu, pattern=MENU_NAV_CALLBACK_RE),
         ],
     )

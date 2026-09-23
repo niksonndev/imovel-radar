@@ -15,6 +15,7 @@ from telegram.ext import (
 )
 
 from handlers.data import claim_email_pro_trial, user_is_pro
+from handlers.home import MENU_NAV_CALLBACK_RE, route_menu_callback
 from handlers.ui import keyboards, menus
 from models import CustomContext
 
@@ -143,6 +144,12 @@ async def email_pro_trial_start_fallback(update: Update, context: CustomContext)
     return ConversationHandler.END
 
 
+async def email_pro_trial_menu_exit(update: Update, context: CustomContext) -> int:
+    """Sai do pedido de e-mail e abre o destino do menu clicado."""
+    await route_menu_callback(update, context)
+    return ConversationHandler.END
+
+
 def email_pro_trial_conversation() -> ConversationHandler:
     return ConversationHandler(
         name="email_pro_trial",
@@ -162,5 +169,6 @@ def email_pro_trial_conversation() -> ConversationHandler:
         fallbacks=[
             CommandHandler("cancelar", email_pro_trial_cancel_cmd),
             CommandHandler("start", email_pro_trial_start_fallback),
+            CallbackQueryHandler(email_pro_trial_menu_exit, pattern=MENU_NAV_CALLBACK_RE),
         ],
     )

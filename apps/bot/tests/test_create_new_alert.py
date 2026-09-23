@@ -9,6 +9,22 @@ def test_new_alert_conversation_is_persistent() -> None:
     assert handler.allow_reentry is True
 
 
+def test_new_alert_conversation_exits_on_menu_callbacks() -> None:
+    handler = new_alert_conversation()
+    patterns = " ".join(
+        fb.pattern.pattern for fb in handler.fallbacks if getattr(fb, "pattern", None) is not None
+    )
+    for token in (
+        "menu_home",
+        "mal_m",
+        "wl_m",
+        "menu_meus_alertas",
+        "menu_watchlist",
+        "menu_ajuda",
+    ):
+        assert token in patterns
+
+
 def test_removed_inline_keyboard_sends_empty_rows() -> None:
     assert _removed_inline_keyboard().to_dict() == {"inline_keyboard": []}
 
