@@ -59,6 +59,7 @@ class CarouselCard(TypedDict, total=False):
     size: Any
     real_estate_type: str
     listing_active: bool
+    event_headline: str
 
 
 def _truncate(text: str, limit: int) -> str:
@@ -69,6 +70,7 @@ def _listing_to_card(
     listing: Listing,
     *,
     watch_id: int | None = None,
+    event_headline: str | None = None,
 ) -> CarouselCard:
     props = listing.properties if isinstance(listing.properties, dict) else {}
     images = listing.images or []
@@ -90,6 +92,8 @@ def _listing_to_card(
     }
     if watch_id is not None:
         card["watch_id"] = watch_id
+    if event_headline:
+        card["event_headline"] = event_headline
     return card
 
 
@@ -115,11 +119,17 @@ def _card_caption(
     rental_or_sale = card.get("real_estate_type") or "—"
     counter = f"{index + 1} de {total}"
 
-    lines = [
-        f"🏠 {title}",
-        f"💰 {price} | 🛏 {bedrooms_label} | 📐 {area_label}",
-        f"📍 {neighbourhood} · {rental_or_sale}",
-    ]
+    lines: list[str] = []
+    headline = card.get("event_headline")
+    if mode == "matches" and isinstance(headline, str) and headline:
+        lines.append(headline)
+    lines.extend(
+        [
+            f"🏠 {title}",
+            f"💰 {price} | 🛏 {bedrooms_label} | 📐 {area_label}",
+            f"📍 {neighbourhood} · {rental_or_sale}",
+        ]
+    )
     if mode == "watchlist":
         status = "✅ No ar" if card.get("listing_active", True) else "❌ Fora do ar"
         lines.append(status)
@@ -280,6 +290,7 @@ async def send_carousel(
     mode: CarouselMode = "matches",
     watch_ids: list[int] | None = None,
     query: CallbackQuery | None = None,
+    event_headlines: list[str | None] | None = None,
 ) -> None:
     prune_expired_carousels(state_store)
 
@@ -291,7 +302,15 @@ async def send_carousel(
             for item, watch_id in zip(listings, watch_ids, strict=True)
         ]
     else:
-        cards = [_listing_to_card(item) for item in listings]
+        if event_headlines is not None and len(event_headlines) != len(listings):
+            raise ValueError("event_headlines must align with listings")
+        cards = [
+            _listing_to_card(
+                item,
+                event_headline=event_headlines[index] if event_headlines else None,
+            )
+            for index, item in enumerate(listings)
+        ]
 
     total = len(cards)
     if total == 0:

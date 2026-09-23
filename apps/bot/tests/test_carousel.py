@@ -107,6 +107,7 @@ def test_listing_to_card_is_slim() -> None:
     assert card["file_id"] is None
     assert card["listing_active"] is True
     assert "first_seen_at" not in card
+    assert "event_headline" not in card
 
 
 def test_prune_expired_carousels() -> None:
@@ -179,6 +180,25 @@ def test_card_caption_ignores_zero_fees_and_sale_price() -> None:
     assert "R$ 200.000,00" in sale_caption
     assert "cond." not in sale_caption
     assert "IPTU" not in sale_caption
+
+
+def test_card_caption_prepends_event_headline() -> None:
+    listing = SimpleNamespace(
+        title="Apt Centro",
+        price_value=1500,
+        neighbourhood="Pajuçara",
+        url="https://olx.com.br/1",
+        images=["https://img/1.jpg"],
+        properties={"rooms": 2, "size": 60.0, "real_estate_type": "Apartamento"},
+        listing_id=1,
+        active=True,
+    )
+    card = _listing_to_card(
+        listing,  # type: ignore[arg-type]
+        event_headline="📉 Preço caiu R$ 300",
+    )
+    caption = _card_caption(card, 0, 1)
+    assert caption.startswith("📉 Preço caiu R$ 300\n🏠 ")
 
 
 def test_photo_file_id_from_message() -> None:
