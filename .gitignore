@@ -76,6 +76,7 @@ Desktop.ini
 node_modules/
 .turbo/
 .next/
+apps/frontend/public/maplibre/
 
 # Logs
 *.log

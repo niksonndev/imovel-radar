@@ -14,6 +14,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "weekly",
       priority: 1,
     },
+    {
+      url: `${SITE_URL.replace(/\/$/, "")}/mercado`,
+      lastModified: now,
+      changeFrequency: "daily",
+      priority: 0.9,
+    },
     ...SEO_PAGES.map((page) => ({
       url: `${SITE_URL.replace(/\/$/, "")}${page.path}`,
       lastModified: now,

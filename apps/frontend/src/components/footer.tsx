@@ -43,6 +43,12 @@ export function Footer() {
         >
           Preços
         </Link>
+        <Link
+          href="/mercado"
+          className="text-sm text-white/70 transition-colors hover:text-white"
+        >
+          Mercado
+        </Link>
         {SEO_PAGES.map((page) => (
           <Link
             key={page.slug}

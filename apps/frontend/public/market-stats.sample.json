@@ -1,0 +1,503 @@
+{
+  "collected_at": "2026-09-23T14:00:00+00:00",
+  "min_sample": 15,
+  "cities": [
+    {
+      "key": "maceio",
+      "municipality": "Maceió",
+      "kinds": {
+        "aluguel": {
+          "active_count": 680,
+          "inactive_count": 40,
+          "sample": 640,
+          "p25_price": 1100,
+          "median_price": 1600,
+          "p75_price": 2400,
+          "median_price_m2": 22,
+          "price_m2_sample": 640,
+          "new_count": 28,
+          "price_drop_count": 11,
+          "median_rent_plus_condo": 2050,
+          "by_category": [
+            {
+              "category": "Apartamentos",
+              "sample": 480,
+              "p25_price": 1200,
+              "median_price": 1700,
+              "p75_price": 2500,
+              "median_price_m2": 24
+            },
+            {
+              "category": "Casas",
+              "sample": 120,
+              "p25_price": 900,
+              "median_price": 1400,
+              "p75_price": 2100,
+              "median_price_m2": 16
+            },
+            {
+              "category": "Aluguel de quartos",
+              "sample": 40,
+              "p25_price": 500,
+              "median_price": 700,
+              "p75_price": 900,
+              "median_price_m2": null
+            }
+          ],
+          "neighbourhoods": [
+            {
+              "name": "Ponta Verde",
+              "sample": 86,
+              "median_price": 3200,
+              "median_price_m2": 45,
+              "ranked": true
+            },
+            {
+              "name": "Jatiúca",
+              "sample": 74,
+              "median_price": 2800,
+              "median_price_m2": 38,
+              "ranked": true
+            },
+            {
+              "name": "Pajuçara",
+              "sample": 61,
+              "median_price": 2600,
+              "median_price_m2": 36,
+              "ranked": true
+            },
+            {
+              "name": "Ponta da Terra",
+              "sample": 33,
+              "median_price": 2400,
+              "median_price_m2": 34,
+              "ranked": true
+            },
+            {
+              "name": "Mangabeiras",
+              "sample": 44,
+              "median_price": 1600,
+              "median_price_m2": 22,
+              "ranked": true
+            },
+            {
+              "name": "Prado",
+              "sample": 29,
+              "median_price": 1500,
+              "median_price_m2": 20,
+              "ranked": true
+            },
+            {
+              "name": "Cruz das Almas",
+              "sample": 38,
+              "median_price": 1400,
+              "median_price_m2": 18,
+              "ranked": true
+            },
+            {
+              "name": "Centro",
+              "sample": 22,
+              "median_price": 1300,
+              "median_price_m2": 17,
+              "ranked": true
+            },
+            {
+              "name": "Jacarecica",
+              "sample": 27,
+              "median_price": 1250,
+              "median_price_m2": 16,
+              "ranked": true
+            },
+            {
+              "name": "Riacho Doce",
+              "sample": 19,
+              "median_price": 1200,
+              "median_price_m2": 15,
+              "ranked": true
+            },
+            {
+              "name": "Benedito Bentes",
+              "sample": 52,
+              "median_price": 1100,
+              "median_price_m2": 14,
+              "ranked": true
+            },
+            {
+              "name": "Serraria",
+              "sample": 24,
+              "median_price": 1050,
+              "median_price_m2": 13,
+              "ranked": true
+            },
+            {
+              "name": "Tabuleiro do Martins",
+              "sample": 41,
+              "median_price": 980,
+              "median_price_m2": 12,
+              "ranked": true
+            },
+            {
+              "name": "Antares",
+              "sample": 18,
+              "median_price": 900,
+              "median_price_m2": 11,
+              "ranked": true
+            },
+            {
+              "name": "Farol",
+              "sample": 6,
+              "median_price": 2100,
+              "median_price_m2": 28,
+              "ranked": false
+            },
+            {
+              "name": "Bairro Inventado",
+              "sample": 21,
+              "median_price": 2000,
+              "median_price_m2": 30,
+              "ranked": true
+            }
+          ],
+          "rooms": [
+            {
+              "rooms": 1,
+              "sample": 90
+            },
+            {
+              "rooms": 2,
+              "sample": 310
+            },
+            {
+              "rooms": 3,
+              "sample": 180
+            },
+            {
+              "rooms": 4,
+              "sample": 40
+            }
+          ]
+        },
+        "venda": {
+          "active_count": 960,
+          "inactive_count": 70,
+          "sample": 900,
+          "p25_price": 250000,
+          "median_price": 420000,
+          "p75_price": 780000,
+          "median_price_m2": 4800,
+          "price_m2_sample": 900,
+          "new_count": 15,
+          "price_drop_count": 9,
+          "median_rent_plus_condo": null,
+          "by_category": [
+            {
+              "category": "Apartamentos",
+              "sample": 640,
+              "p25_price": 240000,
+              "median_price": 390000,
+              "p75_price": 690000,
+              "median_price_m2": 5200
+            },
+            {
+              "category": "Casas",
+              "sample": 260,
+              "p25_price": 280000,
+              "median_price": 510000,
+              "p75_price": 920000,
+              "median_price_m2": 3900
+            }
+          ],
+          "neighbourhoods": [
+            {
+              "name": "Ponta Verde",
+              "sample": 70,
+              "median_price": 890000,
+              "median_price_m2": 9200,
+              "ranked": true
+            },
+            {
+              "name": "Jatiúca",
+              "sample": 64,
+              "median_price": 760000,
+              "median_price_m2": 8100,
+              "ranked": true
+            },
+            {
+              "name": "Pajuçara",
+              "sample": 40,
+              "median_price": 690000,
+              "median_price_m2": 7400,
+              "ranked": true
+            },
+            {
+              "name": "Mangabeiras",
+              "sample": 36,
+              "median_price": 380000,
+              "median_price_m2": 4200,
+              "ranked": true
+            },
+            {
+              "name": "Benedito Bentes",
+              "sample": 48,
+              "median_price": 210000,
+              "median_price_m2": 2600,
+              "ranked": true
+            },
+            {
+              "name": "Tabuleiro do Martins",
+              "sample": 33,
+              "median_price": 190000,
+              "median_price_m2": 2400,
+              "ranked": true
+            }
+          ],
+          "rooms": [
+            {
+              "rooms": 2,
+              "sample": 280
+            },
+            {
+              "rooms": 3,
+              "sample": 410
+            },
+            {
+              "rooms": 4,
+              "sample": 120
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "recife",
+      "municipality": "Recife",
+      "kinds": {
+        "aluguel": {
+          "active_count": 1900,
+          "inactive_count": 120,
+          "sample": 1800,
+          "p25_price": 1600,
+          "median_price": 2500,
+          "p75_price": 3900,
+          "median_price_m2": 28,
+          "price_m2_sample": 1800,
+          "new_count": 60,
+          "price_drop_count": 22,
+          "median_rent_plus_condo": 3100,
+          "by_category": [
+            {
+              "category": "Apartamentos",
+              "sample": 1400,
+              "p25_price": 1800,
+              "median_price": 2700,
+              "p75_price": 4200,
+              "median_price_m2": 32
+            },
+            {
+              "category": "Casas",
+              "sample": 280,
+              "p25_price": 1400,
+              "median_price": 2200,
+              "p75_price": 3400,
+              "median_price_m2": 18
+            },
+            {
+              "category": "Aluguel de quartos",
+              "sample": 120,
+              "p25_price": 600,
+              "median_price": 800,
+              "p75_price": 1100,
+              "median_price_m2": null
+            }
+          ],
+          "neighbourhoods": [
+            {
+              "name": "Boa Viagem",
+              "sample": 210,
+              "median_price": 4500,
+              "median_price_m2": 48,
+              "ranked": true
+            },
+            {
+              "name": "Pina",
+              "sample": 64,
+              "median_price": 3900,
+              "median_price_m2": 42,
+              "ranked": true
+            },
+            {
+              "name": "Casa Forte",
+              "sample": 48,
+              "median_price": 3600,
+              "median_price_m2": 40,
+              "ranked": true
+            },
+            {
+              "name": "Graças",
+              "sample": 41,
+              "median_price": 3400,
+              "median_price_m2": 36,
+              "ranked": true
+            },
+            {
+              "name": "Espinheiro",
+              "sample": 28,
+              "median_price": 3100,
+              "median_price_m2": 33,
+              "ranked": true
+            },
+            {
+              "name": "Derby",
+              "sample": 22,
+              "median_price": 3000,
+              "median_price_m2": 31,
+              "ranked": true
+            },
+            {
+              "name": "Sítio dos Pintos",
+              "sample": 18,
+              "median_price": 1800,
+              "median_price_m2": 18,
+              "ranked": true
+            },
+            {
+              "name": "Afogados",
+              "sample": 36,
+              "median_price": 1600,
+              "median_price_m2": 16,
+              "ranked": true
+            },
+            {
+              "name": "Cohab",
+              "sample": 44,
+              "median_price": 1200,
+              "median_price_m2": 12,
+              "ranked": true
+            },
+            {
+              "name": "Ibura",
+              "sample": 58,
+              "median_price": 1100,
+              "median_price_m2": 11,
+              "ranked": true
+            },
+            {
+              "name": "Recife Antigo",
+              "sample": 16,
+              "median_price": 2500,
+              "median_price_m2": 27,
+              "ranked": true
+            }
+          ],
+          "rooms": [
+            {
+              "rooms": 1,
+              "sample": 260
+            },
+            {
+              "rooms": 2,
+              "sample": 820
+            },
+            {
+              "rooms": 3,
+              "sample": 540
+            },
+            {
+              "rooms": 4,
+              "sample": 90
+            }
+          ]
+        },
+        "venda": {
+          "active_count": 2600,
+          "inactive_count": 180,
+          "sample": 2400,
+          "p25_price": 280000,
+          "median_price": 480000,
+          "p75_price": 890000,
+          "median_price_m2": 5600,
+          "price_m2_sample": 2400,
+          "new_count": 40,
+          "price_drop_count": 18,
+          "median_rent_plus_condo": null,
+          "by_category": [
+            {
+              "category": "Apartamentos",
+              "sample": 1800,
+              "p25_price": 270000,
+              "median_price": 450000,
+              "p75_price": 820000,
+              "median_price_m2": 6100
+            },
+            {
+              "category": "Casas",
+              "sample": 600,
+              "p25_price": 300000,
+              "median_price": 560000,
+              "p75_price": 1100000,
+              "median_price_m2": 4100
+            }
+          ],
+          "neighbourhoods": [
+            {
+              "name": "Boa Viagem",
+              "sample": 180,
+              "median_price": 980000,
+              "median_price_m2": 10500,
+              "ranked": true
+            },
+            {
+              "name": "Casa Forte",
+              "sample": 70,
+              "median_price": 860000,
+              "median_price_m2": 9200,
+              "ranked": true
+            },
+            {
+              "name": "Pina",
+              "sample": 55,
+              "median_price": 790000,
+              "median_price_m2": 8800,
+              "ranked": true
+            },
+            {
+              "name": "Graças",
+              "sample": 40,
+              "median_price": 740000,
+              "median_price_m2": 8000,
+              "ranked": true
+            },
+            {
+              "name": "Ibura",
+              "sample": 90,
+              "median_price": 220000,
+              "median_price_m2": 2800,
+              "ranked": true
+            },
+            {
+              "name": "Cohab",
+              "sample": 48,
+              "median_price": 190000,
+              "median_price_m2": 2400,
+              "ranked": true
+            }
+          ],
+          "rooms": [
+            {
+              "rooms": 2,
+              "sample": 700
+            },
+            {
+              "rooms": 3,
+              "sample": 1100
+            },
+            {
+              "rooms": 4,
+              "sample": 360
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

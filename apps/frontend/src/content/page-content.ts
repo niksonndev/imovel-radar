@@ -65,7 +65,7 @@ export const PRICING_FREE = {
     "1 alerta ativo",
     "Até 2 anúncios acompanhados",
     "Resumo diário no Telegram",
-    "Aluguel e venda em Maceió",
+    "Aluguel e venda em Maceió e Recife",
     "Link direto pro anúncio no OLX",
   ],
 } as const;
@@ -102,12 +102,12 @@ export const FAQ_ITEMS = [
   {
     question: "Só funciona em Maceió?",
     answer:
-      "Por enquanto, sim — o Radar monitora anúncios do OLX em Maceió.",
+      "Hoje o Radar monitora anúncios do OLX em Maceió e em Recife.",
   },
   {
     question: "De onde vêm os anúncios?",
     answer:
-      "Dos anúncios públicos do OLX Maceió. Somos um produto independente e não somos afiliados à OLX.",
+      "Dos anúncios públicos do OLX em Maceió e Recife. Somos um produto independente e não somos afiliados à OLX.",
   },
   {
     question: "O que muda no Radar Pro?",
@@ -160,7 +160,7 @@ export const MONITORED_NEIGHBORHOODS = [
 export const FOOTER_TELEGRAM_LABEL = "Abrir bot no Telegram";
 export const FOOTER_LEGAL = "© Imóvel Radar";
 export const FOOTER_DISCLAIMER =
-  "Produto independente. Não somos afiliados à OLX. Os anúncios vêm do OLX Maceió; preços e disponibilidade podem mudar.";
+  "Produto independente. Não somos afiliados à OLX. Os anúncios vêm do OLX de Maceió e Recife; preços e disponibilidade podem mudar.";
 export const FOOTER_PRIVACY =
   "Usamos o chat do Telegram como identificador. Não pedimos CPF no free. Para o mês grátis do Pro, pedimos só o e-mail no bot.";
 export const FOOTER_CONTACT_LABEL = "Falar conosco no Telegram";

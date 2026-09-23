@@ -16,10 +16,10 @@ export const PRODUCT_FACTS = {
   botUrl: TELEGRAM_BOT_URL,
   locale: "pt-BR",
   coverage: {
-    city: "Maceió",
-    state: "Alagoas",
+    city: "Maceió e Recife",
+    state: "Alagoas e Pernambuco",
     country: "Brasil",
-    source: "OLX Maceió (anúncios públicos)",
+    source: "OLX Maceió e Recife (anúncios públicos)",
     listingTypes: ["aluguel", "venda"] as const,
     neighborhoods: MONITORED_NEIGHBORHOODS,
   },
@@ -38,7 +38,7 @@ export const PRODUCT_FACTS = {
     },
   },
   independence:
-    "Produto independente. Não afiliado à OLX. Anúncios vêm do OLX Maceió; preços e disponibilidade podem mudar.",
+    "Produto independente. Não afiliado à OLX. Anúncios vêm do OLX de Maceió e Recife; preços e disponibilidade podem mudar.",
   howItWorks: [
     "Usuário abre o bot no Telegram e define aluguel ou venda, bairros e faixa de preço.",
     "O Radar monitora anúncios públicos do OLX em Maceió.",
