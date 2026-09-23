@@ -43,6 +43,7 @@ def city_keyboard() -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton("Maceió", callback_data="wiz_city_maceio"),
                 InlineKeyboardButton("Recife", callback_data="wiz_city_recife"),
+                InlineKeyboardButton("Natal", callback_data="wiz_city_natal"),
             ]
         ]
     )

@@ -44,8 +44,22 @@ def test_wizard_choice_messages_replace_the_question() -> None:
         max_price=1500,
     )
     assert menus.wizard_cidade_escolhida("Recife") == "📍 *Cidade:* Recife"
+    assert menus.wizard_cidade_escolhida("Natal") == "📍 *Cidade:* Natal"
     assert "primeira coleta" in menus.wizard_bairros_vazios()
-    assert "Maceió e Recife" in menus.start_welcome()
+    assert "Maceió, Recife e Natal" in menus.start_welcome()
+
+
+def test_city_keyboard_has_maceio_recife_natal() -> None:
+    buttons = [
+        (button.text, button.callback_data)
+        for row in keyboards.city_keyboard().inline_keyboard
+        for button in row
+    ]
+    assert buttons == [
+        ("Maceió", "wiz_city_maceio"),
+        ("Recife", "wiz_city_recife"),
+        ("Natal", "wiz_city_natal"),
+    ]
 
 
 def test_price_presets_depend_on_city() -> None:
@@ -57,6 +71,10 @@ def test_price_presets_depend_on_city() -> None:
     recife_sale = labels(
         keyboards.price_range_keyboard(listing_kind="venda", municipality="Recife")
     )
+    natal = labels(keyboards.price_range_keyboard(listing_kind="aluguel", municipality="Natal"))
+    natal_sale = labels(
+        keyboards.price_range_keyboard(listing_kind="venda", municipality="Natal")
+    )
 
     assert "Até R$ 800" in maceio
     assert "Até R$ 2.500" in recife
@@ -64,3 +82,6 @@ def test_price_presets_depend_on_city() -> None:
     assert "Até R$ 350 mil" in recife_sale
     assert "Personalizado" in recife
     assert "Personalizado" in recife_sale
+    assert natal == maceio
+    assert "Até R$ 800" in natal
+    assert "Até R$ 150 mil" in natal_sale

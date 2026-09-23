@@ -86,6 +86,21 @@ def test_unnotified_listings_stay_in_the_alert_city(session: Session) -> None:
             active=True,
         )
     )
+    session.add(
+        Listing(
+            listing_id=3,
+            url="https://ex/3",
+            title="Ponta Negra Natal",
+            price_value=1200,
+            municipality="Natal",
+            neighbourhood="Ponta Negra",
+            category="Apartamentos",
+            images=["https://img/3.webp"],
+            properties={},
+            listing_kind="aluguel",
+            active=True,
+        )
+    )
     session.commit()
 
     alert_id = queries.create_alert(
@@ -119,6 +134,22 @@ def test_unnotified_listings_stay_in_the_alert_city(session: Session) -> None:
     assert recife is not None
     recife_matches = queries.get_unnotified_listings_for_alert(session, recife)
     assert [item.listing_id for item in recife_matches] == [2]
+
+    natal_id = queries.create_alert(
+        session,
+        chat_id=321,
+        alert_name="Natal",
+        min_price=500,
+        max_price=2000,
+        neighbourhoods=[],
+        listing_kind="aluguel",
+        municipality="Natal",
+    )
+    session.commit()
+    natal = queries.get_alert_for_user(session, 321, natal_id)
+    assert natal is not None
+    natal_matches = queries.get_unnotified_listings_for_alert(session, natal)
+    assert [item.listing_id for item in natal_matches] == [3]
 
 
 def test_equivalent_alert_differs_by_listing_kind(session: Session) -> None:

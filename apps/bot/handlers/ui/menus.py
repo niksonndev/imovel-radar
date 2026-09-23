@@ -14,7 +14,7 @@ import config
 
 
 def start_welcome() -> str:
-    return "👋 *Olá!* Sou o bot de alertas OLX — *Maceió e Recife*.\n\n"
+    return "👋 *Olá!* Sou o bot de alertas OLX — *Maceió, Recife e Natal*.\n\n"
 
 
 def menu_principal_inline() -> str:

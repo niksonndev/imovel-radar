@@ -56,6 +56,7 @@ CITY = 7
 _CITIES = {
     "wiz_city_maceio": "Maceió",
     "wiz_city_recife": "Recife",
+    "wiz_city_natal": "Natal",
 }
 
 _RENT_PRESETS = {
@@ -117,7 +118,7 @@ def _draft_kind(draft: CreateAlertDraft) -> ListingKind:
 
 def _draft_municipality(draft: CreateAlertDraft) -> str:
     city = draft.get("municipality")
-    if city in {"Maceió", "Recife"}:
+    if city in {"Maceió", "Recife", "Natal"}:
         return city
     return "Maceió"
 
@@ -730,7 +731,7 @@ def new_alert_conversation() -> ConversationHandler:
         ],
         states={
             CITY: [
-                CallbackQueryHandler(wiz_city_cb, pattern="^wiz_city_(maceio|recife)$"),
+                CallbackQueryHandler(wiz_city_cb, pattern="^wiz_city_(maceio|recife|natal)$"),
             ],
             KIND: [
                 CallbackQueryHandler(wiz_kind_cb, pattern="^wiz_kind_(aluguel|venda)$"),
