@@ -44,7 +44,7 @@ Tanto o Instagram quanto o TikTok operam sob o padrão **Adapter** com alternân
 
 ### Instagram (`INSTAGRAM_MODE=MOCK|LIVE`)
 - **MOCK**: Estado simulado em `.mock-instagram-state.json`. Ideal para desenvolvimento local e testes.
-- **LIVE**: Meta Graph API v21+ (`/media`, `/media_publish`, `/comments`, `/insights`).
+- **LIVE**: Meta Graph API **v26.0** (`/media` → espera `FINISHED` → `/media_publish`, comentários, insights). Host `graph.facebook.com` (Facebook Login) ou `graph.instagram.com` (Instagram Login).
 
 ### TikTok (`TIKTOK_MODE=MOCK|LIVE`)
 - **MOCK**: Estado simulado em `.mock-tiktok-state.json`. Suporta ciclo completo de post foto, carrossel photo mode, vídeo slideshow, moderação de comentários e métricas.
@@ -77,6 +77,9 @@ META_APP_ID=
 META_APP_SECRET=
 META_ACCESS_TOKEN=
 INSTAGRAM_ACCOUNT_ID=
+INSTAGRAM_ACCESS_TOKEN=
+GRAPH_API_VERSION=v26.0
+GRAPH_API_HOST=graph.facebook.com
 META_VERIFY_TOKEN=imovel_radar_verify_token_secret
 
 # LLM (OpenAI recomendado para geração contextual por rede)
@@ -92,13 +95,17 @@ PORT=3000
 
 ## 🚀 Como Usar
 
-### 1. Comandos CLI — Instagram
+### 1. Comandos CLI — Instagram (gerar → revisar → publicar)
 ```bash
-# Gerar nova pauta carrossel (Instagram 4:5)
+# Só gera rascunho (slides em generated-media/, status DRAFT — não posta)
 pnpm run content:generate
 
-# Publicar post DRAFT mais recente do Instagram
-pnpm run content:publish
+# Lista rascunhos
+pnpm run content:list
+
+# Publica o id que você revisou
+pnpm run content:publish -- --id post_...
+```
 
 # Processar comentários do Instagram
 pnpm run comments:process
@@ -112,14 +119,14 @@ pnpm run analytics:report
 
 ### 2. Comandos CLI — TikTok
 ```bash
-# Gerar carrossel Photo Mode 9:16 para TikTok
+# Gerar carrossel Photo Mode 9:16 (rascunho)
 pnpm run tiktok:generate
 
-# Gerar vídeo slideshow 9:16 com ffmpeg para TikTok
+# Gerar vídeo slideshow 9:16 (rascunho)
 pnpm run tiktok:generate:video
 
-# Publicar post DRAFT mais recente no TikTok
-pnpm run tiktok:publish
+# Publicar o rascunho revisado
+pnpm run tiktok:publish -- --id post_...
 
 # Processar comentários do TikTok
 pnpm run tiktok:comments

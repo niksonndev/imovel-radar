@@ -15,6 +15,7 @@ async function main() {
   const rawArgs = process.argv.slice(2);
   let platform: SocialPlatform = 'instagram';
   let format: 'photo' | 'video' = 'photo';
+  let postIdArg: string | undefined;
   const cleanArgs: string[] = [];
 
   for (let i = 0; i < rawArgs.length; i++) {
@@ -27,6 +28,10 @@ async function main() {
       format = rawArgs[++i].toLowerCase() as 'photo' | 'video';
     } else if (arg.startsWith('--format=')) {
       format = arg.split('=')[1].toLowerCase() as 'photo' | 'video';
+    } else if (arg === '--id' && rawArgs[i + 1]) {
+      postIdArg = rawArgs[++i];
+    } else if (arg.startsWith('--id=')) {
+      postIdArg = arg.split('=')[1];
     } else {
       cleanArgs.push(arg);
     }
@@ -68,29 +73,63 @@ async function main() {
 
   try {
     if (command === 'content' && subcommand === 'generate') {
-      console.log(`📝 Gerando nova publicação para ${platform.toUpperCase()} (${format})...`);
+      console.log(`📝 Gerando rascunho para ${platform.toUpperCase()} (${format}) — não publica.`);
       const post = await contentManager.generatePost({ platform, format });
-      console.log(`✅ Post criado com sucesso! [ID: ${post.id}]`);
-      console.log(`📌 Título: ${post.title}`);
-      console.log(`🖼️ Slides gerados: ${post.slides.length}`);
-      console.log(`🎬 Tipo: ${post.postType}${post.videoUrl ? ` (Vídeo: ${post.videoUrl})` : ''}`);
-      console.log(`📋 Status: ${post.status}`);
+      console.log(`✅ Rascunho criado. Nada foi postado.`);
+      console.log(`   ID: ${post.id}`);
+      console.log(`   Título: ${post.title}`);
+      console.log(`   Tipo: ${post.postType}${post.videoUrl ? ` (vídeo local)` : ''}`);
+      console.log(`   Status: ${post.status}`);
+      console.log('\nArquivos para você revisar:');
+      for (const slide of post.slides) {
+        if (slide.localPath) console.log(`   - slide ${slide.slideNumber}: ${slide.localPath}`);
+      }
+      if (post.videoUrl) console.log(`   - vídeo: ${post.videoUrl}`);
       console.log(`\nLegenda:\n${post.caption}\n`);
+      console.log(
+        `Se estiver ok:\n  pnpm run ${platform === 'tiktok' ? 'tiktok:publish' : 'content:publish'} -- --id ${post.id}`
+      );
+      return;
+    }
+
+    if (command === 'content' && subcommand === 'list') {
+      const posts = await contentManager.listPosts(undefined, platform);
+      if (posts.length === 0) {
+        console.log(`Nenhum rascunho para ${platform}.`);
+        return;
+      }
+      console.log(`Posts (${platform}):\n`);
+      for (const post of posts) {
+        console.log(`  [${post.status}] ${post.id}  ${post.postType}  ${post.title}`);
+        const first = post.slides.find((s) => s.localPath)?.localPath;
+        if (first) console.log(`           ${first}`);
+      }
+      console.log(`\nPublicar um rascunho: content publish --id <id> --platform ${platform}`);
       return;
     }
 
     if (command === 'content' && subcommand === 'publish') {
-      console.log(`🚀 Publicando último post criado para ${platform.toUpperCase()}...`);
-      const posts = await contentManager.listPosts('DRAFT', platform);
-      if (posts.length === 0) {
-        console.log(`⚠️ Nenhum post em DRAFT encontrado para ${platform.toUpperCase()}.`);
+      const postId = postIdArg || cleanArgs[2];
+      if (!postId) {
+        const drafts = await contentManager.listPosts('DRAFT', platform);
+        console.log('Informe o id do rascunho que você revisou. Nada foi publicado.');
+        if (drafts.length > 0) {
+          console.log('\nRascunhos disponíveis:');
+          for (const post of drafts) {
+            console.log(`  ${post.id}  ${post.title}`);
+          }
+          console.log(`\nExemplo: pnpm run content:publish -- --id ${drafts[0].id}`);
+        } else {
+          console.log('Nenhum DRAFT. Gere antes: pnpm run content:generate');
+        }
+        process.exitCode = 1;
         return;
       }
-      const target = posts[0];
-      const res = await contentManager.publishPost(target.id);
-      console.log(`✅ Post publicado com sucesso!`);
-      console.log(`   - Media ID: ${res.mediaId}`);
-      if (res.permalink) console.log(`   - Permalink: ${res.permalink}`);
+      console.log(`🚀 Publicando ${postId} em ${platform.toUpperCase()}...`);
+      const res = await contentManager.publishPost(postId);
+      console.log(`✅ Publicado.`);
+      console.log(`   Media ID: ${res.mediaId}`);
+      if (res.permalink) console.log(`   Permalink: ${res.permalink}`);
       return;
     }
 
@@ -142,15 +181,16 @@ async function main() {
     }
 
     // Default / Help
-    console.log(`Comandos disponíveis:`);
-    console.log(`  pnpm run content:generate       Gera nova pauta, slides SVG e legenda (use --platform tiktok --format video)`);
-    console.log(`  pnpm run content:publish        Publica o post DRAFT mais recente`);
-    console.log(`  pnpm run comments:process       Processa e modera comentários das mídias recentes`);
-    console.log(`  pnpm run analytics:report       Gera relatório de engajamento e feedback loop`);
-    console.log(`  pnpm run mock:simulate-comment  Injeta e responde comentário no mock`);
-    console.log(`\nOpções:`);
-    console.log(`  --platform instagram|tiktok     Seleciona a rede social (padrão: instagram)`);
-    console.log(`  --format photo|video            Seleciona o formato para TikTok (padrão: photo)\n`);
+    console.log(`Fluxo: gerar rascunho → você revisa os arquivos → publicar pelo id.\n`);
+    console.log(`Comandos:`);
+    console.log(`  content generate       Só gera (não posta). --platform tiktok --format video`);
+    console.log(`  content list           Lista rascunhos`);
+    console.log(`  content publish --id   Publica o rascunho que você validou`);
+    console.log(`  comments process       Modera comentários`);
+    console.log(`  analytics report       Relatório`);
+    console.log(`  mock comment           Comentário fake (MOCK)\n`);
+    console.log(`Atalhos: pnpm run content:generate | content:list | content:publish`);
+    console.log(`         pnpm run tiktok:generate | tiktok:generate:video | tiktok:publish`);
   } catch (err: any) {
     console.error('❌ Erro na execução:', err.message || err);
     process.exit(1);

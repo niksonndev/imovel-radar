@@ -21,6 +21,10 @@ export interface MarketSnapshotData {
       rental?: MarketKindStats;
       sale?: MarketKindStats;
     };
+    natal?: {
+      rental?: MarketKindStats;
+      sale?: MarketKindStats;
+    };
   };
 }
 
@@ -80,6 +84,7 @@ export interface InstagramPostRecord {
     subtitle?: string;
     svgContent?: string;
     imageUrl?: string;
+    localPath?: string;
   }>;
   metadata?: Record<string, any>;
   createdAt: Date;
@@ -196,7 +201,9 @@ export class DatabaseClient {
     }
   }
 
-  async getLatestMarketSnapshot(municipality: 'maceio' | 'recife' = 'maceio'): Promise<MarketSnapshotData | null> {
+  async getLatestMarketSnapshot(
+    municipality: 'maceio' | 'recife' | 'natal' = 'maceio'
+  ): Promise<MarketSnapshotData | null> {
     if (this.pool) {
       try {
         const res = await this.pool.query(
@@ -208,9 +215,12 @@ export class DatabaseClient {
         if (res.rows.length > 0) {
           const row = res.rows[0];
           const parsedPayload = typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload;
-          // Validar se o payload tem a estrutura esperada pelo gerador de conteúdo
-          const muniKey = municipality.toLowerCase();
-          if (parsedPayload?.[muniKey]?.rental || parsedPayload?.maceio?.rental) {
+          const hasRental =
+            parsedPayload?.[municipality]?.rental ||
+            parsedPayload?.maceio?.rental ||
+            parsedPayload?.recife?.rental ||
+            parsedPayload?.natal?.rental;
+          if (hasRental) {
             return {
               collected_on: row.collected_on,
               collected_at: row.collected_at,

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { ContentManagerAgent } from '../src/agents/content-manager/index.js';
 import { DatabaseClient } from '../src/infrastructure/database/client.js';
 import { LLMService } from '../src/infrastructure/ai/llm-service.js';
@@ -12,6 +12,9 @@ describe('ContentManagerAgent', () => {
     const llm = new LLMService();
     const cardGenerator = new CardGenerator();
     const instagramClient = new MockInstagramClient();
+    const carouselSpy = vi.spyOn(instagramClient, 'publishCarousel');
+    const singleSpy = vi.spyOn(instagramClient, 'publishPost');
+    const videoSpy = vi.spyOn(instagramClient, 'publishVideo');
 
     const agent = new ContentManagerAgent({
       db,
@@ -28,6 +31,10 @@ describe('ContentManagerAgent', () => {
     expect(post.slides.length).toBe(4);
     expect(post.caption).toContain('ALERTA');
     expect(post.slides[0].svgContent).toContain('<svg');
+    expect(post.slides[0].localPath).toMatch(/\.png$/);
+    expect(carouselSpy).not.toHaveBeenCalled();
+    expect(singleSpy).not.toHaveBeenCalled();
+    expect(videoSpy).not.toHaveBeenCalled();
   });
 
   it('deve publicar post e atualizar status para PUBLISHED com mediaId', async () => {
@@ -52,6 +59,8 @@ describe('ContentManagerAgent', () => {
     expect(updated?.status).toBe('PUBLISHED');
     expect(updated?.mediaId).toBe(publishRes.mediaId);
     expect(updated?.publishedAt).toBeDefined();
+
+    await expect(agent.publishPost(post.id)).rejects.toThrow(/já foi publicado/);
   });
 
   it('deve agendar e processar fila de posts agendados', async () => {

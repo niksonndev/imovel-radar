@@ -69,15 +69,23 @@ export class ContentManagerAgent {
       }
     }
 
-    const snapshot = await this.db.getLatestMarketSnapshot('maceio');
-    const rentalData = snapshot?.payload?.maceio?.rental;
+    const snapshot = await this.db.getLatestMarketSnapshot();
+    const payload = snapshot?.payload;
+    const cityEntry = payload?.maceio?.rental
+      ? { label: 'Maceió', stats: payload.maceio }
+      : payload?.recife?.rental
+        ? { label: 'Recife', stats: payload.recife }
+        : payload?.natal?.rental
+          ? { label: 'Natal', stats: payload.natal }
+          : null;
+    const rentalData = cityEntry?.stats.rental;
 
-    if (!rentalData) {
+    if (!rentalData || !cityEntry) {
       throw new Error('Dados de mercado não encontrados para gerar conteúdo.');
     }
 
     const deals = await this.db.getTopDeals({
-      municipality: 'Maceió',
+      municipality: cityEntry.label,
       listingKind: 'aluguel',
       limit: 3,
     });
@@ -129,7 +137,10 @@ export class ContentManagerAgent {
         title: copy.slides[idx]?.title || `Slide ${r.slideNumber}`,
         subtitle: copy.slides[idx]?.body,
         svgContent: r.svgContent,
-        imageUrl: `${this.publicAssetBaseUrl}/generated/${r.slideNumber}.png`,
+        imageUrl: `${this.publicAssetBaseUrl}/generated/${
+          r.pngPath ? r.pngPath.split(/[/\\]/).pop() : `slide_${r.slideNumber}.png`
+        }`,
+        localPath: r.pngPath || r.filePath,
       })),
       metadata: {
         topic,
@@ -145,12 +156,16 @@ export class ContentManagerAgent {
   }
 
   /**
-   * Publica imediatamente um post criado
+   * Publica um rascunho já gerado. Não gera conteúdo novo.
+   * Só publica se você passar o id (CLI) — generate nunca chama isto.
    */
   async publishPost(postId: string): Promise<PublishResult> {
     const post = await this.db.getPost(postId);
     if (!post) {
       throw new Error(`Post não encontrado com id: ${postId}`);
+    }
+    if (post.status === 'PUBLISHED') {
+      throw new Error(`Post ${postId} já foi publicado.`);
     }
 
     const imageUrls = post.slides.map(
@@ -201,7 +216,7 @@ export class ContentManagerAgent {
     const results: Array<{ postId: string; result?: PublishResult; error?: string }> = [];
 
     for (const post of scheduled) {
-      if (post.status === 'APPROVED' || (post.scheduledFor && post.scheduledFor <= now)) {
+      if (post.scheduledFor && post.scheduledFor <= now) {
         try {
           const res = await this.publishPost(post.id);
           results.push({ postId: post.id, result: res });
