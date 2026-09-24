@@ -176,8 +176,14 @@ def claim_email_pro_trial(
 
 
 def get_users_chat_ids(session: Session) -> list[int]:
-    """Todos os chat_ids cadastrados (para o job de notificação)."""
-    return list(session.exec(select(User.chat_id)).all())
+    """chat_ids do Telegram (job de notificação da Lambda).
+
+    Usuários WhatsApp usam ``chat_id`` sintético e são notificados pelo
+    processo Rust — mandar esses ids ao Bot API do Telegram falha.
+    """
+    return list(
+        session.exec(select(User.chat_id).where(User.channel == "telegram")).all()
+    )
 
 
 # ── Neighbourhoods (lê listing) ────────────────────────────────────────────

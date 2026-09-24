@@ -733,6 +733,19 @@ def test_ensure_user_is_idempotent(session: Session) -> None:
     assert ids == [42]
 
 
+def test_get_users_chat_ids_skips_whatsapp(session: Session) -> None:
+    queries.ensure_user(session, 42)
+    session.add(
+        User(
+            chat_id=1_000_000_000_000_001,
+            channel="whatsapp",
+            whatsapp_jid="5511999999999@s.whatsapp.net",
+        )
+    )
+    session.commit()
+    assert queries.get_users_chat_ids(session) == [42]
+
+
 def test_large_telegram_chat_id_fits_bigint(session: Session) -> None:
     """Telegram ids can exceed PostgreSQL INTEGER max (2^31-1)."""
     chat_id = 7_217_061_180
