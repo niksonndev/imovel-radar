@@ -2,12 +2,14 @@
 
 import { boundsOf, heatPaint, type NeighbourhoodCollection } from "@/lib/market-geo";
 import { formatBRL, formatCount, type HeatMetric } from "@/lib/market-stats";
-import { setWorkerUrl, type FillLayerSpecification } from "maplibre-gl";
+import { getVersion, setWorkerUrl, type FillLayerSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Map, { Layer, Source, type MapLayerMouseEvent, type MapRef } from "react-map-gl/maplibre";
 
-setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
+// Vercel runs bare `next build` and skips package `prebuild`, so `/maplibre/*` 404s
+// in production. Load the worker from the CDN matching the installed package version.
+setWorkerUrl(`https://cdn.jsdelivr.net/npm/maplibre-gl@${getVersion()}/dist/maplibre-gl-worker.mjs`);
 
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
