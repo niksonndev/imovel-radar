@@ -1,4 +1,8 @@
 import {
+  DEFAULT_GRAPH_API_HOST,
+  DEFAULT_GRAPH_API_VERSION,
+} from './constants.js';
+import {
   AccountInsights,
   CommentReplyResult,
   InstagramClient,
@@ -13,21 +17,31 @@ export interface MetaGraphConfig {
   accountId: string;
   accessToken: string;
   apiVersion?: string;
+  /** graph.facebook.com (Facebook Login) ou graph.instagram.com (Instagram Login). */
+  apiHost?: string;
   baseUrl?: string;
+  statusPollMs?: number;
+  containerTimeoutMs?: number;
 }
+
+type GraphErrorBody = {
+  error?: { message?: string; code?: number; error_subcode?: number };
+};
 
 export class MetaGraphInstagramClient implements InstagramClient {
   readonly platform = 'instagram' as const;
   readonly capabilities: SocialCapabilities = {
     singleImage: true,
     carousel: true,
-    video: false,
+    video: true,
     replyComment: true,
     hideComment: true,
   };
   private accountId: string;
   private accessToken: string;
   private baseUrl: string;
+  private statusPollMs: number;
+  private containerTimeoutMs: number;
 
   constructor(config: MetaGraphConfig) {
     if (!config.accountId || !config.accessToken) {
@@ -37,68 +51,101 @@ export class MetaGraphInstagramClient implements InstagramClient {
     }
     this.accountId = config.accountId;
     this.accessToken = config.accessToken;
-    const version = config.apiVersion || 'v21.0';
-    this.baseUrl = config.baseUrl || `https://graph.facebook.com/${version}`;
+    const version = config.apiVersion || DEFAULT_GRAPH_API_VERSION;
+    const host = (config.apiHost || DEFAULT_GRAPH_API_HOST).replace(
+      /^https?:\/\//,
+      ''
+    );
+    this.baseUrl = config.baseUrl || `https://${host}/${version}`;
+    this.statusPollMs = config.statusPollMs ?? 2000;
+    this.containerTimeoutMs = config.containerTimeoutMs ?? 90_000;
   }
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: {
+      method?: 'GET' | 'POST';
+      params?: Record<string, string | undefined>;
+    } = {}
   ): Promise<T> {
-    const url = new URL(`${this.baseUrl}${endpoint}`);
-    if (!url.searchParams.has('access_token')) {
+    const method = options.method ?? 'GET';
+    const url = new URL(
+      `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
+    );
+    const params = options.params ?? {};
+
+    let response: Response;
+    if (method === 'GET') {
       url.searchParams.set('access_token', this.accessToken);
+      for (const [key, value] of Object.entries(params)) {
+        if (value != null && value !== '') url.searchParams.set(key, value);
+      }
+      response = await fetch(url);
+    } else {
+      const body = new URLSearchParams();
+      body.set('access_token', this.accessToken);
+      for (const [key, value] of Object.entries(params)) {
+        if (value != null && value !== '') body.set(key, value);
+      }
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      });
     }
 
-    const response = await fetch(url.toString(), {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ...(options.headers || {}),
-      },
-    });
-
-    const data = (await response.json()) as any;
-
+    const data = (await response.json()) as T & GraphErrorBody;
     if (!response.ok || data.error) {
       const msg =
         data.error?.message ||
         `Erro na Meta Graph API (${response.status}): ${response.statusText}`;
       throw new Error(`[MetaGraphAPI] ${msg}`);
     }
-
-    return data as T;
+    return data;
   }
 
-  async publishPost(caption: string, imageUrl: string): Promise<PublishResult> {
-    // 1. Cria contêiner de imagem
-    const container = await this.request<{ id: string }>(
-      `/${this.accountId}/media`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          image_url: imageUrl,
-          caption,
-        }),
+  async waitUntilContainerReady(creationId: string): Promise<void> {
+    const deadline = Date.now() + this.containerTimeoutMs;
+    while (Date.now() < deadline) {
+      const status = await this.request<{ status_code?: string }>(
+        `/${creationId}`,
+        { params: { fields: 'status_code' } }
+      );
+      const code = status.status_code;
+      if (code === 'FINISHED' || code === 'PUBLISHED') return;
+      if (code === 'ERROR' || code === 'EXPIRED') {
+        throw new Error(
+          `[MetaGraphAPI] Contêiner ${creationId} falhou (${code})`
+        );
       }
+      await new Promise((resolve) => setTimeout(resolve, this.statusPollMs));
+    }
+    throw new Error(
+      `[MetaGraphAPI] Timeout aguardando contêiner ${creationId}`
     );
+  }
 
-    // 2. Publica o contêiner
+  private async publishContainer(creationId: string): Promise<PublishResult> {
+    await this.waitUntilContainerReady(creationId);
     const published = await this.request<{ id: string }>(
       `/${this.accountId}/media_publish`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          creation_id: container.id,
-        }),
-      }
+      { method: 'POST', params: { creation_id: creationId } }
     );
-
     return {
       mediaId: published.id,
       publishedAt: new Date(),
     };
+  }
+
+  async publishPost(caption: string, imageUrl: string): Promise<PublishResult> {
+    const container = await this.request<{ id: string }>(
+      `/${this.accountId}/media`,
+      {
+        method: 'POST',
+        params: { image_url: imageUrl, caption },
+      }
+    );
+    return this.publishContainer(container.id);
   }
 
   async publishCarousel(
@@ -109,84 +156,76 @@ export class MetaGraphInstagramClient implements InstagramClient {
       throw new Error('Carrossel requer no mínimo 2 imagens.');
     }
 
-    // 1. Cria cada item filho
     const childIds: string[] = [];
     for (const imgUrl of imageUrls) {
       const child = await this.request<{ id: string }>(
         `/${this.accountId}/media`,
         {
           method: 'POST',
-          body: JSON.stringify({
-            image_url: imgUrl,
-            is_carousel_item: true,
-          }),
+          params: { image_url: imgUrl, is_carousel_item: 'true' },
         }
       );
+      await this.waitUntilContainerReady(child.id);
       childIds.push(child.id);
     }
 
-    // 2. Cria contêiner pai
     const parentContainer = await this.request<{ id: string }>(
       `/${this.accountId}/media`,
       {
         method: 'POST',
-        body: JSON.stringify({
+        params: {
           media_type: 'CAROUSEL',
           children: childIds.join(','),
           caption,
-        }),
+        },
       }
     );
 
-    // 3. Publica contêiner pai
-    const published = await this.request<{ id: string }>(
-      `/${this.accountId}/media_publish`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          creation_id: parentContainer.id,
-        }),
-      }
-    );
-
-    return {
-      mediaId: published.id,
-      publishedAt: new Date(),
-    };
+    return this.publishContainer(parentContainer.id);
   }
 
-  async publishVideo(
-    _caption: string,
-    _videoUrl: string
-  ): Promise<PublishResult> {
-    throw new Error(
-      'Publicação de vídeo não é suportada no InstagramClient nesta versão.'
+  async publishVideo(caption: string, videoUrl: string): Promise<PublishResult> {
+    const container = await this.request<{ id: string }>(
+      `/${this.accountId}/media`,
+      {
+        method: 'POST',
+        params: {
+          media_type: 'REELS',
+          video_url: videoUrl,
+          caption,
+          share_to_feed: 'true',
+        },
+      }
     );
+    return this.publishContainer(container.id);
   }
 
   async getRecentMedia(limit = 10): Promise<InstagramMedia[]> {
     const fields =
       'id,caption,media_type,media_url,permalink,timestamp,like_count,comments_count';
-    const res = await this.request<{ data: any[] }>(
-      `/${this.accountId}/media?fields=${fields}&limit=${limit}`
+    const res = await this.request<{ data: Array<Record<string, unknown>> }>(
+      `/${this.accountId}/media`,
+      { params: { fields, limit: String(limit) } }
     );
 
     return (res.data || []).map((item) => ({
-      id: item.id,
-      caption: item.caption,
-      mediaType: item.media_type,
-      mediaUrl: item.media_url,
-      permalink: item.permalink,
-      timestamp: item.timestamp,
-      likeCount: item.like_count ?? 0,
-      commentsCount: item.comments_count ?? 0,
+      id: String(item.id),
+      caption: item.caption as string | undefined,
+      mediaType: item.media_type as InstagramMedia['mediaType'],
+      mediaUrl: item.media_url as string | undefined,
+      permalink: String(item.permalink ?? ''),
+      timestamp: String(item.timestamp ?? ''),
+      likeCount: Number(item.like_count ?? 0),
+      commentsCount: Number(item.comments_count ?? 0),
     }));
   }
 
   async getComments(mediaId: string): Promise<InstagramComment[]> {
-    const fields = 'id,text,username,timestamp,hidden,replies{id,text,username,timestamp}';
-    const res = await this.request<{ data: any[] }>(
-      `/${mediaId}/comments?fields=${fields}`
+    const fields =
+      'id,text,username,timestamp,hidden,replies{id,text,username,timestamp}';
+    const res = await this.request<{ data: Array<Record<string, any>> }>(
+      `/${mediaId}/comments`,
+      { params: { fields } }
     );
 
     return (res.data || []).map((c) => ({
@@ -196,7 +235,7 @@ export class MetaGraphInstagramClient implements InstagramClient {
       username: c.username,
       timestamp: c.timestamp,
       hidden: c.hidden ?? false,
-      replies: (c.replies?.data || []).map((r: any) => ({
+      replies: (c.replies?.data || []).map((r: Record<string, any>) => ({
         id: r.id,
         mediaId,
         text: r.text,
@@ -212,7 +251,7 @@ export class MetaGraphInstagramClient implements InstagramClient {
   ): Promise<CommentReplyResult> {
     const res = await this.request<{ id: string }>(`/${commentId}/replies`, {
       method: 'POST',
-      body: JSON.stringify({ message }),
+      params: { message },
     });
 
     return {
@@ -224,77 +263,122 @@ export class MetaGraphInstagramClient implements InstagramClient {
   }
 
   async hideComment(commentId: string): Promise<boolean> {
-    const res = await this.request<{ success: boolean }>(`/${commentId}`, {
+    const res = await this.request<{ success?: boolean }>(`/${commentId}`, {
       method: 'POST',
-      body: JSON.stringify({ hide: true }),
+      params: { hide: 'true' },
     });
     return res.success ?? true;
   }
 
-  async getMediaInsights(mediaId: string): Promise<MediaInsights> {
-    try {
-      const res = await this.request<{ data: Array<{ name: string; values: Array<{ value: number }> }> }>(
-        `/${mediaId}/insights?metric=reach,impressions,saved,shares,total_interactions`
-      );
-
-      const metricMap: Record<string, number> = {};
-      for (const item of res.data || []) {
-        metricMap[item.name] = item.values?.[0]?.value ?? 0;
-      }
-
-      return {
-        mediaId,
-        reach: metricMap.reach ?? 0,
-        impressions: metricMap.impressions ?? 0,
-        saved: metricMap.saved ?? 0,
-        shares: metricMap.shares ?? 0,
-        engagement: metricMap.total_interactions ?? 0,
-        likes: 0,
-        comments: 0,
-      };
-    } catch {
-      // Fallback em caso de métricas parciais ou nova mídia
-      return {
-        mediaId,
-        reach: 0,
-        impressions: 0,
-        saved: 0,
-        shares: 0,
-        engagement: 0,
-        likes: 0,
-        comments: 0,
-      };
+  private metricValue(
+    data: Array<{ name: string; values?: Array<{ value: number }> }>,
+    ...names: string[]
+  ): number {
+    for (const name of names) {
+      const item = data.find((row) => row.name === name);
+      const value = item?.values?.[0]?.value;
+      if (typeof value === 'number') return value;
     }
+    return 0;
+  }
+
+  async getMediaInsights(mediaId: string): Promise<MediaInsights> {
+    const empty: MediaInsights = {
+      mediaId,
+      reach: 0,
+      impressions: 0,
+      saved: 0,
+      shares: 0,
+      engagement: 0,
+      likes: 0,
+      comments: 0,
+    };
+    const attempts = [
+      'reach,views,saved,shares,total_interactions,likes,comments',
+      'reach,impressions,saved,shares,total_interactions',
+      'reach,impressions,engagement',
+    ];
+    for (const metric of attempts) {
+      try {
+        const res = await this.request<{
+          data: Array<{ name: string; values: Array<{ value: number }> }>;
+        }>(`/${mediaId}/insights`, { params: { metric } });
+        const rows = res.data || [];
+        const views = this.metricValue(rows, 'views', 'impressions');
+        return {
+          mediaId,
+          reach: this.metricValue(rows, 'reach'),
+          impressions: views,
+          saved: this.metricValue(rows, 'saved'),
+          shares: this.metricValue(rows, 'shares'),
+          engagement: this.metricValue(
+            rows,
+            'total_interactions',
+            'engagement'
+          ),
+          likes: this.metricValue(rows, 'likes'),
+          comments: this.metricValue(rows, 'comments'),
+        };
+      } catch {
+        continue;
+      }
+    }
+    return empty;
   }
 
   async getAccountInsights(
-    period: 'day' | 'week' | 'days_28' = 'week'
+    period: 'day' | 'week' | 'days_28' = 'day'
   ): Promise<AccountInsights> {
+    const empty: AccountInsights = {
+      period,
+      impressions: 0,
+      reach: 0,
+      profileViews: 0,
+      followerCount: 0,
+    };
+
+    let followerCount = 0;
     try {
-      const res = await this.request<{ data: Array<{ name: string; values: Array<{ value: number }> }> }>(
-        `/${this.accountId}/insights?metric=impressions,reach,profile_views&period=${period}`
+      const user = await this.request<{ followers_count?: number }>(
+        `/${this.accountId}`,
+        { params: { fields: 'followers_count' } }
       );
-
-      const metricMap: Record<string, number> = {};
-      for (const item of res.data || []) {
-        metricMap[item.name] = item.values?.[0]?.value ?? 0;
-      }
-
-      return {
-        period,
-        impressions: metricMap.impressions ?? 0,
-        reach: metricMap.reach ?? 0,
-        profileViews: metricMap.profile_views ?? 0,
-        followerCount: 0,
-      };
+      followerCount = user.followers_count ?? 0;
     } catch {
-      return {
-        period,
-        impressions: 0,
-        reach: 0,
-        profileViews: 0,
-        followerCount: 0,
-      };
+      followerCount = 0;
     }
+
+    const attempts: Array<{ metric: string; period: string }> = [
+      { metric: 'reach,views,accounts_engaged', period: 'day' },
+      { metric: 'impressions,reach,profile_views', period },
+      { metric: 'impressions,reach,profile_views', period: 'day' },
+    ];
+
+    for (const attempt of attempts) {
+      try {
+        const res = await this.request<{
+          data: Array<{ name: string; values: Array<{ value: number }> }>;
+        }>(`/${this.accountId}/insights`, {
+          params: { metric: attempt.metric, period: attempt.period },
+        });
+        const rows = res.data || [];
+        const views = this.metricValue(rows, 'views', 'impressions');
+        return {
+          period,
+          impressions: views,
+          reach: this.metricValue(rows, 'reach'),
+          profileViews: this.metricValue(
+            rows,
+            'profile_views',
+            'accounts_engaged'
+          ),
+          followerCount,
+        };
+      } catch {
+        continue;
+      }
+    }
+
+    return { ...empty, followerCount };
   }
 }

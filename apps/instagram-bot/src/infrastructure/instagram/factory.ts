@@ -1,3 +1,7 @@
+import {
+  DEFAULT_GRAPH_API_HOST,
+  DEFAULT_GRAPH_API_VERSION,
+} from './constants.js';
 import { InstagramClient } from './types.js';
 import { MockInstagramClient } from './mock-client.js';
 import { MetaGraphInstagramClient } from './meta-client.js';
@@ -19,7 +23,8 @@ export function createInstagramClient(): InstagramClient {
     return new MetaGraphInstagramClient({
       accountId,
       accessToken,
-      apiVersion: process.env.GRAPH_API_VERSION || 'v21.0',
+      apiVersion: process.env.GRAPH_API_VERSION || DEFAULT_GRAPH_API_VERSION,
+      apiHost: process.env.GRAPH_API_HOST || DEFAULT_GRAPH_API_HOST,
     });
   }
 

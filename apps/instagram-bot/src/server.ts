@@ -1,4 +1,6 @@
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
 import dotenv from 'dotenv';
 import { DatabaseClient } from './infrastructure/database/client.js';
 import { LLMService } from './infrastructure/ai/llm-service.js';
@@ -7,6 +9,7 @@ import { VideoSlideshowGenerator } from './infrastructure/renderer/video-slidesh
 import { createInstagramClient } from './infrastructure/instagram/index.js';
 import { createTikTokClient } from './infrastructure/tiktok/index.js';
 import { SocialPlatform } from './infrastructure/social/types.js';
+import { verifyMetaSignature } from './infrastructure/instagram/webhook-signature.js';
 import { ContentManagerAgent } from './agents/content-manager/index.js';
 import { CommentAgent } from './agents/comment-agent/index.js';
 import { AnalyticsAgent } from './agents/analytics-agent/index.js';
@@ -15,6 +18,8 @@ dotenv.config();
 
 const port = Number(process.env.PORT) || 3000;
 const verifyToken = process.env.META_VERIFY_TOKEN || 'imovel_radar_verify_token_secret';
+const metaAppSecret = process.env.META_APP_SECRET || '';
+const generatedMediaDir = path.resolve(process.cwd(), 'generated-media');
 
 export function createBotApp() {
   const db = new DatabaseClient();
@@ -89,6 +94,27 @@ export function createBotApp() {
       return;
     }
 
+    if (pathname.startsWith('/generated/') && method === 'GET') {
+      const fileName = path.basename(pathname);
+      if (!/\.(png|svg|mp4)$/i.test(fileName)) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not Found' }));
+        return;
+      }
+      const filePath = path.join(generatedMediaDir, fileName);
+      if (!filePath.startsWith(generatedMediaDir) || !fs.existsSync(filePath)) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not Found' }));
+        return;
+      }
+      const ext = path.extname(fileName).toLowerCase();
+      const type =
+        ext === '.png' ? 'image/png' : ext === '.svg' ? 'image/svg+xml' : 'video/mp4';
+      res.writeHead(200, { 'Content-Type': type });
+      fs.createReadStream(filePath).pipe(res);
+      return;
+    }
+
     // 2. Meta Webhook Verification (GET)
     if (pathname === '/webhook' && method === 'GET') {
       const mode = parsedUrl.searchParams.get('hub.mode');
@@ -116,6 +142,15 @@ export function createBotApp() {
 
       req.on('end', async () => {
         try {
+          const shouldVerify = Boolean(metaAppSecret) && !process.env.VITEST;
+          const signature = req.headers['x-hub-signature-256'];
+          const sigHeader = Array.isArray(signature) ? signature[0] : signature;
+          if (shouldVerify && !verifyMetaSignature(body, sigHeader, metaAppSecret)) {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid signature' }));
+            return;
+          }
+
           const payload = JSON.parse(body || '{}');
 
           // Processa entradas do webhook da Meta
@@ -204,7 +239,12 @@ export function createBotApp() {
           });
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, platform: targetPlatform, post }));
+          res.end(JSON.stringify({
+            success: true,
+            published: false,
+            platform: targetPlatform,
+            post,
+          }));
         } catch (err: any) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: err.message }));

@@ -21,7 +21,7 @@ export interface RenderResult {
 }
 
 export class CardGenerator {
-  private outputDir: string;
+  readonly outputDir: string;
 
   constructor(outputDir?: string) {
     this.outputDir = outputDir || path.resolve(process.cwd(), 'generated-media');
