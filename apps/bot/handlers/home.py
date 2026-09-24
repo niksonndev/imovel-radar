@@ -25,7 +25,7 @@ MENU_NAV_CALLBACK_RE = (
 
 
 async def show_main_menu(update: Update, context: CustomContext) -> None:
-    """Mostra o menu principal, inclusive a partir de um card de foto."""
+    """Mostra o menu principal. Saindo de um card, a foto fica e o menu é novo."""
     query = update.callback_query
     if query is None:
         return
@@ -41,16 +41,22 @@ async def present_message(
     reply_markup: InlineKeyboardMarkup | None = None,
     parse_mode: str | None = ParseMode.MARKDOWN,
 ) -> None:
-    """Edita a bolha do callback. Foto troca a legenda; texto troca o corpo."""
+    """Mostra um menu de texto.
+
+    Bolha de texto: edita o corpo. Card de foto: a imagem permanece e o menu
+    abre numa mensagem nova.
+    """
     message = query.message
+    if message is not None and message.photo:
+        await _send_text_message(
+            query,
+            context,
+            text,
+            reply_markup=reply_markup,
+            parse_mode=parse_mode,
+        )
+        return
     try:
-        if message is not None and message.photo:
-            await query.edit_message_caption(
-                caption=text,
-                parse_mode=parse_mode,
-                reply_markup=reply_markup,
-            )
-            return
         await query.edit_message_text(
             text=text,
             parse_mode=parse_mode,
@@ -59,14 +65,12 @@ async def present_message(
         return
     except BadRequest:
         logger.debug("present_message: edit ignorado", exc_info=True)
-    chat_id = _chat_id(query, context)
-    if chat_id is None:
-        return
-    await context.bot.send_message(
-        chat_id=chat_id,
-        text=text,
-        parse_mode=parse_mode,
+    await _send_text_message(
+        query,
+        context,
+        text,
         reply_markup=reply_markup,
+        parse_mode=parse_mode,
     )
 
 
@@ -119,6 +123,25 @@ async def _present_main_menu(query: CallbackQuery, context: CustomContext) -> No
         context,
         menus.menu_principal_inline(),
         reply_markup=keyboards.main_menu_keyboard(),
+    )
+
+
+async def _send_text_message(
+    query: CallbackQuery,
+    context: CustomContext,
+    text: str,
+    *,
+    reply_markup: InlineKeyboardMarkup | None,
+    parse_mode: str | None,
+) -> None:
+    chat_id = _chat_id(query, context)
+    if chat_id is None:
+        return
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=text,
+        parse_mode=parse_mode,
+        reply_markup=reply_markup,
     )
 
 

@@ -17,7 +17,7 @@ from handlers.billing import register_billing_handlers
 from handlers.carousel import register_handlers as register_carousel_handlers
 from handlers.create_new_alert import new_alert_conversation
 from handlers.email_pro_trial import email_pro_trial_conversation
-from handlers.home import show_main_menu
+from handlers.home import present_message, show_main_menu
 from handlers.meus_alertas import meus_alertas_actions_callback, meus_alertas_callback
 from handlers.ui import keyboards, menus
 from handlers.watchlist import (
@@ -77,8 +77,10 @@ async def main_menu_callback(update: Update, context: CustomContext) -> None:
     )
     if query.data not in handlers:
         logger.warning("Callback de menu não mapeado: %s", query.data)
-    await query.edit_message_text(
-        text=text,
+    await present_message(
+        query,
+        context,
+        text,
         parse_mode=ParseMode.MARKDOWN if markdown else None,
         reply_markup=keyboards.main_menu_keyboard(),
     )
