@@ -106,7 +106,10 @@ variable "bot_memory" {
 variable "market_stats_cors_origins" {
   description = "Origens com CORS no GET /market-stats (domínio do site)"
   type        = list(string)
-  default     = ["https://imovel-radar.vercel.app"]
+  default = [
+    "https://imovel-radar.vercel.app",
+    "https://imovel-radar-frontend.vercel.app",
+  ]
 }
 
 variable "bot_timeout" {
