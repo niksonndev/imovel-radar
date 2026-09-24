@@ -93,8 +93,6 @@ jobs:
       - name: Run migrations (gate - bloqueia deploy em falha)
         working-directory: apps/scraper
         run: uv run alembic upgrade head
-        env:
-          DATABASE_URL: ${{ env.DATABASE_URL }}
 
       - name: Build scraper Lambda zip
         working-directory: apps/scraper
@@ -137,11 +135,11 @@ jobs:
           terraform plan \
             -var "scraper_zip_path=../apps/scraper/dist/lambda.zip" \
             -var "bot_zip_path=../apps/bot/dist/lambda.zip" \
-            -var "database_url=${{ env.DATABASE_URL }}"
+            -var "database_url=$DATABASE_URL"
           terraform apply -auto-approve \
             -var "scraper_zip_path=../apps/scraper/dist/lambda.zip" \
             -var "bot_zip_path=../apps/bot/dist/lambda.zip" \
-            -var "database_url=${{ env.DATABASE_URL }}"
+            -var "database_url=$DATABASE_URL"
 
       # Smoke: 5 páginas sob SCRAPER_MAX_PAGES=5. O hard cap NÃO marca
       # completed (ver olx_scraper.search_listings) — assim não dispara
@@ -150,7 +148,7 @@ jobs:
         run: |
           FN="imovel-radar-prod-scraper-collect"
           aws lambda update-function-configuration --function-name "$FN" \
-            --environment "Variables={DATABASE_URL=${{ env.DATABASE_URL }},LOG_LEVEL=INFO,SCRAPER_MAX_PAGES=5}" >/dev/null
+            --environment "Variables={DATABASE_URL=${DATABASE_URL},LOG_LEVEL=INFO,SCRAPER_MAX_PAGES=5}" >/dev/null
           aws lambda invoke \
             --function-name "$FN" \
             --cli-binary-format raw-in-base64-out \
@@ -159,7 +157,7 @@ jobs:
           cat /tmp/invoke.json
           # restaura o env padrão do Terraform (scraper_max_pages=500)
           aws lambda update-function-configuration --function-name "$FN" \
-            --environment "Variables={DATABASE_URL=${{ env.DATABASE_URL }},LOG_LEVEL=INFO,SCRAPER_MAX_PAGES=500}" >/dev/null
+            --environment "Variables={DATABASE_URL=${DATABASE_URL},LOG_LEVEL=INFO,SCRAPER_MAX_PAGES=500}" >/dev/null
 
       - name: Post-deploy bot smoke (EventBridge notify dry-run)
         run: |
@@ -188,5 +186,6 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          # Public team slug id (not a secret). Override via repo Variable if it moves.
+          VERCEL_ORG_ID: team_yOpWUlQdbdJgfNgoOrFQcJWC
         run: bash .github/scripts/sync-market-stats-url.sh
