@@ -121,7 +121,7 @@ jobs:
           uv pip install --target dist/python -r /tmp/requirements-bot-no-shared.txt
           cp -r ../../packages/shared-models/src/shared_models dist/python/shared_models
           cp lambda_handler.py config.py application.py models.py persistence.py dist/python/
-          cp -r handlers jobs database dist/python/
+          cp -r handlers jobs database infrastructure dist/python/
           cd dist/python && zip -q -r ../lambda.zip .
         env:
           DATABASE_URL: postgresql+psycopg://postgres:teste123@localhost:5432/imovel_radar
