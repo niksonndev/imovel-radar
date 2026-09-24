@@ -11,6 +11,7 @@ Telegram bot + scraper for monitoring real-estate listings on OLX Maceió. The s
 - **Monorepo**: Turborepo + pnpm (Node.js workspaces for the frontend)
 - **Scraper** (Lambda + FastAPI local): coleta OLX → `listing` no Postgres (Neon)
 - **Bot** (Lambda webhook + polling local): dona de `users`/`alerts`/`alert_matches`; lê `listing`
+- **WhatsApp bot** (`apps/whatsapp-bot`, Rust, processo sempre ligado): mesmo produto no WhatsApp Web, deploy Render com disco para a sessão
 - **Shared package**: `shared-models` — table models SQLModel + utils; `api_schemas` está deprecated
 - **Database**: Postgres via SQLModel + Alembic (dev: local; prod: Neon pooled)
 - **Estado de conversa (prod)**: DynamoDB
@@ -29,6 +30,7 @@ imovel-radar/
 ├── apps/
 │   ├── scraper/              ← dono de `listing`; coleta OLX (Lambda em prod)
 │   ├── bot/                  ← webhook Lambda + Postgres direto (ADR 0005)
+│   ├── whatsapp-bot/         ← WhatsApp Web (Rust, Render, disco /data)
 │   └── frontend/             ← Next.js 16 (App Router, SSG → out/)
 ├── docs/
 │   └── adr/
@@ -120,6 +122,7 @@ pnpm run dev
 ```bash
 pnpm run dev:scraper   # FastAPI on port 8000
 pnpm run dev:bot       # Telegram Bot
+pnpm run dev:whatsapp  # WhatsApp bot (Rust; pareie o QR em /pair)
 pnpm run dev:frontend  # Next.js (optional)
 ```
 

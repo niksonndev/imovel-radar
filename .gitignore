@@ -85,6 +85,9 @@ logs/
 # Jupyter
 .ipynb_checkpoints/
 
+# Rust
+**/target/
+
 # Terraform
 **/.terraform/
 *.tfstate

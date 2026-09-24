@@ -48,5 +48,29 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  whatsapp-bot:
+    build:
+      context: .
+      dockerfile: apps/whatsapp-bot/Dockerfile
+    image: imovel-radar-whatsapp-bot:latest
+    env_file:
+      - path: apps/whatsapp-bot/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:teste123@host.docker.internal:5432/imovel_radar
+      WHATSAPP_SESSION_PATH: /data/whatsapp.db
+      PAIR_SECRET: dev-pair-secret
+      LLM_PROVIDER: mock
+      PORT: "10000"
+    ports:
+      - "10000:10000"
+    volumes:
+      - whatsapp_session:/data
+    depends_on:
+      scraper:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   bot_state:
+  whatsapp_session:

@@ -33,6 +33,7 @@ pnpm-lock.yaml
 # Dados / estado transiente
 **/data
 **/*.pickle
+**/target
 
 # IDEs / SO / logs / testes
 .vscode

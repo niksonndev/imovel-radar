@@ -1,0 +1,27 @@
+name: WhatsApp bot tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/whatsapp-bot/**"
+      - ".github/workflows/whatsapp-bot-tests.yml"
+  pull_request:
+    paths:
+      - "apps/whatsapp-bot/**"
+      - ".github/workflows/whatsapp-bot-tests.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/whatsapp-bot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/whatsapp-bot
+      - name: cargo test
+        run: cargo test
