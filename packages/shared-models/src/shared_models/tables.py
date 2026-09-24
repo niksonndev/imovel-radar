@@ -108,15 +108,18 @@ class MarketSnapshot(SQLModel, table=True):
 
 
 class User(SQLModel, table=True):
-    """User identified by Telegram chat_id (dona: bot).
+    """User identified by ``chat_id`` (dona: bot).
 
     ``chat_id`` is BIGINT — Telegram user ids can exceed PostgreSQL INTEGER
-    (2^31-1).
+    (2^31-1). WhatsApp users get a synthetic ``chat_id`` from
+    ``whatsapp_user_id_seq`` (starts at 10^15) and are keyed by
+    ``whatsapp_jid``. Telegram rows keep ``channel='telegram'`` and a null JID.
 
     Billing (Radar Pro via Telegram Stars): ``plan`` + ``pro_until`` drive
     entitlement; Stars charge/subscription fields mirror Telegram state.
     Email trial: ``email`` + ``email_pro_trial_claimed_at`` for one-time
-    free Pro month while Stars checkout is paused.
+    free Pro month while Stars checkout is paused. The trial is global per
+    email, so a WhatsApp signup cannot reuse an email already claimed.
     """
 
     __tablename__ = "users"  # type: ignore
@@ -125,7 +128,12 @@ class User(SQLModel, table=True):
             "plan IN ('free', 'pro')",
             name="ck_users_plan",
         ),
+        CheckConstraint(
+            "channel IN ('telegram', 'whatsapp')",
+            name="ck_users_channel",
+        ),
         UniqueConstraint("email", name="uq_users_email"),
+        UniqueConstraint("whatsapp_jid", name="uq_users_whatsapp_jid"),
     )
 
     chat_id: int = Field(
@@ -172,6 +180,19 @@ class User(SQLModel, table=True):
             DateTime(timezone=True),
             nullable=True,
         ),
+    )
+    channel: str = Field(
+        default="telegram",
+        sa_column=Column(
+            "channel",
+            Text,
+            nullable=False,
+            server_default=text("'telegram'"),
+        ),
+    )
+    whatsapp_jid: str | None = Field(
+        default=None,
+        sa_column=Column("whatsapp_jid", Text, nullable=True),
     )
 
 
@@ -285,6 +306,36 @@ class WatchedListing(SQLModel, table=True):
     created_at: datetime | None = Field(
         default=None,
         sa_column=Column("created_at", DateTime(timezone=True), server_default=func.now()),
+    )
+
+
+class BotSession(SQLModel, table=True):
+    """Estado da conversa do bot WhatsApp (dona: bot WhatsApp).
+
+    TTL é aplicado na leitura (sessões paradas há horas são descartadas).
+    O bot Telegram continua com DynamoDB/pickle e não usa esta tabela.
+    """
+
+    __tablename__ = "bot_session"  # type: ignore
+
+    chat_id: int = Field(
+        sa_column=Column(
+            "chat_id",
+            BigInteger,
+            ForeignKey("users.chat_id"),
+            primary_key=True,
+            nullable=False,
+        )
+    )
+    state: dict[str, Any] = Field(sa_column=Column("state", JSON, nullable=False))
+    updated_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(
+            "updated_at",
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=func.now(),
+        ),
     )
 
 
