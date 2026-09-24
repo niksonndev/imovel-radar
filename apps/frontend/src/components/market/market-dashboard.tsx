@@ -32,7 +32,7 @@ const MarketMapLazy = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-[min(70vh,560px)] min-h-[320px] animate-pulse rounded-2xl bg-white/5" />
+      <div className="h-[min(70vh,560px)] min-h-80 animate-pulse rounded-2xl bg-white/5" />
     ),
   },
 );
@@ -294,7 +294,7 @@ export function MarketDashboard() {
               max={painted.max}
             />
           ) : (
-            <div className="h-[min(70vh,560px)] min-h-[320px] animate-pulse rounded-2xl bg-white/5" />
+            <div className="h-[min(70vh,560px)] min-h-80 animate-pulse rounded-2xl bg-white/5" />
           )}
           <p className="text-xs leading-relaxed text-white/40">
             Contornos: Prefeitura do Recife (ODbL) e bairros do Censo IBGE 2022 publicados por
@@ -302,7 +302,7 @@ export function MarketDashboard() {
           </p>
         </div>
 
-        <div className="flex max-h-[560px] flex-col gap-3 overflow-auto rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="flex max-h-140 flex-col gap-3 overflow-auto rounded-2xl border border-white/10 bg-white/5 p-4">
           <h2 className="font-heading text-xl text-white">Bairros</h2>
           <table className="w-full text-left text-sm">
             <caption className="sr-only">

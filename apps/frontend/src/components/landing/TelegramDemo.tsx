@@ -216,7 +216,7 @@ export function TelegramDemo({
   );
 
   return (
-    <div className={cn("relative mx-auto w-full max-w-[400px]", className)}>
+    <div className={cn("relative mx-auto w-full max-w-100", className)}>
       <p className="sr-only">
         Demonstração do bot no Telegram: o alerta Novo apê, para alugar um apartamento em Antares
         e Serraria entre R$ 2.000 e R$ 2.500 com 3 quartos ou mais, encontra um apartamento em
@@ -230,7 +230,7 @@ export function TelegramDemo({
         <div
           data-demo-shell
           className={cn(
-            "flex h-[min(34rem,calc(100svh-11.5rem))] min-h-[28rem] flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#0e1621] shadow-[0_24px_80px_-24px_rgba(0,119,188,0.55)]",
+            "flex h-[min(34rem,calc(100svh-11.5rem))] min-h-112 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#0e1621] shadow-[0_24px_80px_-24px_rgba(0,119,188,0.55)]",
             shellClassName,
           )}
         >
@@ -248,7 +248,7 @@ export function TelegramDemo({
             ref={viewportRef}
             className="relative min-h-0 flex-1 overflow-hidden bg-[#0e1621] bg-[radial-gradient(circle_at_12%_0%,rgba(0,119,188,0.18),transparent_42%),radial-gradient(circle_at_100%_100%,rgba(0,152,102,0.1),transparent_38%)]"
           >
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-gradient-to-b from-[#0e1621] to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-linear-to-b from-[#0e1621] to-transparent" />
             <div ref={stackRef} className="flex flex-col gap-2 px-3 py-4 will-change-transform">
               {DEMO_STEPS.map((step) => {
                 if (step.kind === "confirm") {

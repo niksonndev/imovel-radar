@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored MapLibre bundles copied into public/ for CSP.
+    "public/maplibre/**",
   ]),
 ]);
 

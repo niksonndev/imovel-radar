@@ -65,7 +65,7 @@ export function MarketMap({
   const legendMax = metric === "m2" ? `${formatCount(Math.round(max))} R$/m²` : formatCount(Math.round(max));
 
   return (
-    <div className="relative h-[min(70vh,560px)] min-h-[320px] overflow-hidden rounded-2xl border border-white/10">
+    <div className="relative h-[min(70vh,560px)] min-h-80 overflow-hidden rounded-2xl border border-white/10">
       <Map
         ref={mapRef}
         initialViewState={{ longitude: -35.2, latitude: -8.8, zoom: 6 }}
@@ -109,7 +109,7 @@ export function MarketMap({
 
       {hover ? (
         <div
-          className="pointer-events-none absolute z-10 max-w-[220px] rounded-lg border border-white/15 bg-[#161616]/95 px-3 py-2 text-xs shadow-lg"
+          className="pointer-events-none absolute z-10 max-w-55 rounded-lg border border-white/15 bg-[#161616]/95 px-3 py-2 text-xs shadow-lg"
           style={{ left: Math.min(hover.x + 12, 280), top: hover.y + 12 }}
         >
           <p className="font-medium text-white">{hover.name}</p>

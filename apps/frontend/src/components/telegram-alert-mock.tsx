@@ -6,11 +6,11 @@ export function TelegramAlertMock({ className = "" }: { className?: string }) {
   return (
     <div
       aria-hidden="true"
-      className={`relative mx-auto w-full max-w-[260px] lg:max-w-[300px] ${className}`}
+      className={`relative mx-auto w-full max-w-65 lg:max-w-75 ${className}`}
     >
       <div className="absolute -inset-6 rounded-full bg-primary/15 blur-[70px]" />
-      <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] border border-border bg-card p-2.5 shadow-2xl shadow-primary/15 lg:aspect-[9/16]">
-        <div className="flex h-full flex-col overflow-hidden rounded-[1.5rem] bg-background">
+      <div className="relative aspect-4/5 overflow-hidden rounded-4xl border border-border bg-card p-2.5 shadow-2xl shadow-primary/15 lg:aspect-9/16">
+        <div className="flex h-full flex-col overflow-hidden rounded-3xl bg-background">
           {/* Status bar */}
           <div className="hidden items-center justify-between px-5 pt-3 pb-1 lg:flex">
             <span className="font-mono text-[11px] text-white/70">

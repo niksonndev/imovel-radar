@@ -18,9 +18,9 @@ export default function DemoRecordPage() {
         autoPlay
         playOnce
         hideGlow
-        className="m-0 max-w-[400px]"
+        className="m-0 max-w-100"
         // Lock desktop hero height so a tight recording viewport doesn't shrink the shell.
-        shellClassName="h-[34rem] min-h-[34rem]"
+        shellClassName="h-136 min-h-136"
       />
     </main>
   );

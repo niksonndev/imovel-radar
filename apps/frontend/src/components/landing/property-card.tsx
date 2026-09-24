@@ -17,7 +17,7 @@ export function PropertyCard() {
               {WINDOW_LIGHTS.map((lit, index) => (
                 <span
                   key={index}
-                  className={cn("rounded-[2px]", lit ? "bg-[#f3e2c4]" : "bg-white/10")}
+                  className={cn("rounded-xs", lit ? "bg-[#f3e2c4]" : "bg-white/10")}
                 />
               ))}
             </div>
