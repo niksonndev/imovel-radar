@@ -141,23 +141,33 @@ jobs:
             -var "bot_zip_path=../apps/bot/dist/lambda.zip" \
             -var "database_url=$DATABASE_URL"
 
-      # Smoke: 5 páginas sob SCRAPER_MAX_PAGES=5. O hard cap NÃO marca
-      # completed (ver olx_scraper.search_listings) — assim não dispara
-      # deactivate_missing_listings e não destrói o corpus.
-      - name: Post-deploy smoke (5 páginas)
+      # Smoke: payload smoke=true (2 páginas, sem self-invoke / deactivate).
+      # NÃO usar evento de cron e NÃO mutar SCRAPER_MAX_PAGES — isso já
+      # disparou full scrape e derrubou a cadeia diária.
+      - name: Post-deploy smoke (2 páginas, sem cadeia)
         run: |
           FN="imovel-radar-prod-scraper-collect"
-          aws lambda update-function-configuration --function-name "$FN" \
-            --environment "Variables={DATABASE_URL=${DATABASE_URL},LOG_LEVEL=INFO,SCRAPER_MAX_PAGES=5}" >/dev/null
+          CONC=$(aws cloudwatch get-metric-statistics \
+            --namespace AWS/Lambda \
+            --metric-name ConcurrentExecutions \
+            --dimensions Name=FunctionName,Value="$FN" \
+            --start-time "$(date -u -d '10 minutes ago' +%Y-%m-%dT%H:%M:%SZ)" \
+            --end-time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --period 60 \
+            --statistics Maximum \
+            --query 'Datapoints[].Maximum' \
+            --output text | awk 'BEGIN {m=0} {for(i=1;i<=NF;i++) if($i+0>m) m=$i+0} END {print m}')
+          if awk "BEGIN {exit !($CONC >= 1)}"; then
+            echo "Skip smoke: Lambda já em execução (ConcurrentExecutions=$CONC). Evita cortar o scrape diário."
+            exit 0
+          fi
           aws lambda invoke \
             --function-name "$FN" \
             --cli-binary-format raw-in-base64-out \
-            --payload '{"source":"aws.events","detail-type":"Scheduled Event"}' \
+            --payload '{"smoke":true,"listing_kind":"aluguel","market":"maceio"}' \
             /tmp/invoke.json
           cat /tmp/invoke.json
-          # restaura o env padrão do Terraform (scraper_max_pages=500)
-          aws lambda update-function-configuration --function-name "$FN" \
-            --environment "Variables={DATABASE_URL=${DATABASE_URL},LOG_LEVEL=INFO,SCRAPER_MAX_PAGES=500}" >/dev/null
+          python3 -c 'import json,sys; body=json.load(open("/tmp/invoke.json")); body=json.loads(body) if isinstance(body,str) else body; sys.exit(0 if body.get("success") else 1)'
 
       - name: Post-deploy bot smoke (EventBridge notify dry-run)
         run: |

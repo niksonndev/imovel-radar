@@ -80,6 +80,7 @@ async def job_collect_chunk(
     skip_deactivate: bool = False,
     run_started_at: datetime | None = None,
     get_remaining_ms: RemainingTimeFn | None = None,
+    max_pages: int | None = None,
 ) -> dict[str, Any]:
     """Coleta uma janela de páginas de uma fatia e persiste.
 
@@ -133,6 +134,7 @@ async def job_collect_chunk(
             base_url_for_kind(listing_kind, market_key=chosen.key),
             listing_kind=listing_kind,
             start_page=start_page,
+            max_pages=max_pages,
             price_min=price_min,
             price_max=price_max,
             attempt=attempt,

@@ -13,8 +13,11 @@ Event payload (EventBridge ou self-invoke)::
       "start_page": 1,
       "attempt": 0,
       "skip_deactivate": false,
-      "run_started_at": "<iso8601>"
+      "run_started_at": "<iso8601>",
+      "smoke": false
     }
+
+``smoke: true`` (CI): poucas páginas, sem deactivate, sem self-invoke, sem snapshot.
 
 Run manual/local (coleta aluguel completa)::
 
@@ -63,6 +66,7 @@ def _event_payload(event: dict | None) -> dict[str, Any]:
         or "run_started_at" in detail
         or "slice_index" in detail
         or "market" in detail
+        or "smoke" in detail
     ):
         return detail
     return event
@@ -230,8 +234,12 @@ async def run(
     start_page = int(payload.get("start_page") or 1)
     slice_index = int(payload.get("slice_index") or 0)
     attempt = int(payload.get("attempt") or 0)
-    skip_deactivate = bool(payload.get("skip_deactivate"))
+    smoke = bool(payload.get("smoke"))
+    skip_deactivate = bool(payload.get("skip_deactivate")) or smoke
     run_started_at = parse_run_started_at(payload.get("run_started_at"))
+    # Smoke CI: 2 páginas. Não mutar SCRAPER_MAX_PAGES na Lambda (isso
+    # derruba a cadeia diária e o self-invoke seguinte vira full scrape).
+    max_pages = 2 if smoke else None
 
     result = await job_collect_chunk(
         listing_kind=listing_kind,
@@ -242,10 +250,11 @@ async def run(
         skip_deactivate=skip_deactivate,
         run_started_at=run_started_at,
         get_remaining_ms=get_remaining_ms,
+        max_pages=max_pages,
     )
 
     snapshot = 0
-    if result.get("success"):
+    if result.get("success") and not smoke:
         nxt = _next_payload_after_chunk(result)
         if nxt is not None:
             # Fresh watermark when starting venda after aluguel

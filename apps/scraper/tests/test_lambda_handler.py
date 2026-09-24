@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -202,6 +203,39 @@ def test_next_payload_clamp_advances_slice_without_deactivate_flag_lost() -> Non
         "run_started_at": "2026-01-01T00:00:00+00:00",
         "skip_deactivate": True,
     }
+
+
+def test_smoke_does_not_self_invoke_or_deactivate(monkeypatch: pytest.MonkeyPatch) -> None:
+    invoked: list[dict[str, Any]] = []
+    published: list[bool] = []
+
+    async def _fake_chunk(**kwargs: Any) -> dict[str, Any]:
+        assert kwargs["skip_deactivate"] is True
+        assert kwargs["max_pages"] == 2
+        return {
+            "success": 1,
+            "count": 80,
+            "market": "maceio",
+            "listing_kind": "aluguel",
+            "slice_index": 0,
+            "completed": False,
+            "clamped": False,
+            "next_page": 3,
+            "attempt": 0,
+            "run_started_at": "2026-01-01T00:00:00+00:00",
+            "deactivated": 0,
+        }
+
+    monkeypatch.setattr(lambda_handler, "job_collect_chunk", _fake_chunk)
+    monkeypatch.setattr(lambda_handler, "_self_invoke", invoked.append)
+    monkeypatch.setattr(lambda_handler, "publish_market_snapshot", lambda: published.append(True))
+
+    result = asyncio.run(lambda_handler.run({"smoke": True, "listing_kind": "aluguel"}))
+
+    assert result["success"] == 1
+    assert result["count"] == 80
+    assert invoked == []
+    assert published == []
 
 
 def test_root_logger_honors_config_level() -> None:
