@@ -4,6 +4,8 @@ export interface SocialCapabilities {
   singleImage: boolean;
   carousel: boolean;
   video: boolean;
+  /** Upload de MP4 local sem URL pública (rupload / FILE_UPLOAD). */
+  videoFromFile: boolean;
   replyComment: boolean;
   hideComment: boolean;
 }
@@ -69,6 +71,7 @@ export interface SocialClient {
   publishPost(caption: string, imageUrl: string): Promise<PublishResult>;
   publishCarousel(caption: string, imageUrls: string[]): Promise<PublishResult>;
   publishVideo(caption: string, videoUrl: string): Promise<PublishResult>;
+  publishVideoFromFile(caption: string, filePath: string): Promise<PublishResult>;
   getRecentMedia(limit?: number): Promise<SocialMedia[]>;
   getComments(mediaId: string): Promise<SocialComment[]>;
   replyComment(commentId: string, message: string): Promise<CommentReplyResult>;

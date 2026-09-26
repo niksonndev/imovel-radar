@@ -12,6 +12,7 @@ import {
   PublishResult,
   SocialCapabilities,
 } from './types.js';
+import { readFileSync, statSync } from 'node:fs';
 
 export interface MetaGraphConfig {
   accountId: string;
@@ -30,15 +31,11 @@ type GraphErrorBody = {
 
 export class MetaGraphInstagramClient implements InstagramClient {
   readonly platform = 'instagram' as const;
-  readonly capabilities: SocialCapabilities = {
-    singleImage: true,
-    carousel: true,
-    video: true,
-    replyComment: true,
-    hideComment: true,
-  };
+  readonly capabilities: SocialCapabilities;
   private accountId: string;
   private accessToken: string;
+  private apiVersion: string;
+  private apiHost: string;
   private baseUrl: string;
   private statusPollMs: number;
   private containerTimeoutMs: number;
@@ -51,14 +48,23 @@ export class MetaGraphInstagramClient implements InstagramClient {
     }
     this.accountId = config.accountId;
     this.accessToken = config.accessToken;
-    const version = config.apiVersion || DEFAULT_GRAPH_API_VERSION;
-    const host = (config.apiHost || DEFAULT_GRAPH_API_HOST).replace(
+    this.apiVersion = config.apiVersion || DEFAULT_GRAPH_API_VERSION;
+    this.apiHost = (config.apiHost || DEFAULT_GRAPH_API_HOST).replace(
       /^https?:\/\//,
       ''
     );
-    this.baseUrl = config.baseUrl || `https://${host}/${version}`;
+    this.baseUrl = config.baseUrl || `https://${this.apiHost}/${this.apiVersion}`;
     this.statusPollMs = config.statusPollMs ?? 2000;
     this.containerTimeoutMs = config.containerTimeoutMs ?? 90_000;
+    const facebookLogin = this.apiHost.includes('graph.facebook.com');
+    this.capabilities = {
+      singleImage: true,
+      carousel: true,
+      video: true,
+      videoFromFile: facebookLogin,
+      replyComment: true,
+      hideComment: true,
+    };
   }
 
   private async request<T>(
@@ -197,6 +203,57 @@ export class MetaGraphInstagramClient implements InstagramClient {
         },
       }
     );
+    return this.publishContainer(container.id);
+  }
+
+  async publishVideoFromFile(
+    caption: string,
+    filePath: string
+  ): Promise<PublishResult> {
+    if (!this.capabilities.videoFromFile) {
+      throw new Error(
+        'Upload local de Reels exige Facebook Login (GRAPH_API_HOST=graph.facebook.com). Com Instagram Login, use um túnel HTTPS ou --url.'
+      );
+    }
+
+    const fileSize = statSync(filePath).size;
+    const fileBuffer = readFileSync(filePath);
+
+    const container = await this.request<{ id: string; uri?: string }>(
+      `/${this.accountId}/media`,
+      {
+        method: 'POST',
+        params: {
+          media_type: 'REELS',
+          upload_type: 'resumable',
+          caption,
+          share_to_feed: 'true',
+        },
+      }
+    );
+
+    const uploadUri =
+      container.uri ||
+      `https://rupload.facebook.com/ig-api-upload/${this.apiVersion}/${container.id}`;
+
+    const uploadRes = await fetch(uploadUri, {
+      method: 'POST',
+      headers: {
+        Authorization: `OAuth ${this.accessToken}`,
+        offset: '0',
+        file_size: String(fileSize),
+      },
+      body: fileBuffer,
+    });
+
+    const uploadBody = (await uploadRes.json().catch(() => ({}))) as GraphErrorBody;
+    if (!uploadRes.ok || uploadBody.error) {
+      const msg =
+        uploadBody.error?.message ||
+        `Falha no rupload (${uploadRes.status})`;
+      throw new Error(`[MetaGraphAPI] ${msg}`);
+    }
+
     return this.publishContainer(container.id);
   }
 

@@ -46,6 +46,7 @@ export class MockTikTokClient implements TikTokClient {
     singleImage: true,
     carousel: true,
     video: true,
+    videoFromFile: true,
     replyComment: true,
     hideComment: true,
   };
@@ -189,6 +190,13 @@ export class MockTikTokClient implements TikTokClient {
     this.saveState(this.state);
 
     return { mediaId: id, permalink, publishedAt };
+  }
+
+  async publishVideoFromFile(
+    caption: string,
+    filePath: string
+  ): Promise<PublishResult> {
+    return this.publishVideo(caption, filePath);
   }
 
   async getRecentMedia(limit = 10): Promise<TikTokMedia[]> {

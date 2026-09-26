@@ -43,7 +43,8 @@ export class MockInstagramClient implements InstagramClient {
   readonly capabilities: SocialCapabilities = {
     singleImage: true,
     carousel: true,
-    video: false,
+    video: true,
+    videoFromFile: true,
     replyComment: true,
     hideComment: true,
   };
@@ -157,12 +158,33 @@ export class MockInstagramClient implements InstagramClient {
   }
 
   async publishVideo(
-    _caption: string,
-    _videoUrl: string
+    caption: string,
+    videoUrl: string
   ): Promise<PublishResult> {
-    throw new Error(
-      'Publicação de vídeo não é suportada no InstagramClient nesta versão.'
-    );
+    const id = `mock_video_${Date.now()}`;
+    const publishedAt = new Date();
+    const permalink = `https://instagram.com/reel/${id}`;
+
+    this.state.posts.unshift({
+      id,
+      caption,
+      mediaType: 'VIDEO',
+      mediaUrls: [videoUrl],
+      permalink,
+      timestamp: publishedAt.toISOString(),
+      likeCount: 0,
+      commentsCount: 0,
+    });
+    this.saveState(this.state);
+
+    return { mediaId: id, permalink, publishedAt };
+  }
+
+  async publishVideoFromFile(
+    caption: string,
+    filePath: string
+  ): Promise<PublishResult> {
+    return this.publishVideo(caption, filePath);
   }
 
   async getRecentMedia(limit = 10): Promise<InstagramMedia[]> {

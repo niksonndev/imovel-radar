@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import {
   AccountInsights,
   CommentReplyResult,
@@ -17,6 +18,7 @@ export class TikTokOpenApiClient implements TikTokClient {
     singleImage: true,
     carousel: true,
     video: true,
+    videoFromFile: true,
     replyComment: false,
     hideComment: false,
   };
@@ -130,6 +132,67 @@ export class TikTokOpenApiClient implements TikTokClient {
     return {
       mediaId: publishId,
       permalink: `https://www.tiktok.com`,
+      publishedAt: new Date(),
+    };
+  }
+
+  async publishVideoFromFile(
+    caption: string,
+    filePath: string
+  ): Promise<PublishResult> {
+    const stats = fs.statSync(filePath);
+    const videoSize = stats.size;
+    const title = caption.split('\n')[0].slice(0, 90);
+    const chunkSize = videoSize < 10 * 1024 * 1024 ? videoSize : 10 * 1024 * 1024;
+    const totalChunkCount = Math.max(1, Math.ceil(videoSize / chunkSize));
+
+    const init = await this.request<any>('/v2/post/publish/video/init/', {
+      method: 'POST',
+      body: JSON.stringify({
+        post_info: {
+          title,
+          privacy_level: this.privacyLevel,
+          disable_comment: false,
+        },
+        source_info: {
+          source: 'FILE_UPLOAD',
+          video_size: videoSize,
+          chunk_size: chunkSize,
+          total_chunk_count: totalChunkCount,
+        },
+      }),
+    });
+
+    const uploadUrl = init.data?.upload_url as string | undefined;
+    const publishId = init.data?.publish_id || `tt_vid_${Date.now()}`;
+    if (!uploadUrl) {
+      throw new Error('[TikTokOpenAPI] init FILE_UPLOAD não retornou upload_url');
+    }
+
+    const buffer = fs.readFileSync(filePath);
+    for (let i = 0; i < totalChunkCount; i++) {
+      const start = i * chunkSize;
+      const end = Math.min(start + chunkSize, videoSize);
+      const chunk = buffer.subarray(start, end);
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'video/mp4',
+          'Content-Length': String(chunk.length),
+          'Content-Range': `bytes ${start}-${end - 1}/${videoSize}`,
+        },
+        body: chunk,
+      });
+      if (!putRes.ok) {
+        throw new Error(
+          `[TikTokOpenAPI] Falha no upload do chunk ${i + 1}/${totalChunkCount} (${putRes.status})`
+        );
+      }
+    }
+
+    return {
+      mediaId: publishId,
+      permalink: 'https://www.tiktok.com',
       publishedAt: new Date(),
     };
   }

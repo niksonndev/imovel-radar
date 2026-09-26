@@ -60,6 +60,7 @@ describe('MetaGraphInstagramClient', () => {
     expect(headers['Content-Type']).toBe('application/x-www-form-urlencoded');
     expect(String(calls[0].init?.body)).toContain('image_url=');
     expect(String(calls[0].init?.body)).not.toMatch(/^\{/);
+    expect(client.capabilities.videoFromFile).toBe(true);
   });
 
   it('espera FINISHED antes de publicar o contêiner', async () => {
