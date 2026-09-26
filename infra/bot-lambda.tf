@@ -82,6 +82,7 @@ resource "aws_lambda_function" "bot" {
       DATABASE_URL            = var.database_url
       DYNAMODB_TABLE          = aws_dynamodb_table.conversation_state.name
       DYNAMODB_TTL_HOURS      = tostring(var.conversation_ttl_hours)
+      CAROUSEL_TTL_HOURS      = tostring(var.carousel_ttl_hours)
       SSM_TOKEN_PARAM         = var.bot_ssm_token_name
       SSM_OPENAI_PARAM        = var.bot_ssm_openai_param
       TELEGRAM_WEBHOOK_SECRET = random_password.bot_webhook_secret.result

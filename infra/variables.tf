@@ -93,6 +93,11 @@ variable "conversation_ttl_hours" {
   default     = 4
 }
 
+variable "carousel_ttl_hours" {
+  description = "TTL (horas) do snapshot do carrossel em chat_data"
+  default     = 168
+}
+
 variable "bot_notify_cron" {
   description = "Cron do EventBridge para o job de notificação do bot (UTC) — 10:00 America/Maceio = 2h após scraper_cron"
   default     = "cron(0 13 * * ? *)"
