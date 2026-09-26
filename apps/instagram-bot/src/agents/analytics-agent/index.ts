@@ -9,14 +9,12 @@ import {
   SocialMedia,
   MediaInsights,
 } from '../../infrastructure/social/types.js';
-import { ContentManagerAgent } from '../content-manager/index.js';
 
 export interface AnalyticsAgentOptions {
   db: DatabaseClient;
   llm: LLMService;
   instagramClient?: SocialClient;
   socialClient?: SocialClient;
-  contentManager?: ContentManagerAgent;
 }
 
 export interface MediaPerformanceItem {
@@ -46,7 +44,6 @@ export class AnalyticsAgent {
   private db: DatabaseClient;
   private llm: LLMService;
   private socialClient: SocialClient;
-  private contentManager?: ContentManagerAgent;
 
   constructor(options: AnalyticsAgentOptions) {
     this.db = options.db;
@@ -56,7 +53,6 @@ export class AnalyticsAgent {
       throw new Error('AnalyticsAgent requer socialClient ou instagramClient');
     }
     this.socialClient = client;
-    this.contentManager = options.contentManager;
   }
 
   get instagramClient(): SocialClient {
@@ -153,36 +149,6 @@ export class AnalyticsAgent {
       keyInsights: performanceAnalysis.keyInsights,
       strategicPautas: performanceAnalysis.nextPautas,
     };
-  }
-
-  /**
-   * Loop de retroalimentação: transforma as recomendações do Analytics
-   * diretamente em rascunhos de pautas no Content Manager!
-   */
-  async feedbackToContentManager(): Promise<Array<{ title: string; postId?: string }>> {
-    if (!this.contentManager) {
-      throw new Error('ContentManagerAgent não foi fornecido para receber o feedback estratégico.');
-    }
-
-    const report = await this.generateReport('week');
-    const createdPosts: Array<{ title: string; postId?: string }> = [];
-
-    for (const pauta of report.strategicPautas) {
-      try {
-        const post = await this.contentManager.generatePost({
-          topicOverride: {
-            type: 'PRICE_RANKING',
-            angle: pauta.title,
-          },
-          platform: this.socialClient.platform,
-        });
-        createdPosts.push({ title: pauta.title, postId: post.id });
-      } catch {
-        createdPosts.push({ title: pauta.title });
-      }
-    }
-
-    return createdPosts;
   }
 
   /**

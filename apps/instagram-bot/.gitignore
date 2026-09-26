@@ -1,5 +1,4 @@
 # Arquivos gerados em tempo de execução
-generated-media/
 .mock-instagram-state.json
 .mock-tiktok-state.json
 .bot-database-state.json

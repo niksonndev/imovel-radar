@@ -102,7 +102,12 @@ describe('Server & Webhook HTTP', () => {
     });
 
     expect(res.status).toBe(200);
-    const data = (await res.json()) as any;
+    const data = (await res.json()) as { received: boolean };
     expect(data.received).toBe(true);
+  });
+
+  it('POST /api/content/generate não existe mais', async () => {
+    const res = await fetch(`${baseUrl}/api/content/generate`, { method: 'POST' });
+    expect(res.status).toBe(404);
   });
 });

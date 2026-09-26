@@ -4,36 +4,27 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/cli.ts",
+    "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "build": "tsc",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "cli": "tsx src/cli.ts",
-    "content:generate": "tsx src/cli.ts content generate",
-    "content:list": "tsx src/cli.ts content list",
-    "content:publish": "tsx src/cli.ts content publish",
+    "publish": "tsx src/cli.ts publish",
     "comments:process": "tsx src/cli.ts comments process",
     "analytics:report": "tsx src/cli.ts analytics report",
     "mock:simulate-comment": "tsx src/cli.ts mock comment",
-    "tiktok:generate": "tsx src/cli.ts content generate --platform tiktok",
-    "tiktok:generate:video": "tsx src/cli.ts content generate --platform tiktok --format video",
-    "tiktok:list": "tsx src/cli.ts content list --platform tiktok",
-    "tiktok:publish": "tsx src/cli.ts content publish --platform tiktok",
+    "tiktok:publish": "tsx src/cli.ts publish --platform tiktok",
     "tiktok:comments": "tsx src/cli.ts comments process --platform tiktok",
     "tiktok:analytics": "tsx src/cli.ts analytics report --platform tiktok",
     "mock:simulate-comment:tiktok": "tsx src/cli.ts mock comment --platform tiktok"
   },
   "dependencies": {
-    "@resvg/resvg-js": "^2.6.2",
-    "dotenv": "^16.4.7",
-    "pg": "^8.13.1",
-    "zod": "^3.24.2"
+    "dotenv": "^16.4.7"
   },
   "devDependencies": {
     "@types/node": "^20.17.19",
-    "@types/pg": "^8.11.11",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3",
     "vitest": "^3.0.7"
