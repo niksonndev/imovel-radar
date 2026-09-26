@@ -1,5 +1,5 @@
 # ── DynamoDB — estado de conversa do bot (ADR 0006) ──────────────────────────
-# Persistência PTB (user_data/chat_data/conversation_data/bot_data) keyed por
+# Persistência PTB (user_data/chat_data/conversation_data) keyed por
 # chat_id + store. TTL nativo descarta drafts abandonados; `version` (gravado
 # pelo código) dá o optimistic concurrency do put condicional.
 # Billing on-demand: free tier permanente (25 GB / 25 RCU / 25 WCU).

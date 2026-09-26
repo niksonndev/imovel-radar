@@ -10,13 +10,13 @@ With webhook + Lambda (ADR 0004), the bot has no continuous process, so state
 that lives in a long-running process disappears. Today the bot persists
 conversation state in a local file via
 `PicklePersistence(carousel_state.pickle)`: `user_data` (the wizard draft and
-the wizard UI state), `chat_data`, `bot_data` (carousel navigation) and
+the wizard UI state), `chat_data` (carousel navigation) and
 `conversation_data` (the `ConversationHandler` current-state pointer).
 
 The `/novo_alerta` flow is a multi-step `ConversationHandler`
 (`PRICE → NEIGHBOURHOODS → NAME → CONFIRM`); every step depends on the
 previous one. The carousel, sent after an alert is created or when matches
-are found, stores its listings in `bot_data` so "next/prev" navigation can
+are found, stores its listings in `chat_data` so "next/prev" navigation can
 render without re-fetching.
 
 Two facts make the store choice tractable:
@@ -34,8 +34,8 @@ Persist PTB conversation state in **DynamoDB** via a **custom `BasePersistence`*
 implementation, passed to `Application.builder().persistence(...)`. The
 `ConversationHandler` and the handlers themselves remain unchanged.
 
-The persistence backend stores `user_data`, `chat_data`, `conversation_data`
-and `bot_data` (carousel included), keyed by `chat_id`.
+The persistence backend stores `user_data`, `chat_data` (carousel included)
+and `conversation_data`, keyed by `chat_id`.
 
 - **Native DynamoDB TTL** expires abandoned drafts automatically — no cleanup
   job; the existing "session expired" handlers are the UX.
@@ -47,8 +47,8 @@ and `bot_data` (carousel included), keyed by `chat_id`.
   alert created (see ADR 0005 — the bot owns `alerts`). The confirm write is
   **idempotent** (an idempotency key derived from the draft), so a retried or
   double-tap confirm cannot create duplicate alerts.
-- The **carousel is included** via the same `bot_data` persistence, so
-  navigation survives cold starts and concurrent invocations.
+- The **carousel is included** via `chat_data` (one Dynamo item per chat), so
+  navigation survives cold starts without sharing a global 400 KB blob.
 - This **resolves open question #6 of ADR 0004** (bot conversation state).
 
 ## Alternatives considered
@@ -97,8 +97,11 @@ _(original questions resolved below.)_
 ## Decided after acceptance
 
 - **Item schema:** JSON blob em `data` + `version` integer; PK `chat_id` + SK `store`.
-- **TTL:** 4 h (`DYNAMODB_TTL_HOURS` / `var.conversation_ttl_hours`), só em `user_data`/`chat_data`.
-- **Key mapping:** `user_data`/`chat_data` por id; `bot_data` e `conversations` em PK=0.
+- **TTL:** 4 h (`DYNAMODB_TTL_HOURS` / `var.conversation_ttl_hours`) em
+  `user_data`/`conversations`. Carrossel em `chat_data` com TTL próprio
+  (`CAROUSEL_TTL_HOURS`, default 168 h).
+- **Key mapping:** `user_data`/`chat_data` por id; `conversations` em PK=0.
+  `bot_data` não é persistido (carrossel vive em `chat_data`).
   Conversation keys (tuplas PTB) serializadas com `json.dumps(list(key))`.
 - **Application:** module-level warm reuse (`_get_application`).
 - **Confirm:** insert idempotente (`find_equivalent_alert` + `created_alert_id`);

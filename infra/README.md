@@ -83,7 +83,7 @@ Recursos (o `terraform apply` cria/provisiona):
 - **Bot Lambda `imovel-radar-prod-bot-webhook`** — python3.13, 512MB,
   timeout 600s (notify headroom; webhook still ≤ 29s via API Gateway),
   handler `lambda_handler.lambda_handler`, env `DATABASE_URL` (Neon
-  **pooled**), `DYNAMODB_TABLE`, `DYNAMODB_TTL_HOURS`, `SSM_TOKEN_PARAM`,
+  **pooled**), `DYNAMODB_TABLE`, `DYNAMODB_TTL_HOURS`, `CAROUSEL_TTL_HOURS`, `SSM_TOKEN_PARAM`,
   `TELEGRAM_WEBHOOK_SECRET`, `LOG_LEVEL`.
 - **API Gateway** `imovel-radar-prod-bot-webhook-api` — HTTP API com rota
   `POST /webhook`, integração AWS_PROXY (timeout 29 s). URL no output.

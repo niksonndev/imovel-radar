@@ -12,9 +12,10 @@ usando polling + PicklePersistence.
 - **Meus Alertas** — listagem, detalhe e remoção leem/escrevem `alerts`.
 - **Acompanhar anúncio** — até 2 listings (`watched_listings`); entrada pelo
   botão no carrossel de matches; notifica mudança de preço ou desativação.
-- **Carrossel** — cards enxutos em `bot_data`; navegação por índice no
-  callback (`crs_{id}_{index}`) sem rewrite a cada clique; `file_id` do
-  Telegram para fotos rápidas após a 1ª visita.
+- **Carrossel** — cards enxutos em `chat_data` (um item Dynamo por chat);
+  navegação por índice no callback (`crs_{id}_{index}`) sem rewrite a cada
+  clique; `file_id` do Telegram para fotos rápidas após a 1ª visita. TTL
+  próprio (`CAROUSEL_TTL_HOURS`, default 7 dias), separado do wizard.
 - **Notificação diária** — EventBridge (10:00 Maceió, 2h após o scrape) → Lambda
   (`run_daily_notifications`: matches + watchlist).
 
