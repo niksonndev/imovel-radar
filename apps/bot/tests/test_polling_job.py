@@ -23,7 +23,7 @@ def test_process_chat_dry_run_skips_send_and_mark(monkeypatch) -> None:
     monkeypatch.setattr(polling_job, "send_carousel", send)
     monkeypatch.setattr(polling_job, "mark_listings_notified", mark)
 
-    app = SimpleNamespace(bot=object(), bot_data={})
+    app = SimpleNamespace(bot=object(), chat_data={})
     asyncio.run(polling_job._process_chat(42, app, dry_run=True))  # type: ignore[arg-type]
 
     send.assert_not_called()
@@ -42,7 +42,7 @@ def test_process_chat_sends_and_marks_when_not_dry_run(monkeypatch) -> None:
     monkeypatch.setattr(polling_job, "send_carousel", send)
     monkeypatch.setattr(polling_job, "mark_listings_notified", mark)
 
-    app = SimpleNamespace(bot=object(), bot_data={})
+    app = SimpleNamespace(bot=object(), chat_data={})
     asyncio.run(polling_job._process_chat(42, app, dry_run=False))  # type: ignore[arg-type]
 
     send.assert_awaited_once()

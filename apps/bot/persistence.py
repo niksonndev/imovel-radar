@@ -6,11 +6,11 @@ Implementa :class:`telegram.ext.BasePersistence` sobre a tabela
 Layout dos itens:
   * ``user_data``      -> um item por usuário (PK=user_id, SK="user_data"), com
                           TTL expirando drafts de wizard abandonados (ADR 0006).
-  * ``chat_data``      -> um item por chat (PK=chat_id, SK="chat_data"), com TTL.
-  * ``bot_data``       -> um item global (PK=0, SK="bot_data") — carrossel etc.
-                          (TTL interno por carrossel via ``created_at``; o item
-                          Dynamo em si não usa TTL nativo para não apagar
-                          carrosséis ativos de outros chats.)
+  * ``chat_data``      -> um item por chat (PK=chat_id, SK="chat_data") —
+                          snapshot do carrossel. TTL nativo mais longo
+                          (``CAROUSEL_TTL_HOURS``); prune por ``created_at``
+                          no handler.
+  * ``bot_data``       -> não persistido (``store_data.bot_data=False``).
   * ``conversations``  -> um item global (PK=0, SK="conversations"), com TTL
                           nativo para não deixar usuários presos no wizard após
                           abandonar o fluxo.
@@ -85,24 +85,30 @@ def decode_conversation_block(block: object) -> ConversationDict:
 
 
 class DynamoDBPersistence(BasePersistence[dict[Any, Any], dict[Any, Any], dict[Any, Any]]):
-    """Persiste user_data/chat_data/bot_data/conversations em DynamoDB."""
+    """Persiste user_data/chat_data/conversations em DynamoDB."""
 
     def __init__(
         self,
         table_name: str | None = None,
         ttl_hours: int | None = None,
+        carousel_ttl_hours: int | None = None,
         table: Any | None = None,
     ) -> None:
         super().__init__(
             store_data=PersistenceInput(
                 user_data=True,
                 chat_data=True,
-                bot_data=True,
+                bot_data=False,
                 callback_data=False,
             )
         )
         self._table_name = table_name or config.DYNAMODB_TABLE
         self._ttl_hours = ttl_hours if ttl_hours is not None else config.DYNAMODB_TTL_HOURS
+        self._carousel_ttl_hours = (
+            carousel_ttl_hours
+            if carousel_ttl_hours is not None
+            else config.CAROUSEL_TTL_HOURS
+        )
         if table is not None:
             self._table = table
         else:
@@ -111,8 +117,8 @@ class DynamoDBPersistence(BasePersistence[dict[Any, Any], dict[Any, Any], dict[A
             self._table = boto3.resource("dynamodb").Table(self._table_name)  # type: ignore[attr-defined]
         self._lock = threading.Lock()
 
-    def _ttl(self) -> int:
-        return int(time.time()) + int(self._ttl_hours * 3600)
+    def _ttl(self, *, hours: int | None = None) -> int:
+        return int(time.time()) + int((hours if hours is not None else self._ttl_hours) * 3600)
 
     # ── helpers ─────────────────────────────────────────────────────────────
     def _get(self, chat_id: int, store: str) -> dict[str, Any]:
@@ -148,8 +154,10 @@ class DynamoDBPersistence(BasePersistence[dict[Any, Any], dict[Any, Any], dict[A
                 "data": _encode(data),
                 "version": new_version,
             }
-            if store in ("user_data", "chat_data", "conversations"):
+            if store in ("user_data", "conversations"):
                 item["ttl"] = self._ttl()
+            elif store == "chat_data":
+                item["ttl"] = self._ttl(hours=self._carousel_ttl_hours)
 
             put_kwargs: dict[str, Any] = {
                 "Item": item,

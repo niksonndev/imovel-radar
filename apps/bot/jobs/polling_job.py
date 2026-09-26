@@ -125,7 +125,7 @@ async def _process_chat(chat_id: int, app: Application, *, dry_run: bool = False
         chat_id,
         listings,
         str(chat_id),
-        app.bot_data,
+        app.chat_data.setdefault(chat_id, {}),
         event_headlines=headlines,
     )
 

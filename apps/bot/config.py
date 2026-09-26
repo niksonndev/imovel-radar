@@ -43,6 +43,9 @@ DYNAMODB_TABLE = os.getenv("DYNAMODB_TABLE", "imovel-radar-prod-conversation-sta
 # TTL (horas) dos drafts de conversa abandonados — coincide com a decisão do
 # ADR 0006 (2–6 h; usamos 4 h).
 DYNAMODB_TTL_HOURS = int(os.getenv("DYNAMODB_TTL_HOURS", "4"))
+# Snapshot do carrossel em chat_data (item Dynamo por chat). Independente do
+# TTL de drafts: o botão na mensagem antiga precisa viver dias, não horas.
+CAROUSEL_TTL_HOURS = int(os.getenv("CAROUSEL_TTL_HOURS", "168"))
 
 # Header X-Telegram-Bot-Api-Secret-Token (setWebhook secret_token). Obrigatório
 # no webhook da Lambda; vazio só é aceitável em dev/polling.

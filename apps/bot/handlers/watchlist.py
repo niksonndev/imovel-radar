@@ -98,12 +98,13 @@ async def _render_watchlist_list(
             reply_markup=header_markup,
         )
 
+    assert context.chat_data is not None
     await send_carousel(
         context.application.bot,
         user_id,
         listings,
         _watchlist_carousel_id(user_id),
-        context.application.bot_data,
+        context.chat_data,
         mode="watchlist",
         watch_ids=watch_ids,
         query=query if on_photo else None,

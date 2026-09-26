@@ -702,12 +702,13 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
                     listings, headlines = prepare_match_carousel(
                         match_rows, [alert], snapshot
                     )
+                assert context.chat_data is not None
                 await send_carousel(
                     context.application.bot,
                     user.id,
                     listings,
                     str(alert_id),
-                    context.application.bot_data,
+                    context.chat_data,
                     event_headlines=headlines,
                 )
                 # Mark before the seed flag so a later failure cannot re-notify.

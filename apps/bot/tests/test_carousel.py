@@ -19,6 +19,13 @@ from handlers.carousel import (
 )
 
 
+def test_carousel_ttl_is_independent_of_draft_ttl() -> None:
+    from config import CAROUSEL_TTL_HOURS, DYNAMODB_TTL_HOURS
+
+    assert CAROUSEL_TTL_SECONDS == CAROUSEL_TTL_HOURS * 3600
+    assert CAROUSEL_TTL_HOURS > DYNAMODB_TTL_HOURS
+
+
 def test_parse_nav_callback_absolute_index() -> None:
     assert _parse_nav_callback("crs_42_3") == ("42", 3)
     assert _parse_nav_callback("crs_alert-9_0") == ("alert-9", 0)

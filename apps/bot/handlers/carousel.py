@@ -6,7 +6,7 @@ navegável de mensagens com foto e teclado inline.
 
 Assumimos que ``listing.images[0]`` está sempre disponível.
 Navegação é *stateless* no índice (callback ``crs_{id}_{index}``) — não grava
-``bot_data`` a cada clique. Só atualiza o store quando aprende um ``file_id``
+``chat_data`` a cada clique. Só atualiza o store quando aprende um ``file_id``
 novo (Telegram CDN) ou ao criar/expirar o carrossel.
 """
 
@@ -39,8 +39,8 @@ logger = logging.getLogger(__name__)
 MAX_TITLE_LEN = 80
 CAROUSEL_CALLBACK_PREFIX = "crs_"
 CarouselMode = Literal["matches", "watchlist"]
-# Espelha o TTL de drafts (ADR 0006); carrosséis velhos são podados no store.
-CAROUSEL_TTL_SECONDS = int(config.DYNAMODB_TTL_HOURS * 3600)
+# TTL próprio (não o de drafts); carrosséis velhos são podados no store.
+CAROUSEL_TTL_SECONDS = int(config.CAROUSEL_TTL_HOURS * 3600)
 
 
 class CarouselCard(TypedDict, total=False):
@@ -360,9 +360,9 @@ async def carousel_nav_cb(update: Update, context: CustomContext) -> None:
         return
 
     carousel_id, new_index = parsed
-    bot_data = context.application.bot_data
+    state_store = context.chat_data
     key = _state_key(carousel_id)
-    state = bot_data.get(key) if bot_data is not None else None
+    state = state_store.get(key) if state_store is not None else None
 
     expired_hint = (
         "Carrossel expirado. Abra Anúncios acompanhados de novo."
@@ -371,16 +371,16 @@ async def carousel_nav_cb(update: Update, context: CustomContext) -> None:
     )
 
     if not isinstance(state, dict) or _is_expired(state):
-        if isinstance(state, dict) and bot_data is not None:
-            bot_data.pop(key, None)
+        if isinstance(state, dict) and state_store is not None:
+            state_store.pop(key, None)
         await query.answer(expired_hint, show_alert=False)
         return
 
     cards_raw = state.get("cards")
     if not isinstance(cards_raw, list) or not cards_raw:
         # Legacy payload (listings completos) ou vazio — trata como expirado.
-        if bot_data is not None:
-            bot_data.pop(key, None)
+        if state_store is not None:
+            state_store.pop(key, None)
         await query.answer(expired_hint, show_alert=False)
         return
 
@@ -423,13 +423,13 @@ async def carousel_nav_cb(update: Update, context: CustomContext) -> None:
         reply_markup=keyboard,
     )
 
-    # Só grava bot_data se aprendemos um file_id novo (CDN do Telegram).
+    # Só grava chat_data se aprendemos um file_id novo (CDN do Telegram).
     learned = _photo_file_id(message)
-    if learned and not card.get("file_id"):
+    if learned and not card.get("file_id") and state_store is not None:
         card["file_id"] = learned
         cards_raw[new_index] = card
         state["cards"] = cards_raw
-        bot_data[key] = state
+        state_store[key] = state
 
 
 def register_handlers(app: Application) -> None:

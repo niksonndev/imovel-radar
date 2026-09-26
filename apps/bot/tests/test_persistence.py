@@ -155,10 +155,20 @@ def test_user_data_has_ttl_bot_data_does_not() -> None:
     table = FakeTable()
     pers = DynamoDBPersistence(table=table)
     _run(pers.update_user_data(1, {"a": 1}))
-    _run(pers.update_bot_data({"carousel_1": {"cards": []}}))
+    _run(pers.update_bot_data({"leftover": True}))
 
     assert "ttl" in table.items[(1, "user_data")]
     assert "ttl" not in table.items[(0, "bot_data")]
+
+
+def test_chat_data_uses_carousel_ttl() -> None:
+    table = FakeTable()
+    pers = DynamoDBPersistence(table=table, ttl_hours=4, carousel_ttl_hours=168)
+    _run(pers.update_user_data(1, {"a": 1}))
+    _run(pers.update_chat_data(1, {"carousel_1": {"cards": []}}))
+    user_ttl = table.items[(1, "user_data")]["ttl"]
+    chat_ttl = table.items[(1, "chat_data")]["ttl"]
+    assert abs((chat_ttl - user_ttl) - (168 - 4) * 3600) <= 1
 
 
 def test_get_user_data_scans_with_store_alias() -> None:
