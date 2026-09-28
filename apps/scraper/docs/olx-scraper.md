@@ -3,6 +3,9 @@
 O scraper utiliza `cloudscraper` para bypassar proteções Cloudflare e extrai
 anúncios do payload RSC (React Server Components) do App Router do OLX.
 
+Próxima troca (ainda não implementada): `curl_cffi` Chrome 150 + header
+`RSC: 1`. Checklist e resultados do teste em [curl-cffi-rsc.md](curl-cffi-rsc.md).
+
 ## Fluxo
 
 1. **`search_all_rent_maceio()`** — função assíncrona principal
