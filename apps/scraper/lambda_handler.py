@@ -79,18 +79,66 @@ def _self_invoke(payload: dict[str, Any]) -> None:
         logger.warning("AWS_LAMBDA_FUNCTION_NAME ausente — skip self-invoke: %s", payload)
         return
     try:
-        import boto3
+        import boto3  # type: ignore[import-not-found]
     except ImportError:
         logger.exception("boto3 indisponível — skip self-invoke")
         return
 
-    client = boto3.client("lambda")
+    client = boto3.client("lambda")  # type: ignore[attr-defined]
     client.invoke(
         FunctionName=function_name,
         InvocationType="Event",
         Payload=json.dumps(payload).encode("utf-8"),
     )
     logger.info("Self-invoke enfileirado: %s", payload)
+
+
+def _fan_out_slices(
+    *,
+    market: str,
+    listing_kind: str,
+    run_started_at: str | None,
+    skip_deactivate: bool,
+    current_slice: int,
+) -> None:
+    """Invoca assincronamente todas as OUTRAS fatias deste kind em paralelo.
+
+    Chamado apenas na fatia 0 (slice_index=0, attempt=0, start_page=1) ao iniciar um kind.
+    As fatias invocadas rodam independentemente com suas próprias cadeias de self-invoke.
+    """
+    function_name = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+    if not function_name:
+        logger.warning("AWS_LAMBDA_FUNCTION_NAME ausente — skip fan-out")
+        return
+    try:
+        import boto3  # type: ignore[import-not-found]
+    except ImportError:
+        logger.exception("boto3 indisponível — skip fan-out")
+        return
+
+    from scheduler.jobs import slices_for_kind
+
+    total_slices = len(slices_for_kind(listing_kind, market))  # type: ignore[arg-type]
+    if total_slices <= 1:
+        return
+
+    client = boto3.client("lambda")  # type: ignore[attr-defined]
+    for si in range(current_slice + 1, total_slices):
+        payload = _cursor(
+            market=market,
+            listing_kind=listing_kind,
+            slice_index=si,
+            start_page=1,
+            attempt=0,
+            run_started_at=run_started_at,
+            skip_deactivate=skip_deactivate,
+        )
+        client.invoke(
+            FunctionName=function_name,
+            InvocationType="Event",
+            Payload=json.dumps(payload).encode("utf-8"),
+        )
+        logger.info("Fan-out fatia %s/%s enfileirada: %s", si, total_slices - 1, payload)
 
 
 def _cursor(
@@ -241,6 +289,12 @@ async def run(
     # derruba a cadeia diária e o self-invoke seguinte vira full scrape).
     max_pages = 2 if smoke else None
 
+    # Fan-out das fatias paralelas: só na fatia 0 de um kind novo
+    # (slice_index=0, attempt=0, start_page=1, run_started_at presente ou None).
+    is_first_slice_of_kind = (
+        slice_index == 0 and attempt == 0 and start_page == 1 and not smoke
+    )
+
     result = await job_collect_chunk(
         listing_kind=listing_kind,
         market=market,
@@ -252,6 +306,19 @@ async def run(
         get_remaining_ms=get_remaining_ms,
         max_pages=max_pages,
     )
+
+    # Dispara fan-out APÓS a fatia 0 completar seu primeiro chunk (ou clamp/erro)
+    # para não atrasar o fan-out se a fatia 0 for longa.
+    if is_first_slice_of_kind and result.get("success"):
+        # run_started_at pode ser datetime; _fan_out_slices espera str | None
+        rs_at = run_started_at.isoformat() if run_started_at is not None else None
+        _fan_out_slices(
+            market=market,
+            listing_kind=listing_kind,
+            run_started_at=rs_at,
+            skip_deactivate=skip_deactivate,
+            current_slice=slice_index,
+        )
 
     snapshot = 0
     if result.get("success") and not smoke:

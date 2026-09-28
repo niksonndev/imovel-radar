@@ -28,16 +28,17 @@ DATABASE_URL = normalize_database_url(
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
-# Entre uma requisição ao OLX e outra esperamos 2–4 s
-SCRAPER_DELAY_MIN = float(os.getenv("SCRAPER_DELAY_MIN", "2.0"))
-SCRAPER_DELAY_MAX = float(os.getenv("SCRAPER_DELAY_MAX", "4.0"))
+# Entre uma requisição ao OLX e outra esperamos 1.5–3 s (era 2–4).
+SCRAPER_DELAY_MIN = float(os.getenv("SCRAPER_DELAY_MIN", "1.5"))
+SCRAPER_DELAY_MAX = float(os.getenv("SCRAPER_DELAY_MAX", "3.0"))
 
 # Número máximo de páginas a iterar por fatia (proteção contra loop infinito).
 # Cada fatia de preço fica abaixo do teto de paginação da OLX (~5k ads).
 SCRAPER_MAX_PAGES = int(os.getenv("SCRAPER_MAX_PAGES", "500"))
 
 # HTTP 403/429/502 (ou falha de rede): tentativas dentro da mesma invocação.
-SCRAPER_FETCH_RETRIES = int(os.getenv("SCRAPER_FETCH_RETRIES", "3"))
+# Aumentado para 5 para compensar delay menor.
+SCRAPER_FETCH_RETRIES = int(os.getenv("SCRAPER_FETCH_RETRIES", "5"))
 # Falhas da mesma página em invocações seguidas antes de pulá-la (sem completed).
 SCRAPER_PAGE_MAX_ATTEMPTS = int(os.getenv("SCRAPER_PAGE_MAX_ATTEMPTS", "3"))
 
@@ -171,8 +172,8 @@ def next_market(key: str | None) -> Market | None:
     return MARKETS[index]
 
 
-# Páginas por invocação Lambda (cabe no timeout com margem para um GET de 90s)
-SCRAPER_PAGES_PER_INVOKE = int(os.getenv("SCRAPER_PAGES_PER_INVOKE", "50"))
+# Páginas por invocação Lambda (era 50; 100 × ~3s = 300s + overhead < 15min timeout)
+SCRAPER_PAGES_PER_INVOKE = int(os.getenv("SCRAPER_PAGES_PER_INVOKE", "100"))
 # Para a coleta se restarem menos que isto (ms) — um GET pode levar até 90s
 SCRAPER_REMAINING_TIME_BUDGET_MS = int(os.getenv("SCRAPER_REMAINING_TIME_BUDGET_MS", "90000"))
 
