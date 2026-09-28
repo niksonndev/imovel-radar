@@ -1,10 +1,10 @@
 # curl_cffi + RSC — notas da sessão (28 set 2026)
 
-**Status (28 set 2026):** o **Passo 1** — troca do cliente HTTP para curl_cffi
-Chrome 150, mantendo o GET de HTML — **já está no código**. O **Passo 2** — GET
-da listagem com `RSC: 1` / payload `text/x-component` — **ainda não está**. Os
-números de HTTP deste documento vieram de venv temporário local (não da Lambda),
-exceto onde anotado.
+**Status (28 set 2026):** **Passo 1** (cliente curl_cffi Chrome 150) e **Passo 2**
+(GET com `RSC: 1` / payload `text/x-component`) **estão no código**. Falta só o
+GET de fumaça a partir da Lambda (IP de datacenter), que é o gate de ambos. Os
+números de HTTP deste documento vieram de máquina local (não da Lambda), exceto
+onde anotado.
 
 Não existe API pública de busca da OLX para substituir o GET da listagem.
 A API oficial ([developers.olx.com.br](https://developers.olx.com.br/anuncio/api/home.html))
@@ -17,12 +17,19 @@ A API oficial ([developers.olx.com.br](https://developers.olx.com.br/anuncio/api
   `scripts/extract_ad_venda.py`. `cloudscraper` saiu do `pyproject.toml`/
   `uv.lock` (com ele: `requests`, `requests-toolbelt`, `pyparsing`, `urllib3`,
   `charset-normalizer`).
-- GET da página pública (`www.olx.com.br/imoveis/...` com `sf`, `o`, `ps`, `pe`).
-  **Ainda HTML** — os headers `RSC: 1` não entraram.
-- Extração do JSON embutido no HTML (`self.__next_f.push` / App Router) —
-  inalterada.
-- `USER_AGENTS` **removido** de `config.py`; `_build_headers()` devolve só o
-  `Referer` (UA, `Accept`, `Accept-Language`, `Sec-Fetch-*` vêm do impersonate).
+- GET da página pública (`www.olx.com.br/imoveis/...` com `sf`, `o`, `ps`, `pe`)
+  pedindo **`RSC_HEADERS`** (`RSC: 1`, `Accept: text/x-component`): a resposta é o
+  flight cru (~270 KB); o caminho HTML (~1,0 MB) continua suportado e é escolhido
+  por `_is_flight()` (prefixo de chunk em hexa vs `<!DOCTYPE html>`).
+- Extração: o flight é o payload inteiro (`_extract_rsc_payload` devolve o corpo);
+  no HTML continua concatenando `self.__next_f.push`. O bracket-matching de
+  `"ads":[...]` não mudou.
+- Empty-state e clamp vieram do flight, sem GET HTML extra: `"ads":[]` em todos os
+  candidatos = fim da listagem; `fullPageTitle` ("... Página N | OLX") é o
+  equivalente do `<title>` para o clamp.
+- `USER_AGENTS` **removido** de `config.py`; `_build_headers()` devolve
+  `RSC_HEADERS` + `Referer` (UA, `Accept-Language`, `Sec-Fetch-*` vêm do
+  impersonate).
 - `CloudflareChallengeError` não existe mais: `RequestException` do curl_cffi
   vira `TransientFetchError` e entra no retry; challenge devolvido em HTTP 200 é
   detectado por `_looks_like_challenge` (cf-chl / challenge-platform /
@@ -78,19 +85,29 @@ RSC: 1
 Accept: text/x-component
 ```
 
-| | HTML atual | `RSC: 1` |
+| | HTML | `RSC: 1` (medido em 28 set 2026) |
 |---|---|---|
 | `Content-Type` | `text/html` | `text/x-component` |
-| Tamanho | ~1.02 MB | **~268 KB** (~4× menor) |
-| `"listId"` no body | precisa do parse dos `<script>` | **50** no stream |
+| Tamanho | 1.019.289 bytes | **269.431 bytes** (3,8× menor) |
+| `listId` no body | precisa do parse dos `<script>` | **50** no stream |
+| Fim da listagem | texto renderizado | `"ads":[]` em todos os candidatos |
+| Nº da página (clamp) | `<title>... Página N` | `"fullPageTitle":"... Página N \| OLX"` |
 
-Continua sendo o endpoint da **página**, contrato interno do Next.js, sujeito
-a quebrar no próximo deploy. Ganho: menos bytes, parse potencialmente sem
-BeautifulSoup no caminho quente da listagem.
+Continua sendo o endpoint da **página**, contrato interno do Next.js, sujeito a
+quebrar no próximo deploy.
 
-`_is_empty_results_page()` hoje olha texto renderizado no HTML
-(`OLX_EMPTY_RESULTS_TEXT`). Com RSC puro isso precisa de outro sinal
-(`"ads":[]` no flight, ou um GET HTML só nesse caso).
+Duas armadilhas do flight, ambas cobertas por teste com payload real:
+
+1. A página traz um **`"ads":[]` de outro componente** (`topoVipSelection`) antes
+   do array real — por isso o candidato escolhido é o maior que tem `listId`
+   (array real: 57 itens, 50 com `listId`).
+2. `o=100` e `o=101` devolvem **o mesmo corpo** (74.995 bytes) com
+   `fullPageTitle` "Página 100". O clamp sai de comparar a página pedida com a
+   devolvida — igual ao que o `<title>` fazia.
+
+Também medido: `o=2` devolveu **HTTP 502** (página de erro HTML, 6,4 KB) numa das
+tentativas e 200 (246.538 bytes) na seguinte — ou seja, o retry de 502 continua
+necessário, e uma resposta HTML não-flight passa pelo caminho HTML do parser.
 
 Caminhos inventados (`/api/v2/ads`, `/graphql` em `www.olx.com.br`) devolvem
 o SPA (HTML 200). `apigw.olx.com.br` existe no JS da listagem para conta,
@@ -127,36 +144,48 @@ glibc 2.34 >= 2.17).
 |---|---|---|
 | `pyproject.toml` / `uv.lock` | `curl_cffi==0.16.3`; tirar `cloudscraper` | ✅ Passo 1 |
 | `collector/olx_scraper.py` | `Session(impersonate="chrome150")`; `RequestException`/`TransientFetchError`; `close()` | ✅ Passo 1 |
-| `collector/olx_scraper.py` | GET com `RSC: 1` + `Accept: text/x-component` | ⏳ Passo 2 |
+| `collector/olx_scraper.py` | GET com `RSC: 1` + `Accept: text/x-component` (`RSC_HEADERS`) | ✅ Passo 2 |
 | `config.py` | remover `USER_AGENTS` (e o `RuntimeError` se a lista ficar vazia) | ✅ Passo 1 |
 | `_build_headers()` | não forçar UA (hoje: só `Referer`) | ✅ Passo 1 |
-| parse | stream RSC em vez de concatenar `__next_f.push` do HTML; empty-results e clamp (`<title>` Página N) | ⏳ Passo 2 |
+| parse | `_is_flight()` separa flight/HTML; empty-results estrutural (`"ads":[]`) e clamp via `fullPageTitle` | ✅ Passo 2 |
 | `scripts/extract_ad.py` / `extract_ad_venda.py` | mesmo cliente | ✅ Passo 1 |
-| `scripts/debug_scraper.py` | dump RSC / HTML de debug | ⏳ Passo 2 (usa `fetch()` do collector) |
+| `scripts/debug_scraper.py` | dump RSC / HTML de debug | ✅ não precisou mudar (usa `fetch()` e `_extract_rsc_payload`, que já aceitam flight) |
 | testes | `test_olx_scraper.py`: retry de rede, challenge em HTTP 200, headers sem UA, 404 sem retry | ✅ Passo 1 |
-| testes | fixtures HTML vs flight | ⏳ Passo 2 |
-| `docs/olx-scraper.md`, `.clinerules/scraper.md` | atualizar cliente | ✅ Passo 1 |
+| testes | fixtures HTML vs flight | ✅ Passo 2 (payload real, gzipado) |
+| `docs/olx-scraper.md`, `.clinerules/scraper.md` | atualizar cliente | ✅ Passo 1+2 |
 
-BeautifulSoup/lxml podem permanecer se o clamp e o empty-state ainda precisarem
-do HTML; senão aí sim avaliar remover do caminho quente.
+BeautifulSoup/lxml **permanecem**: o caminho HTML continua suportado (a OLX pode
+devolver HTML, e uma página de erro/challenge é HTML), o texto do empty-state só
+existe no HTML e o dump de debug é o corpo cru. No flight o BeautifulSoup não
+entra no caminho quente (é `_is_flight` → devolve o corpo).
 
 ## Checklist de implementação
 
 - [x] Pin `curl_cffi==0.16.3` (não 0.16.4b1 em prod) e `uv lock`
 - [x] Sessão com `impersonate="chrome150"` (preset fixo; não o alias `"chrome"`)
-- GET da listagem com `RSC: 1` e `Accept: text/x-component` — ⏳ **Passo 2**
+- [x] GET da listagem com `RSC: 1` e `Accept: text/x-component` (`RSC_HEADERS`)
 - [x] Remover `USER_AGENTS` e headers que briguem com o fingerprint
 - [x] Mapear 403/429/502 e `RequestException` no lugar de `CloudflareChallengeError`,
       mais `_looks_like_challenge` para o challenge devolvido em HTTP 200
-- Readaptar extração (`listId` / `"ads"` no flight; empty-results sem `soup.get_text`) — ⏳ **Passo 2**
-- Clamp de página (`o=101` → Página 100): hoje lê `<title>`; definir equivalente no RSC ou fallback HTML — ⏳ **Passo 2**
-- Scripts `extract_ad.py` e `extract_ad_venda.py`: cliente trocado ✅ — `debug_scraper.py`: dump RSC ⏳ **Passo 2** (usa `fetch()` do collector, não precisou mudar)
+- [x] Readaptar extração: flight cru passa direto (`_extract_rsc_payload`) e o
+      empty-state no flight usa o sinal estrutural (`"ads":[]` em todos os candidatos)
+- [x] Clamp de página (`o=101` → Página 100): flight usa `fullPageTitle`; HTML
+      mantém o `<title>` (nenhum GET HTML extra foi necessário)
+- [x] Scripts `extract_ad.py`, `extract_ad_venda.py` e `debug_scraper.py`
+      (o último não precisou mudar: usa `fetch()`/`_extract_rsc_payload`, que já
+      aceitam flight)
 - [x] Testes unitários (retry de rede, challenge em HTTP 200, headers sem UA manual,
-      404 sem retry) + GET de fumaça local em 28 set 2026: **HTTP 200, 1.019.289
-      bytes, 50 ads** (Maceió aluguel)
+      404 sem retry, + 8 do flight sobre payload real) + GETs de fumaça locais em
+      28 set 2026: HTML **200 / 1.019.289 bytes / 50 ads**; flight **200 /
+      269.431 bytes / 50 ads** (Maceió aluguel) e **302.295 bytes / 50 ads** numa
+      fatia de venda Recife (500–550k)
+- [x] Fixtures reais versionadas gzipadas (`olx_search_page_flight.txt.gz`,
+      `olx_empty_page_flight.txt.gz`)
+- [x] Caminho HTML preservado e testado (fixture `empty_results_page.html` +
+      clamp por `<title>`)
 - [x] Medir zip da Lambda: **38,8 MB zipado / 121,5 MB descompactado** (limites 50 MB / 250 MB)
 - [ ] GET de fumaça **a partir da Lambda** (ou invoke com URL real) — 200 + ads, sem challenge
-      ⚠️ **é o gate do Passo 1**: nada aqui foi medido com IP de datacenter/Lambda
+      ⚠️ **é o gate dos Passos 1 e 2**: nada aqui foi medido com IP de datacenter/Lambda
 - [x] Atualizar `docs/olx-scraper.md`, `.clinerules/scraper.md` e este doc
 - [x] Delay 2–4 s entre páginas permanece (não é ganho desta troca)
 

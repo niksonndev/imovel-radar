@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import gzip
 from pathlib import Path
+from typing import Any
 
 import pytest
 from curl_cffi.requests.exceptions import RequestException
@@ -12,9 +14,14 @@ from collector.olx_scraper import (
     FetchError,
     ParseError,
     TransientFetchError,
+    _extract_ads_candidates,
     _extract_ads_container_from_rsc,
+    _extract_rsc_payload,
     _is_empty_results_page,
+    _is_flight,
     _listings_url,
+    is_clamped_page,
+    returned_page_number,
 )
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -22,6 +29,12 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 def _load_html(name: str) -> str:
     return (FIXTURES_DIR / name).read_text(encoding="utf-8")
+
+
+def _load_flight(name: str) -> str:
+    """Flight cru (`text/x-component`) capturado da OLX, versionado gzipado."""
+    with gzip.open(FIXTURES_DIR / name, "rt", encoding="utf-8") as fh:
+        return fh.read()
 
 
 def test_is_empty_results_page_true_on_empty_state() -> None:
@@ -74,6 +87,108 @@ def test_debug_dump_oserror_still_raises_parse_error(monkeypatch) -> None:
         _extract_ads_container_from_rsc(
             "<html><body><h1>Algum problema de parse</h1></body></html>"
         )
+
+
+# --- Flight cru (text/x-component) ------------------------------------------
+# Capturado em 28 set 2026, `impersonate="chrome150"` + `RSC: 1`:
+#   olx_search_page_flight: .../alagoas/maceio?sf=1              (50 anúncios)
+#   olx_empty_page_flight:  .../alagoas/maceio?sf=1&o=100        (fim da listagem)
+# Versionados gzipados (~31 KB + ~13 KB) para manter o payload real no repo.
+SEARCH_FLIGHT = "olx_search_page_flight.txt.gz"
+EMPTY_FLIGHT = "olx_empty_page_flight.txt.gz"
+
+
+def test_extract_rsc_payload_passes_flight_through() -> None:
+    flight = '1a:["$","$L1",null,{"ads":[]}]\n2b:["$","$L2",null,{}]\n'
+
+    assert _is_flight(flight) is True
+    assert _extract_rsc_payload(flight) == flight
+
+
+def test_extract_rsc_payload_still_reads_html_chunks() -> None:
+    html = (
+        '<html><script>self.__next_f.push([1,"a"])</script>'
+        '<script>self.__next_f.push([1,"b"])</script></html>'
+    )
+
+    assert _is_flight(html) is False
+    assert _extract_rsc_payload(html) == "ab"
+
+
+def test_flight_search_page_yields_50_listings() -> None:
+    flight = _load_flight(SEARCH_FLIGHT)
+
+    listings = olx_scraper.extract_listings_from_search_page(flight, listing_kind="aluguel")
+
+    assert len(listings) == 50
+    assert len({ad["listing_id"] for ad in listings}) == 50
+    assert all(ad["listing_kind"] == "aluguel" for ad in listings)
+    # Página 1 não informa número no título.
+    assert returned_page_number(flight) is None
+    assert is_clamped_page(flight, 1) is False
+
+
+def test_flight_has_a_decoy_empty_ads_array() -> None:
+    """A página traz um `"ads":[]` de outro componente antes do array real."""
+    flight = _load_flight(SEARCH_FLIGHT)
+    candidates = _extract_ads_candidates(flight)
+
+    assert len(candidates) > 1
+    assert any(len(candidate) == 0 for candidate in candidates)
+    assert _extract_ads_container_from_rsc(flight)["ads"] == max(candidates, key=len)
+
+
+def test_flight_empty_page_is_end_of_listing() -> None:
+    flight = _load_flight(EMPTY_FLIGHT)
+
+    assert _is_empty_results_page(flight) is True
+    with pytest.raises(EmptyResultsError):
+        olx_scraper.extract_listings_from_search_page(flight)
+
+
+def test_flight_empty_page_reports_page_100_and_clamps_only_above_it() -> None:
+    flight = _load_flight(EMPTY_FLIGHT)
+
+    assert returned_page_number(flight) == 100
+    assert is_clamped_page(flight, 100) is False  # fim real da listagem
+    assert is_clamped_page(flight, 101) is True  # teto de paginação da OLX
+    assert is_clamped_page(flight, 1) is False
+
+
+def test_html_page_still_reports_page_number_from_title() -> None:
+    html = (
+        "<html><head><title>Imóveis à venda - Recife, PE - Página 100 | OLX"
+        "</title></head></html>"
+    )
+
+    assert _is_flight(html) is False
+    assert returned_page_number(html) == 100
+    assert is_clamped_page(html, 101) is True
+
+
+def test_flight_without_ads_array_dumps_body_and_raises_parse_error(
+    tmp_path, monkeypatch
+) -> None:
+    dest = tmp_path / "debug_last_response.html"
+    monkeypatch.setattr(olx_scraper, "DEBUG_HTML_PATH", dest)
+    flight = '1a:["$","$L1",null,{"fullPageTitle":"Imóveis - Maceió | OLX"}]\n'
+
+    with pytest.raises(ParseError):
+        _extract_ads_container_from_rsc(flight)
+
+    assert dest.read_text(encoding="utf-8") == flight
+
+
+def test_flight_ads_without_list_id_is_parse_error_not_end_of_listing(
+    tmp_path, monkeypatch
+) -> None:
+    """`ads` presente mas sem `listId` é quebra de layout — não fim de listagem."""
+    monkeypatch.setattr(olx_scraper, "DEBUG_HTML_PATH", tmp_path / "dump.html")
+    flight = '2b:["$","$L21",null,{"ads":[{"subject":"sem id"}]}]\n'
+
+    assert _is_empty_results_page(flight) is False
+    with pytest.raises(ParseError):
+        _extract_ads_container_from_rsc(flight)
 
 
 def test_search_all_stops_cleanly_on_empty_page(monkeypatch) -> None:
@@ -313,15 +428,17 @@ def _patch_fetch_sleep(monkeypatch) -> None:
     monkeypatch.setattr(olx_scraper.config, "SCRAPER_FETCH_RETRIES", 3)
 
 
-def test_build_headers_defers_to_fingerprint() -> None:
-    """User-Agent/Accept/Sec-Fetch vêm do impersonate; não sobrescrever."""
+def test_build_headers_defers_to_fingerprint_and_asks_for_rsc() -> None:
+    """UA/Accept-Language/Sec-Fetch vêm do impersonate; só o flight é explícito."""
     headers = olx_scraper._build_headers()
 
+    assert headers["RSC"] == "1"
+    assert headers["Accept"] == "text/x-component"
+    assert headers["Referer"] == olx_scraper.config.OLX_REFERER
     assert "User-Agent" not in headers
-    assert "Accept" not in headers
+    assert "Accept-Language" not in headers
     assert "Accept-Encoding" not in headers
     assert "Sec-Fetch-Mode" not in headers
-    assert headers == {"Referer": olx_scraper.config.OLX_REFERER}
 
 
 def test_impersonate_preset_is_pinned() -> None:
@@ -416,6 +533,41 @@ def test_fetch_does_not_retry_not_found(monkeypatch) -> None:
 
     assert excinfo.value.status_code == 404
     assert calls["n"] == 1
+
+
+def test_search_listings_style_session_is_reopened_after_close(monkeypatch) -> None:
+    """`close()` encerra a Session e a coleta seguinte precisa reabrir uma nova.
+
+    curl_cffi recusa reuso de Session fechada (`SessionClosed`); sem reabrir, a
+    segunda coleta no mesmo processo (container quente da Lambda) falharia.
+    """
+    created: list[object] = []
+
+    class _FakeSession:
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = kwargs
+            self.closed = False
+            created.append(self)
+
+        def get(self, *_args, **_kwargs):
+            raise AssertionError("não deve ser chamado neste teste")
+
+        def close(self) -> None:
+            self.closed = True
+
+    monkeypatch.setattr(olx_scraper, "Session", _FakeSession)
+    monkeypatch.setattr(olx_scraper, "_http", None)
+
+    first: Any = olx_scraper._get_session()
+    assert first is olx_scraper._get_session()  # reaproveita a mesma sessão
+    assert olx_scraper._get_session().kwargs["impersonate"] == olx_scraper.IMPERSONATE
+
+    asyncio.run(olx_scraper.close())
+    assert first.closed is True
+
+    second: Any = olx_scraper._get_session()
+    assert second is not first
+    assert len(created) == 2
 
 
 def test_sync_get_wraps_network_error_as_transient(monkeypatch) -> None:

@@ -1,10 +1,14 @@
 """
 Cliente HTTP para o OLX (curl_cffi, impersonate Chrome 150) + extração de
-anúncios via RSC streaming (App Router / self.__next_f.push).
+anúncios via RSC streaming (App Router).
 
-O fingerprint TLS/HTTP2 e os headers de navegador (User-Agent, Accept,
-Accept-Language, sec-ch-ua, Sec-Fetch-*) vêm do ``impersonate`` do curl_cffi —
-não são montados à mão.
+A listagem é pedida com ``RSC: 1`` / ``Accept: text/x-component``: a resposta vem
+como flight cru (``text/x-component``, ~270 KB) em vez do HTML renderizado
+(~1,0 MB). O caminho HTML continua suportado (``__next_f.push``).
+
+O fingerprint TLS/HTTP2 e os headers de navegador (User-Agent, Accept-Language,
+sec-ch-ua, Sec-Fetch-*) vêm do ``impersonate`` do curl_cffi — não são montados à
+mão.
 
 Cada anúncio é normalizado por ``parser.normalize_olx_listing`` (dict enxuto)
 com ``listing_kind`` stampado pela coleta (aluguel | venda).
@@ -35,10 +39,14 @@ logger = logging.getLogger(__name__)
 # acompanha a versão do pacote, o preset explícito é reprodutível com o pin.
 IMPERSONATE = "chrome150"
 
-_http = Session(impersonate=IMPERSONATE, default_encoding="utf-8")
+# A listagem responde o HTML renderizado (~1,0 MB) por padrão; com estes headers
+# o App Router devolve o flight cru (~270 KB) com os mesmos dados.
+RSC_HEADERS = {"RSC": "1", "Accept": "text/x-component"}
+
+_http: Session | None = None
 _cycle_headers: dict[str, str] | None = None
 
-# Lambda: o cwd é read-only. Dump de parse vai para /tmp (ou só o log, se falhar).
+# Lambda: o cwd é read-only. Dump de debug (flight ou HTML) vai para /tmp.
 DEBUG_HTML_PATH = Path("/tmp/debug_last_response.html")
 _RETRYABLE_HTTP = frozenset({403, 429, 502})
 
@@ -55,8 +63,30 @@ _CHALLENGE_MARKERS = (
 RemainingTimeFn = Callable[[], int | None]
 
 
-def _extract_rsc_payload(html: str) -> str:
-    soup = BeautifulSoup(html, "lxml")
+# Cada chunk do flight é prefixado pelo tamanho em hexa (`1:"$Sreact.fragment"`,
+# `2:I[496659,...]`). O HTML renderizado começa com `<!DOCTYPE html>`.
+_FLIGHT_CHUNK_PREFIX = re.compile(r"^[0-9a-f]{1,6}:")
+
+
+def _is_flight(text: str) -> bool:
+    """True quando o corpo é o flight cru do App Router (``text/x-component``).
+
+    A listagem é pedida com ``RSC: 1`` e volta assim (~4x menor que o HTML); o
+    HTML renderizado carrega os mesmos dados em ``self.__next_f.push``.
+    """
+    return _FLIGHT_CHUNK_PREFIX.match(text) is not None
+
+
+def _extract_rsc_payload(text: str) -> str:
+    """Payload RSC, do flight cru ou dos chunks ``__next_f.push`` do HTML.
+
+    No flight o corpo inteiro já é o payload (~4x menor que o HTML); no HTML é
+    preciso concatenar os chunks injetados pelo App Router.
+    """
+    if _is_flight(text):
+        return text
+
+    soup = BeautifulSoup(text, "lxml")
     chunks: list[str] = []
 
     for script in soup.find_all("script"):
@@ -145,20 +175,20 @@ def _extract_ads_candidates(payload: str) -> list[list[dict[str, Any]]]:
     return candidates
 
 
-def _is_empty_results_page(html: str) -> bool:
+def _is_empty_results_page(text: str) -> bool:
     """True quando o OLX retorna uma página HTTP 200 sem resultados (fim da listagem)."""
-    soup = BeautifulSoup(html, "lxml")
-    if config.OLX_EMPTY_RESULTS_TEXT in soup.get_text(" ", strip=True):
-        return True
+    if not _is_flight(text):
+        # Só o HTML renderizado traz o texto do estado vazio.
+        soup = BeautifulSoup(text, "lxml")
+        if config.OLX_EMPTY_RESULTS_TEXT in soup.get_text(" ", strip=True):
+            return True
 
-    payload = _extract_rsc_payload(html)
-    candidates = _extract_ads_candidates(payload)
+    candidates = _extract_ads_candidates(_extract_rsc_payload(text))
     return bool(candidates) and all(len(candidate) == 0 for candidate in candidates)
 
 
-def _extract_ads_container_from_rsc(html: str) -> dict[str, Any]:
-    soup = BeautifulSoup(html, "lxml")
-    payload = _extract_rsc_payload(html)
+def _extract_ads_container_from_rsc(body: str) -> dict[str, Any]:
+    payload = _extract_rsc_payload(body)
     candidates = _extract_ads_candidates(payload)
     candidates_with_list_id = [
         candidate
@@ -167,20 +197,20 @@ def _extract_ads_container_from_rsc(html: str) -> dict[str, Any]:
     ]
 
     if not candidates_with_list_id:
-        if _is_empty_results_page(html):
+        if _is_empty_results_page(body):
             raise EmptyResultsError(
                 "Página sem resultados (fim da listagem) — nenhum anúncio no payload RSC"
             )
 
-        saved = _dump_debug_html(html)
-        title = soup.find("title")
+        saved = _dump_debug_html(body)
 
         logger.error(
-            "Falha ao extrair anúncios do payload RSC | tamanho_html=%d | "
-            "title=%r | candidatos_ads_encontrados=%d | "
-            "candidatos_com_listId=%d | html_salvo_em=%s",
-            len(html),
-            title.string if title else None,
+            "Falha ao extrair anúncios do payload RSC | tamanho=%d | flight=%s | "
+            "fullPageTitle=%r | candidatos_ads_encontrados=%d | "
+            "candidatos_com_listId=%d | resposta_salva_em=%s",
+            len(body),
+            _is_flight(body),
+            _full_page_title(body),
             len(candidates),
             len(candidates_with_list_id),
             saved or "não salvo",
@@ -204,11 +234,11 @@ def _extract_ads_payload(ads_container: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def extract_listings_from_search_page(
-    html: str,
+    body: str,
     *,
     listing_kind: ListingKind = "aluguel",
 ) -> list[RawAd]:
-    ads_container = _extract_ads_container_from_rsc(html)
+    ads_container = _extract_ads_container_from_rsc(body)
     ads = _extract_ads_payload(ads_container)
 
     listings: list[RawAd] = []
@@ -263,21 +293,47 @@ def _listings_url(
 
 
 _PAGE_IN_TITLE = re.compile(r"Página\s+(\d+)", re.IGNORECASE)
+# O flight carrega o título completo da listagem (com "Página N"), o mesmo que
+# vira `<title>` no HTML renderizado.
+_FLIGHT_FULL_PAGE_TITLE = re.compile(r'"fullPageTitle":"((?:[^"\\]|\\.)*)"')
 
 
-def returned_page_number(html: str) -> int | None:
-    """Número de página no ``<title>`` da OLX, quando a listagem o informa."""
-    soup = BeautifulSoup(html, "lxml")
+def _full_page_title(text: str) -> str | None:
+    """Título completo da listagem — ``fullPageTitle`` do flight ou ``<title>``."""
+    match = _FLIGHT_FULL_PAGE_TITLE.search(text)
+    if match is not None:
+        return match.group(1)
+
+    if _is_flight(text):
+        return None
+
+    soup = BeautifulSoup(text, "lxml")
     title = soup.find("title")
     if title is None:
         return None
-    match = _PAGE_IN_TITLE.search(title.get_text(" ", strip=True))
+    return title.get_text(" ", strip=True)
+
+
+def _page_number_from_title(title: str) -> int | None:
+    match = _PAGE_IN_TITLE.search(title)
     if match is None:
         return None
     return int(match.group(1))
 
 
-def is_clamped_page(html: str, requested_page: int) -> bool:
+def returned_page_number(body: str) -> int | None:
+    """Número de página que a OLX informou na resposta, quando informa.
+
+    Página 1 não traz o número (retorna ``None``); ``o=101`` volta como
+    "Página 100".
+    """
+    title = _full_page_title(body)
+    if title is None:
+        return None
+    return _page_number_from_title(title)
+
+
+def is_clamped_page(body: str, requested_page: int) -> bool:
     """True quando a OLX devolve uma página anterior à pedida (teto da listagem).
 
     ``o=101`` volta com título "Página 100" e os mesmos anúncios. Isso não é
@@ -285,7 +341,7 @@ def is_clamped_page(html: str, requested_page: int) -> bool:
     """
     if requested_page <= 1:
         return False
-    returned = returned_page_number(html)
+    returned = returned_page_number(body)
     return returned is not None and returned < requested_page
 
 
@@ -330,7 +386,27 @@ class SearchChunkResult:
 
 
 async def close() -> None:
-    _http.close()
+    """Encerra a sessão HTTP do módulo; a próxima coleta reabre uma nova.
+
+    O curl_cffi recusa requisições numa Session já fechada (``SessionClosed``) e
+    ``search_listings`` chama ``close()`` no fim de cada janela: sem reabrir, a
+    segunda coleta no mesmo processo (container quente da Lambda, testes,
+    ``search_all_rent_maceio`` em sequência) falharia.
+    """
+    global _http
+    session, _http = _http, None
+    if session is not None:
+        session.close()
+
+
+def _get_session() -> Session:
+    """Sessão única do processo, recriada depois de ``close()``."""
+    global _http
+    session = _http
+    if session is None:
+        session = Session(impersonate=IMPERSONATE, default_encoding="utf-8")
+        _http = session
+    return session
 
 
 async def _delay() -> None:
@@ -340,11 +416,11 @@ async def _delay() -> None:
 def _build_headers() -> dict[str, str]:
     """Headers extras sobre o fingerprint do curl_cffi.
 
-    User-Agent, Accept, Accept-Language, Accept-Encoding e Sec-Fetch-* são
-    definidos pelo ``impersonate`` — não sobrescrever (UA aleatório de outro
-    navegador invalidaria o fingerprint).
+    User-Agent, Accept-Language, Accept-Encoding e Sec-Fetch-* vêm do
+    ``impersonate`` — não sobrescrever (UA aleatório de outro navegador
+    invalidaria o fingerprint). O ``Accept`` é trocado pelo do flight.
     """
-    return {"Referer": config.OLX_REFERER}
+    return {**RSC_HEADERS, "Referer": config.OLX_REFERER}
 
 
 def _looks_like_challenge(text: str) -> bool:
@@ -355,7 +431,7 @@ def _looks_like_challenge(text: str) -> bool:
 def _sync_get(url: str, headers: dict[str, str]) -> tuple[int, str]:
     """GET síncrono (roda em thread). Falha de rede vira erro retryável."""
     try:
-        r = _http.get(url, timeout=90, headers=headers)
+        r = _get_session().get(url, timeout=90, headers=headers)
     except RequestException as e:
         raise TransientFetchError(f"falha de rede em {url}: {e}") from e
     return r.status_code, r.text
@@ -486,14 +562,14 @@ async def search_listings(
                 price_max=price_max,
             )
             try:
-                html = await fetch(url)
+                body = await fetch(url)
             except Exception as e:
                 logger.exception("Erro ao buscar %s: %s", url, e)
                 if _fail(page_attempt):
                     break
                 continue
 
-            if is_clamped_page(html, page):
+            if is_clamped_page(body, page):
                 logger.error(
                     "OLX clampou a página %s (kind=%s) — encerrando a fatia sem completed",
                     page,
@@ -503,7 +579,7 @@ async def search_listings(
                 break
 
             try:
-                page_listings = extract_listings_from_search_page(html, listing_kind=listing_kind)
+                page_listings = extract_listings_from_search_page(body, listing_kind=listing_kind)
             except EmptyResultsError:
                 logger.info(
                     "Página %s: fim da listagem (sem resultados) — kind=%s",
