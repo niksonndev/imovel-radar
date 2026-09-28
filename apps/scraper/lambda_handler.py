@@ -14,10 +14,14 @@ Event payload (EventBridge ou self-invoke)::
       "attempt": 0,
       "skip_deactivate": false,
       "run_started_at": "<iso8601>",
-      "smoke": false
+      "smoke": false,
+      "fanned_out": false
     }
 
 ``smoke: true`` (CI): poucas páginas, sem deactivate, sem self-invoke, sem snapshot.
+``fanned_out`` é True nas fatias 1..N (invocadas em paralelo) e na continuação
+da fatia 0 depois do fan-out. Quando True, a chain NUNCA avança para a próxima
+fatia — só a última fatia do kind avança para o próximo kind/market.
 
 Run manual/local (coleta aluguel completa)::
 
@@ -132,6 +136,7 @@ def _fan_out_slices(
             attempt=0,
             run_started_at=run_started_at,
             skip_deactivate=skip_deactivate,
+            fanned_out=True,
         )
         client.invoke(
             FunctionName=function_name,
@@ -150,6 +155,7 @@ def _cursor(
     attempt: int,
     run_started_at: str | None,
     skip_deactivate: bool,
+    fanned_out: bool = False,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "market": market,
@@ -161,6 +167,8 @@ def _cursor(
     }
     if skip_deactivate:
         payload["skip_deactivate"] = True
+    if fanned_out:
+        payload["fanned_out"] = True
     return payload
 
 
@@ -200,12 +208,19 @@ def _should_publish_snapshot(result: dict[str, Any]) -> bool:
 
 
 def _next_payload_after_chunk(result: dict[str, Any]) -> dict[str, Any] | None:
-    """Próximo cursor: mais páginas, próxima fatia, venda, ou a próxima cidade.
+    """Próximo cursor: mais páginas, próxima fatia (só se não fanned-out),
+    venda, ou a próxima cidade.
 
     A watermark (``run_started_at``) não muda entre fatias do mesmo kind.
     Zera ao abrir a venda ou outra cidade, para o deactivate não misturar coletas.
     Um clamp da OLX encerra a fatia sem ``completed`` e impede o deactivate
     daquele kind; a cadeia segue para a próxima fatia ou cidade.
+
+    **Fan-out mode** (``fanned_out=True``): a cadeia NUNCA avança para a
+    próxima fatia — só a última fatia do kind avança para o próximo
+    kind/market. Isto elimina a cascata combinacional que ocorria quando a
+    chain principal (fatia 0) prosseguia pelas fatias seguintes enquanto o
+    fan-out já as havia invocado em paralelo.
     """
     kind = result["listing_kind"]
     market = str(result.get("market") or "maceio")
@@ -214,6 +229,7 @@ def _next_payload_after_chunk(result: dict[str, Any]) -> dict[str, Any] | None:
     attempt = int(result.get("attempt") or 0)
     skip_deactivate = bool(result.get("skip_deactivate"))
     clamped = bool(result.get("clamped"))
+    fanned_out = bool(result.get("fanned_out"))
 
     if not result.get("completed") and result.get("next_page") and not clamped:
         return _cursor(
@@ -224,6 +240,7 @@ def _next_payload_after_chunk(result: dict[str, Any]) -> dict[str, Any] | None:
             attempt=attempt,
             run_started_at=run_started_at,
             skip_deactivate=skip_deactivate,
+            fanned_out=fanned_out,
         )
 
     slice_finished = bool(result.get("completed")) or clamped
@@ -233,8 +250,16 @@ def _next_payload_after_chunk(result: dict[str, Any]) -> dict[str, Any] | None:
     if clamped:
         skip_deactivate = True
 
+    total = len(slices_for_kind(kind, market))
+
+    # Fan-out mode: só a última fatia avança (para o próximo kind/market).
+    # As fatias intermediárias param aqui — suas congêneres já foram
+    # invocadas em paralelo pelo fan-out e seguem suas próprias cadeias.
+    if fanned_out and slice_index < total - 1:
+        return None
+
     next_slice = slice_index + 1
-    if next_slice < len(slices_for_kind(kind, market)):
+    if next_slice < total:
         return _cursor(
             market=market,
             listing_kind=kind,
@@ -285,6 +310,7 @@ async def run(
     smoke = bool(payload.get("smoke"))
     skip_deactivate = bool(payload.get("skip_deactivate")) or smoke
     run_started_at = parse_run_started_at(payload.get("run_started_at"))
+    fanned_out = bool(payload.get("fanned_out"))
     # Smoke CI: 2 páginas. Não mutar SCRAPER_MAX_PAGES na Lambda (isso
     # derruba a cadeia diária e o self-invoke seguinte vira full scrape).
     max_pages = 2 if smoke else None
@@ -307,6 +333,11 @@ async def run(
         max_pages=max_pages,
     )
 
+    # Propaga fanned_out do payload para o result, para que a cadeia saiba
+    # que esta execução veio de um fan-out e não deve avançar entre fatias.
+    if fanned_out:
+        result["fanned_out"] = True
+
     # Dispara fan-out APÓS a fatia 0 completar seu primeiro chunk (ou clamp/erro)
     # para não atrasar o fan-out se a fatia 0 for longa.
     if is_first_slice_of_kind and result.get("success"):
@@ -319,6 +350,10 @@ async def run(
             skip_deactivate=skip_deactivate,
             current_slice=slice_index,
         )
+        # Marca a chain principal como fanned-out para que as próximas
+        # auto-invocações parem ao final da fatia 0 (as demais fatias já
+        # foram disparadas em paralelo e seguem suas próprias cadeias).
+        result["fanned_out"] = True
 
     snapshot = 0
     if result.get("success") and not smoke:
