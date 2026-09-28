@@ -36,7 +36,7 @@ SCRAPER_DELAY_MAX = float(os.getenv("SCRAPER_DELAY_MAX", "4.0"))
 # Cada fatia de preço fica abaixo do teto de paginação da OLX (~5k ads).
 SCRAPER_MAX_PAGES = int(os.getenv("SCRAPER_MAX_PAGES", "500"))
 
-# HTTP 403/429/502: tentativas dentro da mesma invocação, com UA novo.
+# HTTP 403/429/502 (ou falha de rede): tentativas dentro da mesma invocação.
 SCRAPER_FETCH_RETRIES = int(os.getenv("SCRAPER_FETCH_RETRIES", "3"))
 # Falhas da mesma página em invocações seguidas antes de pulá-la (sem completed).
 SCRAPER_PAGE_MAX_ATTEMPTS = int(os.getenv("SCRAPER_PAGE_MAX_ATTEMPTS", "3"))
@@ -178,14 +178,3 @@ SCRAPER_REMAINING_TIME_BUDGET_MS = int(os.getenv("SCRAPER_REMAINING_TIME_BUDGET_
 
 # Porta do servidor FastAPI
 API_PORT = int(os.getenv("API_PORT", "8000"))
-
-# User-Agents
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-]
-USER_AGENTS = [ua.strip() for ua in USER_AGENTS if ua and str(ua).strip()]
-if not USER_AGENTS:
-    raise RuntimeError("USER_AGENTS está vazio. Defina pelo menos um User-Agent em config.py")

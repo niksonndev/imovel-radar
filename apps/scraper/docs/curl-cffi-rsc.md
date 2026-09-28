@@ -1,9 +1,10 @@
 # curl_cffi + RSC — notas da sessão (28 set 2026)
 
-Proposta para o próximo ciclo: trocar `cloudscraper` por **curl_cffi** com
-impersonate Chrome 150, pedir o payload RSC da listagem (`RSC: 1`) e
-simplificar headers. Isto **ainda não está no código**. O teste foi local
-(venv temporário), não da Lambda.
+**Status (28 set 2026):** o **Passo 1** — troca do cliente HTTP para curl_cffi
+Chrome 150, mantendo o GET de HTML — **já está no código**. O **Passo 2** — GET
+da listagem com `RSC: 1` / payload `text/x-component` — **ainda não está**. Os
+números de HTTP deste documento vieram de venv temporário local (não da Lambda),
+exceto onde anotado.
 
 Não existe API pública de busca da OLX para substituir o GET da listagem.
 A API oficial ([developers.olx.com.br](https://developers.olx.com.br/anuncio/api/home.html))
@@ -11,27 +12,36 @@ A API oficial ([developers.olx.com.br](https://developers.olx.com.br/anuncio/api
 
 ## Estado atual
 
-- Cliente HTTP: `cloudscraper==1.2.71` em `collector/olx_scraper.py`,
-  `scripts/extract_ad.py` e `scripts/extract_ad_venda.py`.
+- Cliente HTTP: **`curl_cffi==0.16.3`** com `impersonate="chrome150"`
+  (`IMPERSONATE`) em `collector/olx_scraper.py`, `scripts/extract_ad.py` e
+  `scripts/extract_ad_venda.py`. `cloudscraper` saiu do `pyproject.toml`/
+  `uv.lock` (com ele: `requests`, `requests-toolbelt`, `pyparsing`, `urllib3`,
+  `charset-normalizer`).
 - GET da página pública (`www.olx.com.br/imoveis/...` com `sf`, `o`, `ps`, `pe`).
-- Extração do JSON embutido no HTML (`self.__next_f.push` / App Router).
-- `USER_AGENTS` em `config.py` (Chrome 120 / Firefox 121) + headers manuais
-  (`Accept`, `Referer`, `Sec-Fetch-*`, etc.).
-- `CloudflareChallengeError` tratado no fetch.
+  **Ainda HTML** — os headers `RSC: 1` não entraram.
+- Extração do JSON embutido no HTML (`self.__next_f.push` / App Router) —
+  inalterada.
+- `USER_AGENTS` **removido** de `config.py`; `_build_headers()` devolve só o
+  `Referer` (UA, `Accept`, `Accept-Language`, `Sec-Fetch-*` vêm do impersonate).
+- `CloudflareChallengeError` não existe mais: `RequestException` do curl_cffi
+  vira `TransientFetchError` e entra no retry; challenge devolvido em HTTP 200 é
+  detectado por `_looks_like_challenge` (cf-chl / challenge-platform /
+  `Just a moment` / `__cf_chl`) e também é retryável.
 
 Isso já é scraping por request (sem browser). O dado útil já vem como JSON
 dentro da página; não é parse de cards no DOM.
 
 ## Versões
 
-| Pacote | No scraper hoje | Mais novo no teste | Para deploy |
+| Pacote | No scraper hoje | Mais novo no teste | Deploy |
 |---|---|---|---|
-| `cloudscraper` | 1.2.71 (abr 2023) | — | remover |
-| `curl_cffi` | ausente | **0.16.4b1** (20 set 2026) | pin **0.16.3** (estável, 2 set 2026) |
+| `cloudscraper` | — (removido no Passo 1) | — | removido |
+| `curl_cffi` | **0.16.3** (pinado) | 0.16.4b1 (20 set 2026) | **0.16.3** — `chrome150` exige >= 0.16.1 |
 
 - `requires-python` do curl_cffi: `>=3.10`. Wheel `cp310-abi3` manylinux x86_64
   (~14 MB no PyPI). Rodou no Python **3.13** do scraper.
-- `impersonate="chrome"` resolveu para **chrome150** (`DEFAULT_CHROME`).
+- O alias `"chrome"` resolve para **chrome150** hoje, mas acompanha a versão do
+  pacote — o código fixa `chrome150` explícito.
 - Presets também ok no teste: `chrome136`, `safari`.
 
 Não misturar UA aleatório (Firefox 121 / Chrome 120) com fingerprint Chrome 150.
@@ -92,52 +102,63 @@ não API de ads.
 
 ## Pacote Lambda
 
-`curl_cffi` traz lib nativa. No venv de teste, `curl_cffi/_wrapper.abi3.so`
-descompactado ~**38 MB** (o wheel manylinux ~14 MB). `cloudscraper` é puro
-Python e leve.
+`curl_cffi` traz lib nativa. `curl_cffi/` descompactado no target: ~**38 MB**.
+Medido localmente em 28 set 2026, reproduzindo o passo do CI
+(`uv export --no-dev --frozen` + `uv pip install --target`):
+
+| | Antes (cloudscraper) | Depois (curl_cffi 0.16.3) |
+|---|---|---|
+| zip (`lambda.zip`) | 25,7 MB | **38,8 MB** (37 MiB) |
+| descompactado (`dist/python`) | — | **121,5 MB** (116 MiB) |
 
 Limites AWS (zip direto, sem container): 50 MB zipado / 250 MB descompactado.
-O zip atual já inclui psycopg, lxml, etc. **Obrigatório** medir
-`apps/scraper/dist/lambda.zip` depois do `uv pip install --target` do workflow
-(`.github/workflows/infra-deploy.yml`, step *Build scraper Lambda zip*).
+Cabe, mas a folga no zip caiu para ~11 MB. Não existe guard de tamanho no
+workflow (`.github/workflows/infra-deploy.yml`, step *Build scraper Lambda zip*)
+— vale adicionar um `stat -c%s` comparando com 50 MB.
 
-Amazon Linux / manylinux2014 x86_64: o wheel `cp310-abi3-manylinux_2_17`
-deve servir a Lambda x86_64. Confirmar arquitetura do Terraform (não arm64
-sem wheel correspondente).
+Arquitetura resolvida: `infra/scraper-lambda.tf` não define `architectures`
+(default **x86_64**) e roda `python3.13`; o wheel
+`cp310-abi3-manylinux_2_17_x86_64` é o alvo correto (Amazon Linux também casa,
+glibc 2.34 >= 2.17).
 
 ## Superfície de código a readaptar
 
-| Onde | O quê |
-|---|---|
-| `pyproject.toml` / `uv.lock` | `curl_cffi==0.16.3`; tirar `cloudscraper` |
-| `collector/olx_scraper.py` | `Session(impersonate="chrome150")`; GET com `RSC: 1`; erros HTTP/`RequestsError`; `close()` |
-| `config.py` | remover `USER_AGENTS` (e o `RuntimeError` se a lista ficar vazia) |
-| `_build_headers()` | não forçar UA; no máximo `Accept: text/x-component` + `RSC: 1` |
-| parse | stream RSC em vez de concatenar `__next_f.push` do HTML; empty-results e clamp (`<title>` Página N) |
-| `scripts/extract_ad.py` | mesmo cliente |
-| `scripts/extract_ad_venda.py` | mesmo cliente |
-| `scripts/debug_scraper.py` | dump RSC / HTML de debug |
-| testes | `test_olx_scraper.py` (empty page / parse error / `_sync_get`); fixtures HTML vs flight |
-| `docs/olx-scraper.md`, `.clinerules/scraper.md` | atualizar cliente |
+| Onde | O quê | Status |
+|---|---|---|
+| `pyproject.toml` / `uv.lock` | `curl_cffi==0.16.3`; tirar `cloudscraper` | ✅ Passo 1 |
+| `collector/olx_scraper.py` | `Session(impersonate="chrome150")`; `RequestException`/`TransientFetchError`; `close()` | ✅ Passo 1 |
+| `collector/olx_scraper.py` | GET com `RSC: 1` + `Accept: text/x-component` | ⏳ Passo 2 |
+| `config.py` | remover `USER_AGENTS` (e o `RuntimeError` se a lista ficar vazia) | ✅ Passo 1 |
+| `_build_headers()` | não forçar UA (hoje: só `Referer`) | ✅ Passo 1 |
+| parse | stream RSC em vez de concatenar `__next_f.push` do HTML; empty-results e clamp (`<title>` Página N) | ⏳ Passo 2 |
+| `scripts/extract_ad.py` / `extract_ad_venda.py` | mesmo cliente | ✅ Passo 1 |
+| `scripts/debug_scraper.py` | dump RSC / HTML de debug | ⏳ Passo 2 (usa `fetch()` do collector) |
+| testes | `test_olx_scraper.py`: retry de rede, challenge em HTTP 200, headers sem UA, 404 sem retry | ✅ Passo 1 |
+| testes | fixtures HTML vs flight | ⏳ Passo 2 |
+| `docs/olx-scraper.md`, `.clinerules/scraper.md` | atualizar cliente | ✅ Passo 1 |
 
 BeautifulSoup/lxml podem permanecer se o clamp e o empty-state ainda precisarem
 do HTML; senão aí sim avaliar remover do caminho quente.
 
 ## Checklist de implementação
 
-- [ ] Pin `curl_cffi==0.16.3` (não 0.16.4b1 em prod) e `uv lock`
-- [ ] `requests.Session(impersonate="chrome150")` (ou `"chrome"`, que hoje alias chrome150)
-- [ ] GET da listagem com `RSC: 1` e `Accept: text/x-component`
-- [ ] Remover `USER_AGENTS` e headers que briguem com o fingerprint
-- [ ] Mapear 403/429/502 e `RequestsError` no lugar de `CloudflareChallengeError`
-- [ ] Readaptar extração: `listId` / `"ads"` no flight; empty-results sem `soup.get_text`
-- [ ] Clamp de página (`o=101` → Página 100): hoje lê `<title>`; definir equivalente no RSC ou fallback HTML
-- [ ] Scripts `extract_ad.py`, `extract_ad_venda.py`, `debug_scraper.py`
-- [ ] Testes unitários + um GET de fumaça (Maceió aluguel, 50 ads)
-- [ ] Medir zip da Lambda (`du -h dist/lambda.zip`; unzipped `du -sh dist/python`) e caber no limite
+- [x] Pin `curl_cffi==0.16.3` (não 0.16.4b1 em prod) e `uv lock`
+- [x] Sessão com `impersonate="chrome150"` (preset fixo; não o alias `"chrome"`)
+- GET da listagem com `RSC: 1` e `Accept: text/x-component` — ⏳ **Passo 2**
+- [x] Remover `USER_AGENTS` e headers que briguem com o fingerprint
+- [x] Mapear 403/429/502 e `RequestException` no lugar de `CloudflareChallengeError`,
+      mais `_looks_like_challenge` para o challenge devolvido em HTTP 200
+- Readaptar extração (`listId` / `"ads"` no flight; empty-results sem `soup.get_text`) — ⏳ **Passo 2**
+- Clamp de página (`o=101` → Página 100): hoje lê `<title>`; definir equivalente no RSC ou fallback HTML — ⏳ **Passo 2**
+- Scripts `extract_ad.py` e `extract_ad_venda.py`: cliente trocado ✅ — `debug_scraper.py`: dump RSC ⏳ **Passo 2** (usa `fetch()` do collector, não precisou mudar)
+- [x] Testes unitários (retry de rede, challenge em HTTP 200, headers sem UA manual,
+      404 sem retry) + GET de fumaça local em 28 set 2026: **HTTP 200, 1.019.289
+      bytes, 50 ads** (Maceió aluguel)
+- [x] Medir zip da Lambda: **38,8 MB zipado / 121,5 MB descompactado** (limites 50 MB / 250 MB)
 - [ ] GET de fumaça **a partir da Lambda** (ou invoke com URL real) — 200 + ads, sem challenge
-- [ ] Atualizar `docs/olx-scraper.md` e `.clinerules/scraper.md` quando o código mudar
-- [ ] Delay 2–4 s entre páginas permanece (não é ganho desta troca)
+      ⚠️ **é o gate do Passo 1**: nada aqui foi medido com IP de datacenter/Lambda
+- [x] Atualizar `docs/olx-scraper.md`, `.clinerules/scraper.md` e este doc
+- [x] Delay 2–4 s entre páginas permanece (não é ganho desta troca)
 
 ## O que isto não é
 

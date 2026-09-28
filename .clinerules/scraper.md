@@ -10,7 +10,7 @@ Lambda (prod) / FastAPI health (dev) responsible for OLX scraping and `listing` 
 
 - Python; FastAPI only for local `/health` + Alembic on startup
 - Daily collection: EventBridge → Lambda (`lambda_handler.py`)
-- cloudscraper + BeautifulSoup + lxml
+- curl_cffi (`impersonate="chrome150"`) + BeautifulSoup + lxml
 - Postgres (SQLModel + Alembic) — writer of `listing` only (ADR 0005)
 
 ## Architecture (layers)

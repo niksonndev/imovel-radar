@@ -1,10 +1,12 @@
 # OLX Scraper
 
-O scraper utiliza `cloudscraper` para bypassar proteções Cloudflare e extrai
-anúncios do payload RSC (React Server Components) do App Router do OLX.
+O scraper usa `curl_cffi` com `impersonate="chrome150"` (fingerprint TLS/HTTP2
+de Chrome 150) e extrai anúncios do payload RSC (React Server Components) do
+App Router do OLX.
 
-Próxima troca (ainda não implementada): `curl_cffi` Chrome 150 + header
-`RSC: 1`. Checklist e resultados do teste em [curl-cffi-rsc.md](curl-cffi-rsc.md).
+Próximo passo (ainda não implementado): GET da listagem com `RSC: 1` /
+`Accept: text/x-component` (~268 KB em vez de ~1,02 MB de HTML). Checklist e
+resultados do teste em [curl-cffi-rsc.md](curl-cffi-rsc.md).
 
 ## Fluxo
 
@@ -17,9 +19,14 @@ Próxima troca (ainda não implementada): `curl_cffi` Chrome 150 + header
 
 2. **`fetch(url)`** — GET assíncrono com:
    - Delay aleatório entre requisições
-   - User-Agent aleatório (roda entre 4 navegadores)
-   - Headers simulando navegador real
-   - Tratamento de `CloudflareChallengeError`
+   - Fingerprint TLS/HTTP2 e headers de navegador vindos do `impersonate`
+     (`Session(impersonate=IMPERSONATE, default_encoding="utf-8")`); o
+     `_build_headers()` só acrescenta o `Referer` — nunca um User-Agent, que
+     invalidaria o fingerprint
+   - Retry de 403/429/502, de falha de rede (`RequestException` do curl_cffi,
+     via `TransientFetchError`) e de corpo de challenge do Cloudflare devolvido
+     em HTTP 200 (`_looks_like_challenge`)
+   - Erro de rede persistente vira `FetchError(0, url)` após esgotar os retries
 
 3. **`extract_listings_from_search_page(html)`** — Extração RSC:
    - Concatena chunks de `self.__next_f.push(...)` no HTML
@@ -29,10 +36,19 @@ Próxima troca (ainda não implementada): `curl_cffi` Chrome 150 + header
 
 ## Tratamento de erro
 
-- `FetchError` — HTTP >= 400
+- `FetchError` — HTTP >= 400; também `FetchError(0, url)` quando os retries são
+  esgotados (falha de rede ou challenge persistente)
+- `TransientFetchError` — interna: falha retryável da camada HTTP
+  (`RequestException` do curl_cffi). O `fetch` a converte em nova tentativa, com
+  pausa maior e headers novos; não chega aos handlers
 - `ParseError` — falha ao extrair payload RSC
 - `EmptyResultsError` — página HTTP 200 válida, porém sem resultados (fim normal da listagem)
 - HTML é salvo em `debug_last_response.html` apenas quando **nenhum anúncio é extraído e a página não é reconhecida como fim de listagem** (falha real de parse)
+
+Bloqueio do Cloudflare: sem `cloudscraper` não há mais resolução de challenge JS.
+O `fetch` detecta marcadores (`cf-chl`, `challenge-platform`, `Just a moment`,
+`__cf_chl`) mesmo em HTTP 200 e trata como erro retryável, evitando que a página
+de desafio seja interpretada como quebra de parse.
 
 ## Detecção da última página
 
@@ -57,6 +73,7 @@ Salvaguardas adicionais:
 
 | Classe | Descrição |
 |--------|-----------|
-| `FetchError` | HTTP status code error |
+| `FetchError` | HTTP status code error (`0` quando os retries esgotam) |
+| `TransientFetchError` | Falha retryável (rede/challenge) — consumida pelo `fetch` |
 | `ParseError` | RSC parsing error |
 | `EmptyResultsError` | Página vazia (fim da listagem) |

@@ -4,12 +4,14 @@ import asyncio
 from pathlib import Path
 
 import pytest
+from curl_cffi.requests.exceptions import RequestException
 
 from collector import olx_scraper
 from collector.olx_scraper import (
     EmptyResultsError,
     FetchError,
     ParseError,
+    TransientFetchError,
     _extract_ads_container_from_rsc,
     _is_empty_results_page,
     _listings_url,
@@ -298,6 +300,133 @@ def test_fetch_retries_retryable_status(monkeypatch) -> None:
 
     assert html == "ok"
     assert calls["n"] == 3
+
+
+def _patch_fetch_sleep(monkeypatch) -> None:
+    """Remove o delay real entre tentativas e fixa o número de retries."""
+
+    async def no_wait(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(olx_scraper, "_delay", no_wait)
+    monkeypatch.setattr(olx_scraper.asyncio, "sleep", no_wait)
+    monkeypatch.setattr(olx_scraper.config, "SCRAPER_FETCH_RETRIES", 3)
+
+
+def test_build_headers_defers_to_fingerprint() -> None:
+    """User-Agent/Accept/Sec-Fetch vêm do impersonate; não sobrescrever."""
+    headers = olx_scraper._build_headers()
+
+    assert "User-Agent" not in headers
+    assert "Accept" not in headers
+    assert "Accept-Encoding" not in headers
+    assert "Sec-Fetch-Mode" not in headers
+    assert headers == {"Referer": olx_scraper.config.OLX_REFERER}
+
+
+def test_impersonate_preset_is_pinned() -> None:
+    assert olx_scraper.IMPERSONATE == "chrome150"
+
+
+def test_looks_like_challenge_matches_cloudflare_page() -> None:
+    assert olx_scraper._looks_like_challenge("<title>Just a moment...</title>") is True
+    assert olx_scraper._looks_like_challenge("<div id='cf-chl-widget'>") is True
+    assert olx_scraper._looks_like_challenge("<html><h1>Imóveis</h1></html>") is False
+
+
+def test_fetch_retries_transient_network_error(monkeypatch) -> None:
+    calls = {"n": 0}
+
+    def fake_sync(url: str, headers: dict) -> tuple[int, str]:
+        del url, headers
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise TransientFetchError("falha de rede")
+        return 200, "ok"
+
+    monkeypatch.setattr(olx_scraper, "_sync_get", fake_sync)
+    _patch_fetch_sleep(monkeypatch)
+
+    html = asyncio.run(olx_scraper.fetch("https://example.test/list"))
+
+    assert html == "ok"
+    assert calls["n"] == 3
+
+
+def test_fetch_raises_fetch_error_when_network_error_persists(monkeypatch) -> None:
+    def fake_sync(url: str, headers: dict) -> tuple[int, str]:
+        del url, headers
+        raise TransientFetchError("falha de rede")
+
+    monkeypatch.setattr(olx_scraper, "_sync_get", fake_sync)
+    _patch_fetch_sleep(monkeypatch)
+
+    with pytest.raises(FetchError) as excinfo:
+        asyncio.run(olx_scraper.fetch("https://example.test/list"))
+
+    assert excinfo.value.status_code == 0
+
+
+def test_fetch_retries_challenge_body_returned_with_http_200(monkeypatch) -> None:
+    calls = {"n": 0}
+
+    def fake_sync(url: str, headers: dict) -> tuple[int, str]:
+        del url, headers
+        calls["n"] += 1
+        if calls["n"] < 3:
+            return 200, "<html><title>Just a moment...</title></html>"
+        return 200, "ok"
+
+    monkeypatch.setattr(olx_scraper, "_sync_get", fake_sync)
+    _patch_fetch_sleep(monkeypatch)
+
+    html = asyncio.run(olx_scraper.fetch("https://example.test/list"))
+
+    assert html == "ok"
+    assert calls["n"] == 3
+
+
+def test_fetch_exhausted_challenge_body_never_reaches_parser(monkeypatch) -> None:
+    def fake_sync(url: str, headers: dict) -> tuple[int, str]:
+        del url, headers
+        return 200, "<html><title>Just a moment...</title></html>"
+
+    monkeypatch.setattr(olx_scraper, "_sync_get", fake_sync)
+    _patch_fetch_sleep(monkeypatch)
+
+    with pytest.raises(FetchError) as excinfo:
+        asyncio.run(olx_scraper.fetch("https://example.test/list"))
+
+    assert excinfo.value.status_code == 0
+
+
+def test_fetch_does_not_retry_not_found(monkeypatch) -> None:
+    calls = {"n": 0}
+
+    def fake_sync(url: str, headers: dict) -> tuple[int, str]:
+        del url, headers
+        calls["n"] += 1
+        return 404, "nope"
+
+    monkeypatch.setattr(olx_scraper, "_sync_get", fake_sync)
+    _patch_fetch_sleep(monkeypatch)
+
+    with pytest.raises(FetchError) as excinfo:
+        asyncio.run(olx_scraper.fetch("https://example.test/list"))
+
+    assert excinfo.value.status_code == 404
+    assert calls["n"] == 1
+
+
+def test_sync_get_wraps_network_error_as_transient(monkeypatch) -> None:
+    class _BrokenSession:
+        def get(self, *_args, **_kwargs):
+            raise RequestException("curl: (7) Failed to connect")
+
+    monkeypatch.setattr(olx_scraper, "_http", _BrokenSession())
+
+    with pytest.raises(TransientFetchError):
+        olx_scraper._sync_get("https://example.test/list", {})
 
 
 def _listing(n: int, kind: str = "aluguel") -> dict:

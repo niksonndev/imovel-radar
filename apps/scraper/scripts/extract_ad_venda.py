@@ -13,10 +13,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import cloudscraper
+from curl_cffi.requests import Session
 
 from collector.olx_scraper import _extract_ads_candidates, _extract_rsc_payload
 from collector.parser import normalize_olx_listing
+
+# Mesmo cliente/fingerprint do collector (ver collector/olx_scraper.py).
+IMPERSONATE = "chrome150"
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -83,13 +86,13 @@ def _print_structure_summary(ad: dict[str, Any]) -> None:
 
 
 def main() -> None:
-    scraper = cloudscraper.create_scraper()
-    r = scraper.get(
-        URL,
-        timeout=90,
-        headers={"Accept-Language": "pt-BR,pt;q=0.9"},
-    )
-    r.raise_for_status()
+    scraper = Session(impersonate=IMPERSONATE, default_encoding="utf-8")
+    try:
+        r = scraper.get(URL, timeout=90)
+    finally:
+        scraper.close()
+    if r.status_code >= 400:
+        raise SystemExit(f"HTTP {r.status_code} para {URL}")
     html = r.text
 
     payload = _extract_rsc_payload(html)

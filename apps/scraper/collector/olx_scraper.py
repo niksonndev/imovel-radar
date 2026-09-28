@@ -1,6 +1,10 @@
 """
-Cliente HTTP para o OLX (cloudscraper) + extração de anúncios via RSC
-streaming (App Router / self.__next_f.push).
+Cliente HTTP para o OLX (curl_cffi, impersonate Chrome 150) + extração de
+anúncios via RSC streaming (App Router / self.__next_f.push).
+
+O fingerprint TLS/HTTP2 e os headers de navegador (User-Agent, Accept,
+Accept-Language, sec-ch-ua, Sec-Fetch-*) vêm do ``impersonate`` do curl_cffi —
+não são montados à mão.
 
 Cada anúncio é normalizado por ``parser.normalize_olx_listing`` (dict enxuto)
 com ``listing_kind`` stampado pela coleta (aluguel | venda).
@@ -18,21 +22,35 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
-import cloudscraper
 from bs4 import BeautifulSoup
-from cloudscraper.exceptions import CloudflareChallengeError
+from curl_cffi.requests import Session
+from curl_cffi.requests.exceptions import RequestException
 
 import config
 from collector.parser import ListingKind, RawAd, normalize_olx_listing
 
 logger = logging.getLogger(__name__)
 
-_http = cloudscraper.create_scraper()
+# Preset do curl_cffi usado na sessão. Fixo (não o alias "chrome"): o alias
+# acompanha a versão do pacote, o preset explícito é reprodutível com o pin.
+IMPERSONATE = "chrome150"
+
+_http = Session(impersonate=IMPERSONATE, default_encoding="utf-8")
 _cycle_headers: dict[str, str] | None = None
 
 # Lambda: o cwd é read-only. Dump de parse vai para /tmp (ou só o log, se falhar).
 DEBUG_HTML_PATH = Path("/tmp/debug_last_response.html")
 _RETRYABLE_HTTP = frozenset({403, 429, 502})
+
+# Marcadores de página de challenge do Cloudflare. O cloudscraper detectava
+# isso e levantava CloudflareChallengeError; com curl_cffi é heurística nossa,
+# porque um bloqueio também chega como HTTP 200 com corpo de desafio.
+_CHALLENGE_MARKERS = (
+    "cf-chl",
+    "challenge-platform",
+    "Just a moment",
+    "__cf_chl",
+)
 
 RemainingTimeFn = Callable[[], int | None]
 
@@ -293,6 +311,10 @@ class EmptyResultsError(ParseError):
     """Página HTTP 200 válida, porém sem resultados — marca o fim da listagem."""
 
 
+class TransientFetchError(Exception):
+    """Falha retryável da camada HTTP (rede ou challenge Cloudflare)."""
+
+
 @dataclass
 class SearchChunkResult:
     """Resultado de uma janela de páginas (uma invocação Lambda)."""
@@ -316,38 +338,35 @@ async def _delay() -> None:
 
 
 def _build_headers() -> dict[str, str]:
-    user_agent = random.choice(config.USER_AGENTS)
-    return {
-        "User-Agent": user_agent,
-        "Accept": (
-            "text/html,application/xhtml+xml,application/xml;q=0.9,"
-            "image/avif,image/webp,image/apng,*/*;q=0.8"
-        ),
-        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Cache-Control": "max-age=0",
-        "Pragma": "no-cache",
-        "Referer": config.OLX_REFERER,
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "same-origin",
-        "Sec-Fetch-User": "?1",
-        "Upgrade-Insecure-Requests": "1",
-        "Connection": "keep-alive",
-    }
+    """Headers extras sobre o fingerprint do curl_cffi.
+
+    User-Agent, Accept, Accept-Language, Accept-Encoding e Sec-Fetch-* são
+    definidos pelo ``impersonate`` — não sobrescrever (UA aleatório de outro
+    navegador invalidaria o fingerprint).
+    """
+    return {"Referer": config.OLX_REFERER}
+
+
+def _looks_like_challenge(text: str) -> bool:
+    """True quando o corpo é uma página de challenge do Cloudflare."""
+    return any(marker in text for marker in _CHALLENGE_MARKERS)
 
 
 def _sync_get(url: str, headers: dict[str, str]) -> tuple[int, str]:
+    """GET síncrono (roda em thread). Falha de rede vira erro retryável."""
     try:
         r = _http.get(url, timeout=90, headers=headers)
-    except CloudflareChallengeError as e:
-        logger.error("CloudflareChallengeError em _sync_get / cloudscraper.get(%s): %s", url, e)
-        raise
+    except RequestException as e:
+        raise TransientFetchError(f"falha de rede em {url}: {e}") from e
     return r.status_code, r.text
 
 
 async def fetch(url: str, headers: dict[str, str] | None = None) -> str:
-    """GET com delay. 403/429/502 são retentados com pausa maior e User-Agent novo."""
+    """GET com delay.
+
+    403/429/502, falha de rede (``RequestException`` do curl_cffi) e challenge
+    do Cloudflare em HTTP 200 são retentados com pausa maior e headers novos.
+    """
     retries = max(1, config.SCRAPER_FETCH_RETRIES)
     for try_index in range(retries):
         if try_index == 0:
@@ -356,20 +375,31 @@ async def fetch(url: str, headers: dict[str, str] | None = None) -> str:
         else:
             await asyncio.sleep(config.SCRAPER_DELAY_MAX * try_index)
             req_headers = _build_headers()
+
+        reason: str | None = None
         try:
             status_code, text = await asyncio.to_thread(_sync_get, url, req_headers)
-        except CloudflareChallengeError as e:
-            logger.error("CloudflareChallengeError em fetch (%s): %s", url, e)
-            raise
-        if status_code in _RETRYABLE_HTTP and try_index + 1 < retries:
-            logger.warning(
-                "HTTP %s em %s — nova tentativa (%s/%s)",
-                status_code,
-                url,
-                try_index + 1,
-                retries,
-            )
-            continue
+        except TransientFetchError as e:
+            logger.warning("Falha transitória em %s: %s", url, e)
+            status_code, text = 0, ""
+            reason = str(e)
+
+        if status_code == 200 and _looks_like_challenge(text):
+            reason = "corpo de challenge do Cloudflare"
+            status_code = 0
+
+        if status_code in _RETRYABLE_HTTP or status_code == 0:
+            if try_index + 1 < retries:
+                logger.warning(
+                    "HTTP %s em %s (%s) — nova tentativa (%s/%s)",
+                    status_code,
+                    url,
+                    reason or "status retryável",
+                    try_index + 1,
+                    retries,
+                )
+                continue
+            raise FetchError(status_code, url)
         if status_code >= 400:
             raise FetchError(status_code, url)
         return text
