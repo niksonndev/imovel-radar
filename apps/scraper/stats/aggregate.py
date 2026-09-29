@@ -1,6 +1,6 @@
 """Agrega anúncios ativos em um JSON de painel, por município e tipo.
 
-Mediana (não média), com piso/teto de preço para cortar anúncio lixo.
+Média (não mediana), com piso/teto de preço para cortar anúncio lixo.
 Bairro só entra no ranking quando a amostra passa de ``MIN_SAMPLE``.
 """
 
@@ -104,18 +104,18 @@ def _price_summary(
         select(
             func.count(),
             func.percentile_cont(0.25).within_group(col(Listing.price_value)),
-            func.percentile_cont(0.5).within_group(col(Listing.price_value)),
+            func.avg(col(Listing.price_value)),
             func.percentile_cont(0.75).within_group(col(Listing.price_value)),
-            func.percentile_cont(0.5).within_group(ppm2),
+            func.avg(ppm2),
             func.count(ppm2),
         ).where(*filters)
     ).one()
     return {
         "sample": int(row[0] or 0),
         "p25_price": _rint(row[1]),
-        "median_price": _rint(row[2]),
+        "mean_price": _rint(row[2]),
         "p75_price": _rint(row[3]),
-        "median_price_m2": _rint(row[4]),
+        "mean_price_m2": _rint(row[4]),
         "price_m2_sample": int(row[5] or 0),
     }
 
@@ -126,7 +126,7 @@ def _rent_plus_condo(session: Session, municipality: str, listing_kind: ListingK
     condo = _json_int("condominio")
     total = cast(Listing.price_value, Float) + condo
     row = session.execute(
-        select(func.percentile_cont(0.5).within_group(total)).where(
+        select(func.avg(total)).where(
             *_priced_filters(municipality, listing_kind),
             condo.is_not(None),
             condo <= CONDO_MAX,
@@ -175,9 +175,9 @@ def _by_category(
             col(Listing.category),
             func.count(),
             func.percentile_cont(0.25).within_group(col(Listing.price_value)),
-            func.percentile_cont(0.5).within_group(col(Listing.price_value)),
+            func.avg(col(Listing.price_value)),
             func.percentile_cont(0.75).within_group(col(Listing.price_value)),
-            func.percentile_cont(0.5).within_group(ppm2),
+            func.avg(ppm2),
         )
         .where(*_priced_filters(municipality, listing_kind), col(Listing.category) != "")
         .group_by(col(Listing.category))
@@ -188,11 +188,11 @@ def _by_category(
             "category": str(category),
             "sample": int(sample or 0),
             "p25_price": _rint(p25),
-            "median_price": _rint(median),
+            "mean_price": _rint(mean),
             "p75_price": _rint(p75),
-            "median_price_m2": _rint(median_m2),
+            "mean_price_m2": _rint(mean_m2),
         }
-        for category, sample, p25, median, p75, median_m2 in rows
+        for category, sample, p25, mean, p75, mean_m2 in rows
     ]
 
 
@@ -204,22 +204,22 @@ def _neighbourhoods(
         select(
             col(Listing.neighbourhood),
             func.count(),
-            func.percentile_cont(0.5).within_group(col(Listing.price_value)),
-            func.percentile_cont(0.5).within_group(ppm2),
+            func.avg(col(Listing.price_value)),
+            func.avg(ppm2),
         )
         .where(*_priced_filters(municipality, listing_kind), col(Listing.neighbourhood) != "")
         .group_by(col(Listing.neighbourhood))
         .order_by(func.count().desc(), col(Listing.neighbourhood))
     ).all()
     stats: list[dict[str, Any]] = []
-    for name, sample, median, median_m2 in rows:
+    for name, sample, mean, mean_m2 in rows:
         count = int(sample or 0)
         stats.append(
             {
                 "name": str(name),
                 "sample": count,
-                "median_price": _rint(median),
-                "median_price_m2": _rint(median_m2),
+                "mean_price": _rint(mean),
+                "mean_price_m2": _rint(mean_m2),
                 "ranked": count >= MIN_SAMPLE,
             }
         )
@@ -260,7 +260,7 @@ def _kind_stats(
         "inactive_count": inactive_count,
         "new_count": _new_count(session, municipality, listing_kind, collected_at=collected_at),
         "price_drop_count": _price_drop_count(session, municipality, listing_kind),
-        "median_rent_plus_condo": _rent_plus_condo(session, municipality, listing_kind),
+        "mean_rent_plus_condo": _rent_plus_condo(session, municipality, listing_kind),
         "by_category": _by_category(session, municipality, listing_kind),
         "neighbourhoods": _neighbourhoods(session, municipality, listing_kind),
         "rooms": _rooms(session, municipality, listing_kind),

@@ -66,11 +66,11 @@ def test_snapshot_median_ignores_other_city_kind_and_outliers(session: Session) 
     rent = maceio["kinds"]["aluguel"]
 
     assert rent["sample"] == MIN_SAMPLE + 2
-    assert rent["median_price"] == 1_600
+    assert rent["mean_price"] == 1_647
     assert rent["p25_price"] == 1_300
     assert rent["p75_price"] == 2_000
-    assert rent["median_price_m2"] == 32
-    assert rent["median_rent_plus_condo"] == 2_100
+    assert rent["mean_price_m2"] == 34
+    assert rent["mean_rent_plus_condo"] == 2_100
     assert rent["active_count"] == MIN_SAMPLE + 1 + 2
     assert rent["inactive_count"] == 1
     assert rent["price_drop_count"] == 1
@@ -82,15 +82,15 @@ def test_snapshot_median_ignores_other_city_kind_and_outliers(session: Session) 
     farol = next(item for item in rent["neighbourhoods"] if item["name"] == "Farol")
     assert ponta["ranked"] is True
     assert ponta["sample"] == MIN_SAMPLE
-    assert ponta["median_price"] == 1_700
+    assert ponta["mean_price"] == 1_700
     assert farol["ranked"] is False
     assert farol["sample"] == 2
 
     assert recife["kinds"]["aluguel"]["sample"] == 1
-    assert recife["kinds"]["aluguel"]["median_price"] == 5_000
+    assert recife["kinds"]["aluguel"]["mean_price"] == 5_000
     assert natal["municipality"] == "Natal"
     assert maceio["kinds"]["venda"]["sample"] == 1
-    assert maceio["kinds"]["venda"]["median_rent_plus_condo"] is None
+    assert maceio["kinds"]["venda"]["mean_rent_plus_condo"] is None
 
 
 def test_save_market_snapshot_replaces_same_utc_day(session: Session) -> None:
