@@ -67,13 +67,13 @@ export function Footer() {
       </nav>
 
       <div className="flex max-w-xl flex-col gap-2 text-center">
-        <p className="text-xs leading-relaxed text-white/45">
+        <p className="text-xs leading-relaxed text-white/60">
           {FOOTER_DISCLAIMER}
         </p>
-        <p className="text-xs leading-relaxed text-white/45">{FOOTER_PRIVACY}</p>
+        <p className="text-xs leading-relaxed text-white/60">{FOOTER_PRIVACY}</p>
       </div>
 
-      <p className="font-mono text-xs tracking-wider text-white/40">
+      <p className="font-mono text-xs tracking-wider text-white/55">
         {FOOTER_LEGAL}
       </p>
     </footer>

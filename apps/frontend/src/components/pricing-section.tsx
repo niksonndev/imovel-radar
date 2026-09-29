@@ -108,7 +108,7 @@ export function PricingSection() {
           />
         </div>
 
-        <p className="max-w-xl text-center text-sm text-white/45">
+        <p className="max-w-xl text-center text-sm text-white/55">
           {PRICING_FOOTNOTE}
         </p>
       </div>
