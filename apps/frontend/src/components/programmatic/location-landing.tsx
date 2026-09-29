@@ -128,7 +128,7 @@ export function LocationHubView({
                   </span>
                   <span className="text-sm text-white/55">
                     {formatCount(city.neighbourhoods.length)} bairros · venda{" "}
-                    {formatBRL(city.kinds.venda.median_price)}
+                    {formatBRL(city.kinds.venda.mean_price)}
                   </span>
                 </Link>
               </li>
@@ -174,11 +174,11 @@ export function CityLocationView({
                 stat: {
                   name: city.municipality,
                   sample: city.kinds.venda.sample,
-                  median_price: city.kinds.venda.median_price,
-                  median_price_m2: city.kinds.venda.median_price_m2,
+                  mean_price: city.kinds.venda.mean_price,
+                  mean_price_m2: city.kinds.venda.mean_price_m2,
                   ranked: true,
                 },
-                cityMedian: city.kinds.venda.median_price,
+                cityMedian: city.kinds.venda.mean_price,
                 cityP75: city.kinds.venda.p75_price,
               }}
             />
@@ -188,11 +188,11 @@ export function CityLocationView({
                 stat: {
                   name: city.municipality,
                   sample: city.kinds.aluguel.sample,
-                  median_price: city.kinds.aluguel.median_price,
-                  median_price_m2: city.kinds.aluguel.median_price_m2,
+                  mean_price: city.kinds.aluguel.mean_price,
+                  mean_price_m2: city.kinds.aluguel.mean_price_m2,
                   ranked: true,
                 },
-                cityMedian: city.kinds.aluguel.median_price,
+                cityMedian: city.kinds.aluguel.mean_price,
                 cityP75: city.kinds.aluguel.p75_price,
               }}
             />
@@ -207,8 +207,8 @@ export function CityLocationView({
                 >
                   <span className="text-white hover:text-primary-on-surface">{nbhd.name}</span>
                   <span className="font-mono text-xs text-white/50">
-                    venda {formatBRL(nbhd.venda.stat?.median_price ?? null)} · aluguel{" "}
-                    {formatBRL(nbhd.aluguel.stat?.median_price ?? null)}
+                    venda {formatBRL(nbhd.venda.stat?.mean_price ?? null)} · aluguel{" "}
+                    {formatBRL(nbhd.aluguel.stat?.mean_price ?? null)}
                   </span>
                 </Link>
               </li>

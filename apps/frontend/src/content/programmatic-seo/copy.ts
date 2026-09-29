@@ -12,8 +12,8 @@ export type LocationMetadataCopy = {
   faq: { question: string; answer: string }[];
 };
 
-function medianPhrase(value: number | null | undefined, label: string): string {
-  if (value == null) return `${label}: sem mediana na amostra atual`;
+function meanPhrase(value: number | null | undefined, label: string): string {
+  if (value == null) return `${label}: sem média na amostra atual`;
   return `${label}: ${formatBRL(value)}`;
 }
 
@@ -21,7 +21,7 @@ export function hubMetadata(): LocationMetadataCopy {
   return {
     title: `Imóveis no OLX por cidade e bairro | ${SITE_NAME}`,
     description:
-      "Preços pedidos no OLX em Maceió, Recife e Natal: medianas por bairro com dados reais do mercado. Configure alertas no Telegram.",
+      "Preços pedidos no OLX em Maceió, Recife e Natal: médias por bairro com dados reais do mercado. Configure alertas no Telegram.",
     keywords: [
       "imóveis OLX",
       "apartamento Maceió",
@@ -30,14 +30,14 @@ export function hubMetadata(): LocationMetadataCopy {
     ],
     headline: "Imóveis por cidade",
     intro:
-      "Páginas com estatísticas do OLX (mediana e amostra) por bairro. Use os números para calibrar sua busca e monte um alerta no Telegram.",
+      "Páginas com estatísticas do OLX (média e amostra) por bairro. Use os números para calibrar sua busca e monte um alerta no Telegram.",
     alertSection:
       "No bot, escolha aluguel ou venda, bairros e faixa de preço — por exemplo, apartamento em Ponta Verde até R$ 400 mil na venda.",
     faq: [
       {
         question: "De onde vêm os preços?",
         answer:
-          "São medianas do preço pedido em anúncios ativos do OLX, agregados pelo Imóvel Radar. Não listamos anúncios individuais nestas páginas.",
+          "São médias do preço pedido em anúncios ativos do OLX, agregados pelo Imóvel Radar. Não listamos anúncios individuais nestas páginas.",
       },
       {
         question: "Como recebo imóveis novos?",
@@ -49,13 +49,13 @@ export function hubMetadata(): LocationMetadataCopy {
 }
 
 export function cityMetadata(city: CityPageData): LocationMetadataCopy {
-  const vendaMedian = city.kinds.venda.median_price;
-  const aluguelMedian = city.kinds.aluguel.median_price;
+  const vendaMean = city.kinds.venda.mean_price;
+  const aluguelMean = city.kinds.aluguel.mean_price;
   const nbhdCount = city.neighbourhoods.length;
 
   return {
     title: `Imóveis em ${city.municipality}: preços OLX por bairro | ${SITE_NAME}`,
-    description: `Mediana de venda ${formatBRL(vendaMedian)} e aluguel ${formatBRL(aluguelMedian)} em ${city.municipality}. ${nbhdCount} bairros com amostra confiável no OLX. Alertas no Telegram.`,
+    description: `Média de venda ${formatBRL(vendaMean)} e aluguel ${formatBRL(aluguelMean)} em ${city.municipality}. ${nbhdCount} bairros com amostra confiável no OLX. Alertas no Telegram.`,
     keywords: [
       `imóvel ${city.municipality}`,
       `apartamento ${city.municipality}`,
@@ -63,7 +63,7 @@ export function cityMetadata(city: CityPageData): LocationMetadataCopy {
       `preço imóvel ${city.municipality}`,
     ],
     headline: `Imóveis em ${city.municipality}`,
-    intro: `Mercado OLX em ${city.municipality}: ${medianPhrase(vendaMedian, "mediana de venda na cidade")}; ${medianPhrase(aluguelMedian, "mediana de aluguel")}. Abaixo, bairros com amostra suficiente para comparação.`,
+    intro: `Mercado OLX em ${city.municipality}: ${meanPhrase(vendaMean, "média de venda na cidade")}; ${meanPhrase(aluguelMean, "média de aluguel")}. Abaixo, bairros com amostra suficiente para comparação.`,
     alertSection: `No Telegram, selecione ${city.municipality}, o tipo (aluguel ou venda), bairros e teto de preço — por exemplo venda até o P75 do bairro que você quer.`,
     faq: [
       {
@@ -82,14 +82,14 @@ export function cityMetadata(city: CityPageData): LocationMetadataCopy {
 export function neighbourhoodMetadata(nbhd: NeighbourhoodPageData): LocationMetadataCopy {
   const venda = nbhd.venda.stat;
   const aluguel = nbhd.aluguel.stat;
-  const vendaMedian = venda?.median_price ?? null;
+  const vendaMean = venda?.mean_price ?? null;
   const vendaP75 = nbhd.venda.cityP75;
-  const aluguelMedian = aluguel?.median_price ?? null;
+  const aluguelMean = aluguel?.mean_price ?? null;
 
   const descriptionParts = [
     `Preços no OLX em ${nbhd.name}, ${nbhd.municipality}.`,
-    vendaMedian != null ? `Venda: mediana ${formatBRL(vendaMedian)}` : null,
-    aluguelMedian != null ? `Aluguel: mediana ${formatBRL(aluguelMedian)}` : null,
+    vendaMean != null ? `Venda: média ${formatBRL(vendaMean)}` : null,
+    aluguelMean != null ? `Aluguel: média ${formatBRL(aluguelMean)}` : null,
     "Alertas por bairro no Telegram.",
   ].filter(Boolean);
 
@@ -104,7 +104,7 @@ export function neighbourhoodMetadata(nbhd: NeighbourhoodPageData): LocationMeta
     ],
     headline: `${nbhd.name}, ${nbhd.municipality}`,
     intro: buildNeighbourhoodIntro(nbhd),
-    alertSection: buildAlertSection(nbhd, vendaMedian, vendaP75),
+    alertSection: buildAlertSection(nbhd, vendaMean, vendaP75),
     faq: buildNeighbourhoodFaq(nbhd),
   };
 }
@@ -114,24 +114,24 @@ function buildNeighbourhoodIntro(nbhd: NeighbourhoodPageData): string {
   const v = nbhd.venda.stat;
   const a = nbhd.aluguel.stat;
 
-  if (v?.ranked && v.median_price != null) {
+  if (v?.ranked && v.mean_price != null) {
     const city = nbhd.venda.cityMedian;
     const vsCity =
       city != null && city > 0
-        ? v.median_price > city
-          ? "acima da mediana da cidade"
-          : v.median_price < city
-            ? "abaixo da mediana da cidade"
-            : "na mediana da cidade"
+        ? v.mean_price > city
+          ? "acima da média da cidade"
+          : v.mean_price < city
+            ? "abaixo da média da cidade"
+            : "na média da cidade"
         : "";
     parts.push(
-      `Venda: mediana ${formatBRL(v.median_price)} (${v.sample} anúncios na amostra${vsCity ? `, ${vsCity}` : ""}).`
+      `Venda: média ${formatBRL(v.mean_price)} (${v.sample} anúncios na amostra${vsCity ? `, ${vsCity}` : ""}).`
     );
   }
 
-  if (a?.ranked && a.median_price != null) {
+  if (a?.ranked && a.mean_price != null) {
     parts.push(
-      `Aluguel: mediana ${formatBRL(a.median_price)} (${a.sample} anúncios na amostra).`
+      `Aluguel: média ${formatBRL(a.mean_price)} (${a.sample} anúncios na amostra).`
     );
   }
 
@@ -144,12 +144,12 @@ function buildNeighbourhoodIntro(nbhd: NeighbourhoodPageData): string {
 
 function buildAlertSection(
   nbhd: NeighbourhoodPageData,
-  vendaMedian: number | null,
+  vendaMean: number | null,
   cityP75: number | null
 ): string {
   const examples: string[] = [];
-  if (vendaMedian != null) {
-    const cap = Math.round(vendaMedian * 1.15 / 1000) * 1000;
+  if (vendaMean != null) {
+    const cap = Math.round(vendaMean * 1.15 / 1000) * 1000;
     examples.push(`venda em ${nbhd.name} até cerca de ${formatBRL(cap)}`);
   } else if (cityP75 != null) {
     examples.push(`venda em ${nbhd.name} até ${formatBRL(cityP75)} (referência P75 da cidade)`);

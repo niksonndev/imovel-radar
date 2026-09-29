@@ -86,12 +86,12 @@ function buildNeighbourhoodPage(
     topSample,
     aluguel: {
       stat: aluguelStat,
-      cityMedian: aluguelKind.median_price,
+      cityMedian: aluguelKind.mean_price,
       cityP75: aluguelKind.p75_price,
     },
     venda: {
       stat: vendaStat,
-      cityMedian: vendaKind.median_price,
+      cityMedian: vendaKind.mean_price,
       cityP75: vendaKind.p75_price,
     },
   };

@@ -42,7 +42,7 @@ export function buildProgrammaticLlmsSection(): string {
 
   for (const item of ranked.slice(0, TOP_NEIGHBOURHOODS)) {
     lines.push(
-      `- [${item.label}](${absoluteUrl(item.path)}): medianas de aluguel e venda no bairro`
+      `- [${item.label}](${absoluteUrl(item.path)}): médias de aluguel e venda no bairro`
     );
   }
 

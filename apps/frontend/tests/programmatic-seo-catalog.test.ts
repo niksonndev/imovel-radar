@@ -27,27 +27,27 @@ const miniSnapshot: MarketSnapshot = {
           inactive_count: 0,
           sample: 10,
           p25_price: 1000,
-          median_price: 1500,
+          mean_price: 1500,
           p75_price: 2000,
-          median_price_m2: 20,
+          mean_price_m2: 20,
           price_m2_sample: 10,
           new_count: 1,
           price_drop_count: 0,
-          median_rent_plus_condo: 1800,
+          mean_rent_plus_condo: 1800,
           by_category: [],
           neighbourhoods: [
             {
               name: "Ponta Verde",
               sample: 20,
-              median_price: 3000,
-              median_price_m2: 40,
+              mean_price: 3000,
+              mean_price_m2: 40,
               ranked: true,
             },
             {
               name: "Bairro Fino",
               sample: 5,
-              median_price: 900,
-              median_price_m2: 10,
+              mean_price: 900,
+              mean_price_m2: 10,
               ranked: false,
             },
           ],
@@ -58,20 +58,20 @@ const miniSnapshot: MarketSnapshot = {
           inactive_count: 0,
           sample: 10,
           p25_price: 200_000,
-          median_price: 350_000,
+          mean_price: 350_000,
           p75_price: 500_000,
-          median_price_m2: 5000,
+          mean_price_m2: 5000,
           price_m2_sample: 10,
           new_count: 1,
           price_drop_count: 0,
-          median_rent_plus_condo: null,
+          mean_rent_plus_condo: null,
           by_category: [],
           neighbourhoods: [
             {
               name: "Ponta Verde",
               sample: 18,
-              median_price: 600_000,
-              median_price_m2: 8000,
+              mean_price: 600_000,
+              mean_price_m2: 8000,
               ranked: true,
             },
           ],
@@ -108,12 +108,12 @@ describe("buildLocationCatalog", () => {
     const catalog = buildLocationCatalog(miniSnapshot);
     const nbhd = findNeighbourhood(catalog, "maceio", "ponta-verde");
     assert.ok(nbhd);
-    assert.equal(nbhd.venda.stat?.median_price, 600_000);
+    assert.equal(nbhd.venda.stat?.mean_price, 600_000);
   });
 });
 
 describe("neighbourhoodMetadata", () => {
-  it("includes median in intro when ranked", () => {
+  it("includes mean in intro when ranked", () => {
     const catalog = buildLocationCatalog(miniSnapshot);
     const nbhd = findNeighbourhood(catalog, "maceio", "ponta-verde")!;
     const copy = neighbourhoodMetadata(nbhd);

@@ -14,7 +14,7 @@ export function buildLlmsTxt(): string {
     ...SEO_PAGES.map(
       (page) => `- [${page.headline}](${absoluteUrl(page.path)}): ${page.description}`
     ),
-    `- [Mercado](${absoluteUrl("/mercado")}): mapa e medianas OLX Maceió e Recife`,
+    `- [Mercado](${absoluteUrl("/mercado")}): mapa e médias OLX Maceió e Recife`,
     ...buildProgrammaticLlmsSection().split("\n"),
     `- [Bot no Telegram](${PRODUCT_FACTS.botUrl}): ativar alertas free/Pro`,
   ].join("\n");

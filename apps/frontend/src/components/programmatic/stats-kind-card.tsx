@@ -22,19 +22,19 @@ export function StatsKindCard({ title, data }: Props) {
         <p className="mt-2 text-sm text-white/50">Sem dados neste bairro.</p>
       ) : !ranked ? (
         <p className="mt-2 text-sm text-white/50">
-          Amostra pequena ({formatCount(stat.sample)} anúncios) — mediana não exibida.
+          Amostra pequena ({formatCount(stat.sample)} anúncios) — média não exibida.
         </p>
       ) : (
         <dl className="mt-3 grid gap-2 text-sm">
           <div className="flex justify-between gap-4">
-            <dt className="text-white/55">Mediana (preço pedido)</dt>
-            <dd className="font-mono text-white">{formatBRL(stat.median_price)}</dd>
+            <dt className="text-white/55">Média (preço pedido)</dt>
+            <dd className="font-mono text-white">{formatBRL(stat.mean_price)}</dd>
           </div>
-          {stat.median_price_m2 != null && (
+          {stat.mean_price_m2 != null && (
             <div className="flex justify-between gap-4">
-              <dt className="text-white/55">Mediana R$/m²</dt>
+              <dt className="text-white/55">Média R$/m²</dt>
               <dd className="font-mono text-white">
-                {formatBRL(stat.median_price_m2)}
+                {formatBRL(stat.mean_price_m2)}
               </dd>
             </div>
           )}
@@ -44,7 +44,7 @@ export function StatsKindCard({ title, data }: Props) {
           </div>
           {data.cityMedian != null && (
             <div className="flex justify-between gap-4 border-t border-white/10 pt-2">
-              <dt className="text-white/55">Mediana na cidade</dt>
+              <dt className="text-white/55">Média na cidade</dt>
               <dd className="font-mono text-white/80">{formatBRL(data.cityMedian)}</dd>
             </div>
           )}
