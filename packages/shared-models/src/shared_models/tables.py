@@ -24,9 +24,11 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     Text,
     UniqueConstraint,
     func,
@@ -336,6 +338,69 @@ class BotSession(SQLModel, table=True):
             nullable=False,
             server_default=func.now(),
         ),
+    )
+
+
+class AssistantUsage(SQLModel, table=True):
+    """Telemetria agregada de uso diário do assistente (migração 0013).
+
+    Guarda, por usuário/dia, contadores de mensagens e áudio e a soma de
+    tokens (custo). É a fonte para análises SQL agregadas de custo; as quotas
+    em tempo real ficam no DynamoDB (``persistence.consume_daily_assistant_usage``).
+    """
+
+    __tablename__ = "assistant_usage"  # type: ignore
+    __table_args__ = (
+        CheckConstraint(
+            "message_count >= 0", name="ck_assistant_usage_messages_nonnegative"
+        ),
+        CheckConstraint(
+            "audio_count >= 0", name="ck_assistant_usage_audio_nonnegative"
+        ),
+        CheckConstraint(
+            "input_tokens >= 0", name="ck_assistant_usage_input_tokens_nonnegative"
+        ),
+        CheckConstraint(
+            "output_tokens >= 0", name="ck_assistant_usage_output_tokens_nonnegative"
+        ),
+        CheckConstraint(
+            "total_tokens >= 0", name="ck_assistant_usage_tokens_nonnegative"
+        ),
+        Index("ix_assistant_usage_usage_date", "usage_date"),
+    )
+
+    chat_id: int = Field(
+        sa_column=Column(
+            "chat_id",
+            BigInteger,
+            ForeignKey("users.chat_id", ondelete="CASCADE"),
+            nullable=False,
+            primary_key=True,
+        ),
+    )
+    usage_date: date = Field(
+        sa_column=Column("usage_date", Date, nullable=False, primary_key=True)
+    )
+    message_count: int = Field(
+        default=0, sa_column=Column("message_count", Integer, nullable=False, server_default=text("0"))
+    )
+    audio_count: int = Field(
+        default=0, sa_column=Column("audio_count", Integer, nullable=False, server_default=text("0"))
+    )
+    audio_seconds: int = Field(
+        default=0, sa_column=Column("audio_seconds", Integer, nullable=False, server_default=text("0"))
+    )
+    input_tokens: int = Field(
+        default=0,
+        sa_column=Column("input_tokens", BigInteger, nullable=False, server_default=text("0")),
+    )
+    output_tokens: int = Field(
+        default=0,
+        sa_column=Column("output_tokens", BigInteger, nullable=False, server_default=text("0")),
+    )
+    total_tokens: int = Field(
+        default=0,
+        sa_column=Column("total_tokens", BigInteger, nullable=False, server_default=text("0")),
     )
 
 
