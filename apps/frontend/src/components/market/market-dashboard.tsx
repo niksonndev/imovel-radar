@@ -79,8 +79,8 @@ function neighbourhoodBars(kind: KindStats, metric: HeatMetric): BarItem[] {
     .map((item) => ({
       key: item.name,
       label: item.name,
-      value: metric === "volume" ? item.sample : (item.median_price_m2 ?? 0),
-      display: metric === "volume" ? formatCount(item.sample) : formatBRL(item.median_price_m2),
+      value: metric === "volume" ? item.sample : (item.mean_price_m2 ?? 0),
+      display: metric === "volume" ? formatCount(item.sample) : formatBRL(item.mean_price_m2),
     }))
     .filter((item) => item.value > 0)
     .sort((a, b) => b.value - a.value)
@@ -137,8 +137,8 @@ export function MarketDashboard() {
               properties: {
                 name: feature.properties?.name ?? "",
                 sample: 0,
-                medianPrice: null,
-                medianM2: null,
+                meanPrice: null,
+                meanM2: null,
                 colored: 0 as const,
                 metric: 0,
               },
@@ -176,7 +176,7 @@ export function MarketDashboard() {
     key: item.category,
     label: categoryLabel(item.category),
     value: item.sample,
-    display: `${formatCount(item.sample)} · ${formatBRL(item.median_price)}`,
+    display: `${formatCount(item.sample)} · ${formatBRL(item.mean_price)}`,
   }));
   const roomItems: BarItem[] = stats.rooms.map((item) => ({
     key: String(item.rooms),
@@ -227,15 +227,15 @@ export function MarketDashboard() {
 
       <section aria-label="Resumo" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <p className="text-sm text-white/60">Mediana</p>
-          <StatFigure key={`${cityKey}-${kind}-median`} value={stats.median_price} currency />
+          <p className="text-sm text-white/60">Média</p>
+          <StatFigure key={`${cityKey}-${kind}-median`} value={stats.mean_price} currency />
           <p className="mt-1 text-xs text-white/45">
             {formatBRL(stats.p25_price)} – {formatBRL(stats.p75_price)}
           </p>
         </article>
         <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <p className="text-sm text-white/60">Mediana por m²</p>
-          <StatFigure key={`${cityKey}-${kind}-m2`} value={stats.median_price_m2} currency />
+          <p className="text-sm text-white/60">Média por m²</p>
+          <StatFigure key={`${cityKey}-${kind}-m2`} value={stats.mean_price_m2} currency />
           <p className="mt-1 text-xs text-white/45">
             {formatCount(stats.price_m2_sample)} anúncios com área
           </p>
@@ -245,7 +245,7 @@ export function MarketDashboard() {
             <p className="text-sm text-white/60">Aluguel + condomínio</p>
             <StatFigure
               key={`${cityKey}-${kind}-condo`}
-              value={stats.median_rent_plus_condo}
+              value={stats.mean_rent_plus_condo}
               currency
             />
             <p className="mt-1 text-xs text-white/45">Quando o anúncio informa condomínio</p>
@@ -255,7 +255,7 @@ export function MarketDashboard() {
           <p className="text-sm text-white/60">Anúncios ativos</p>
           <StatFigure key={`${cityKey}-${kind}-active`} value={stats.active_count} />
           <p className="mt-1 text-xs text-white/45">
-            {formatCount(stats.sample)} entram na mediana · {formatCount(stats.inactive_count)}{" "}
+            {formatCount(stats.sample)} entram na média · {formatCount(stats.inactive_count)}{" "}
             inativos
           </p>
         </article>
@@ -306,13 +306,13 @@ export function MarketDashboard() {
           <h2 className="font-heading text-xl text-white">Bairros</h2>
           <table className="w-full text-left text-sm">
             <caption className="sr-only">
-              Mediana e volume por bairro em {city.municipality}
+              Média e volume por bairro em {city.municipality}
             </caption>
             <thead className="text-xs uppercase tracking-wider text-white/45">
               <tr>
                 <th className="py-2 font-medium">Bairro</th>
                 <th className="py-2 text-right font-medium">N</th>
-                <th className="py-2 text-right font-medium">Mediana</th>
+                <th className="py-2 text-right font-medium">Média</th>
                 <th className="py-2 text-right font-medium">R$/m²</th>
               </tr>
             </thead>
@@ -328,9 +328,9 @@ export function MarketDashboard() {
                     )}
                   </th>
                   <td className="py-2 text-right font-mono text-white/70">{formatCount(item.sample)}</td>
-                  <td className="py-2 text-right text-white/80">{formatBRL(item.median_price)}</td>
+                  <td className="py-2 text-right text-white/80">{formatBRL(item.mean_price)}</td>
                   <td className="py-2 text-right text-white/80">
-                    {item.median_price_m2 == null ? "—" : formatCount(item.median_price_m2)}
+                    {item.mean_price_m2 == null ? "—" : formatCount(item.mean_price_m2)}
                   </td>
                 </tr>
               ))}
@@ -368,7 +368,7 @@ export function MarketDashboard() {
       </section>
 
       <section className="flex flex-col items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-6">
-        <h2 className="font-heading text-2xl text-white">Quer o anúncio, não só a mediana?</h2>
+        <h2 className="font-heading text-2xl text-white">Quer o anúncio, não só a média?</h2>
         <p className="max-w-xl text-sm leading-relaxed text-white/65">
           Estes números são preços pedidos em anúncios ativos. O bot avisa no Telegram quando entra
           um imóvel no bairro e na faixa que você escolher.

@@ -8,8 +8,8 @@ export type NeighbourhoodFeature = {
   properties: {
     name: string;
     sample: number;
-    medianPrice: number | null;
-    medianM2: number | null;
+    meanPrice: number | null;
+    meanM2: number | null;
     colored: 0 | 1;
     metric: number;
   };
@@ -39,7 +39,7 @@ export function isFeatureCollection(value: unknown): value is { type: "FeatureCo
 function metricOf(stat: NeighbourhoodStat, metric: HeatMetric): number | null {
   if (!stat.ranked) return null;
   if (metric === "volume") return stat.sample;
-  return stat.median_price_m2;
+  return stat.mean_price_m2;
 }
 
 export function paintNeighbourhoods(
@@ -74,8 +74,8 @@ export function paintNeighbourhoods(
       properties: {
         name,
         sample: stat?.sample ?? 0,
-        medianPrice: stat?.median_price ?? null,
-        medianM2: stat?.median_price_m2 ?? null,
+        meanPrice: stat?.mean_price ?? null,
+        meanM2: stat?.mean_price_m2 ?? null,
         colored,
         metric: value ?? 0,
       },

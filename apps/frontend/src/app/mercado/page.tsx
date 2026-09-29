@@ -37,7 +37,7 @@ export default function MercadoPage() {
             Mercado de Maceió e Recife
           </h1>
           <p className="max-w-2xl text-lg text-white/70">
-            Preço pedido nos anúncios ativos do OLX: mediana, bairros e mapa de calor.
+            Preço pedido nos anúncios ativos do OLX: média, bairros e mapa de calor.
           </p>
         </div>
       </header>

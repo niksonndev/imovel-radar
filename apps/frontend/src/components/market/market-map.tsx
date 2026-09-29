@@ -18,8 +18,8 @@ type Hover = {
   y: number;
   name: string;
   sample: number;
-  medianPrice: number | null;
-  medianM2: number | null;
+  meanPrice: number | null;
+  meanM2: number | null;
   colored: number;
 };
 
@@ -34,8 +34,8 @@ function readHover(event: MapLayerMouseEvent): Hover | null {
     y: event.point.y,
     name,
     sample: Number(props.sample) || 0,
-    medianPrice: props.medianPrice == null ? null : Number(props.medianPrice),
-    medianM2: props.medianM2 == null ? null : Number(props.medianM2),
+    meanPrice: props.meanPrice == null ? null : Number(props.meanPrice),
+    meanM2: props.meanM2 == null ? null : Number(props.meanM2),
     colored: Number(props.colored) || 0,
   };
 }
@@ -119,9 +119,9 @@ export function MarketMap({
             <p className="text-white/60">Sem anúncios nesta conta</p>
           ) : (
             <>
-              <p className="text-white/80">{formatBRL(hover.medianPrice)} mediana</p>
+              <p className="text-white/80">{formatBRL(hover.meanPrice)} média</p>
               <p className="text-white/80">
-                {hover.medianM2 == null ? "—" : `${formatCount(hover.medianM2)} R$/m²`}
+                {hover.meanM2 == null ? "—" : `${formatCount(hover.meanM2)} R$/m²`}
               </p>
               <p className="text-white/60">{formatCount(hover.sample)} anúncios</p>
               {hover.colored === 0 ? <p className="text-white/45">Fora da escala</p> : null}

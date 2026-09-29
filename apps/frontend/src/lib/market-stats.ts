@@ -5,16 +5,16 @@ export type CategoryStat = {
   category: string;
   sample: number;
   p25_price: number | null;
-  median_price: number | null;
+  mean_price: number | null;
   p75_price: number | null;
-  median_price_m2: number | null;
+  mean_price_m2: number | null;
 };
 
 export type NeighbourhoodStat = {
   name: string;
   sample: number;
-  median_price: number | null;
-  median_price_m2: number | null;
+  mean_price: number | null;
+  mean_price_m2: number | null;
   ranked: boolean;
 };
 
@@ -28,13 +28,13 @@ export type KindStats = {
   inactive_count: number;
   sample: number;
   p25_price: number | null;
-  median_price: number | null;
+  mean_price: number | null;
   p75_price: number | null;
-  median_price_m2: number | null;
+  mean_price_m2: number | null;
   price_m2_sample: number;
   new_count: number;
   price_drop_count: number;
-  median_rent_plus_condo: number | null;
+  mean_rent_plus_condo: number | null;
   by_category: CategoryStat[];
   neighbourhoods: NeighbourhoodStat[];
   rooms: RoomStat[];
