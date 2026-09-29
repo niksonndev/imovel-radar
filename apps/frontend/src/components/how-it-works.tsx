@@ -14,17 +14,17 @@ import { TrackedCta } from "@/components/tracked-cta";
 
 const steps = [
   {
-    number: 1,
+    number: "01",
     title: STEP_1_TITLE,
     description: STEP_1_DESC,
   },
   {
-    number: 2,
+    number: "02",
     title: STEP_2_TITLE,
     description: STEP_2_DESC,
   },
   {
-    number: 3,
+    number: "03",
     title: STEP_3_TITLE,
     description: STEP_3_DESC,
   },
@@ -32,35 +32,38 @@ const steps = [
 
 export function HowItWorks() {
   return (
-    <section className="px-4 py-20 sm:py-28">
-      <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-12">
+    <section
+      id="como-funciona"
+      className="border-t border-white/8 bg-[#0a0a0c] px-4 py-20 sm:py-28"
+    >
+      <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-12">
         <div className="flex max-w-2xl flex-col items-center gap-4 text-center">
-          <h2 className="font-heading text-3xl leading-tight tracking-tight text-white sm:text-4xl">
+          <p className="font-heading text-sm font-medium uppercase tracking-[0.3em] text-primary-on-surface">
+            Como funciona
+          </p>
+          <h2 className="font-heading text-3xl font-medium leading-tight tracking-tight text-white sm:text-4xl">
             {HOW_IT_WORKS_HEADLINE}
           </h2>
-          <p className="text-lg font-medium leading-relaxed text-primary-on-surface">
+          <p className="text-lg leading-relaxed text-white/55">
             {HOW_IT_WORKS_SOLUTION}
           </p>
         </div>
 
-        <div className="flex w-full flex-col gap-8">
-          {steps.map((step, index) => (
-            <div key={step.number} className="flex gap-5">
-              <div className="flex flex-col items-center">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary font-mono text-sm font-bold text-primary-foreground">
-                  {step.number}
-                </span>
-                {index < steps.length - 1 && (
-                  <div className="draw-line mt-1 w-px flex-1 bg-white/20" />
-                )}
-              </div>
-
-              <div className="reveal-on-scroll flex flex-col gap-1 pb-8">
-                <h3 className="font-sans text-lg font-semibold text-white">{step.title}</h3>
-                <p className="text-sm leading-relaxed text-white/60">
-                  {step.description}
-                </p>
-              </div>
+        <div className="grid w-full gap-5 sm:grid-cols-3">
+          {steps.map((step) => (
+            <div
+              key={step.number}
+              className="reveal-on-scroll flex flex-col gap-3 rounded-2xl border border-white/10 bg-card p-6 transition-colors hover:border-white/20"
+            >
+              <span className="font-mono text-sm tracking-widest text-primary-on-surface">
+                {step.number}
+              </span>
+              <h3 className="font-heading text-lg font-medium text-white">
+                {step.title}
+              </h3>
+              <p className="text-sm leading-relaxed text-white/55">
+                {step.description}
+              </p>
             </div>
           ))}
         </div>
@@ -68,7 +71,7 @@ export function HowItWorks() {
         <TrackedCta
           href={TELEGRAM_BOT_URL}
           ctaId="how_it_works"
-          className="btn-shine"
+          variant="pill"
         >
           {SECTION_CTA_LABEL}
         </TrackedCta>
