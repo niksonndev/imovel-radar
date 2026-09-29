@@ -5,6 +5,7 @@ import {
   FOOTER_PRIVACY,
   FOOTER_CONTACT_LABEL,
   TELEGRAM_BOT_URL,
+  SUPPORT_URL,
 } from "@/content/page-content";
 import { TrackedCta } from "@/components/tracked-cta";
 import { SEO_PAGES } from "@/content/seo-pages";
@@ -18,7 +19,7 @@ export function Footer() {
         className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2"
       >
         <TrackedCta
-          href={TELEGRAM_BOT_URL}
+          href={SUPPORT_URL || TELEGRAM_BOT_URL}
           ctaId="footer_bot"
           variant="ghost"
           size="sm"
@@ -48,6 +49,18 @@ export function Footer() {
           className="text-sm text-white/70 transition-colors hover:text-white"
         >
           Mercado
+        </Link>
+        <Link
+          href="/privacidade"
+          className="text-sm text-white/70 transition-colors hover:text-white"
+        >
+          Privacidade
+        </Link>
+        <Link
+          href="/termos"
+          className="text-sm text-white/70 transition-colors hover:text-white"
+        >
+          Termos de uso
         </Link>
         <Link
           href="/imoveis"

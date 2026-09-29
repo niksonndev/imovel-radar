@@ -5,6 +5,7 @@
 // ------------------------------------------------------------------
 
 export const TELEGRAM_BOT_URL = "https://t.me/imovel_radar_bot";
+export const SUPPORT_URL = process.env.NEXT_PUBLIC_SUPPORT_URL?.trim() ?? "";
 
 // Hero (outcome-first)
 export const HERO_HEADLINE = "Pare de procurar imóvel.";
@@ -160,7 +161,7 @@ export const MONITORED_NEIGHBORHOODS = [
 export const FOOTER_TELEGRAM_LABEL = "Abrir bot no Telegram";
 export const FOOTER_LEGAL = "© Imóvel Radar";
 export const FOOTER_DISCLAIMER =
-  "Produto independente. Não somos afiliados à OLX. Os anúncios vêm do OLX de Maceió e Recife; preços e disponibilidade podem mudar.";
+  "Produto independente. Não somos afiliados à OLX. Monitoramos anúncios públicos de Maceió, Recife e Natal; preços e disponibilidade podem mudar.";
 export const FOOTER_PRIVACY =
-  "Usamos o chat do Telegram como identificador. Não pedimos CPF no free. Para o mês grátis do Pro, pedimos só o e-mail no bot.";
-export const FOOTER_CONTACT_LABEL = "Falar conosco no Telegram";
+  "Usamos o identificador do canal Telegram ou WhatsApp; as contas não são vinculadas. Não pedimos CPF. O trial Pro pede só e-mail no bot.";
+export const FOOTER_CONTACT_LABEL = SUPPORT_URL ? "Contato e suporte" : "Ajuda no bot";

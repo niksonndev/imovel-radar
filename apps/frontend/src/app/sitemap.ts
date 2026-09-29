@@ -28,6 +28,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
     },
     {
+      url: `${base}/privacidade`,
+      lastModified: new Date("2026-09-29"),
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
+    {
+      url: `${base}/termos`,
+      lastModified: new Date("2026-09-29"),
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
+    {
       url: `${base}/imoveis`,
       lastModified: new Date(catalog.collectedAt),
       changeFrequency: "weekly",
