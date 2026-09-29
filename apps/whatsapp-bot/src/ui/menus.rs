@@ -77,9 +77,15 @@ menu — menu principal
 novo alerta — criar alerta
 meus alertas — listar e apagar
 acompanhando — anúncios que você segue
+áudio — envie mensagem de voz de até 120 segundos quando a transcrição estiver habilitada
 pro — trial Radar Pro por e-mail
+privacidade — política, termos e uso dos dados
+excluir dados — solicita exclusão da conta e dos dados
+suporte — canal de atendimento do operador, quando configurado
 cancelar — sai do que estiver fazendo
-ajuda — esta mensagem"
+ajuda — esta mensagem
+
+O mercado usa o snapshot recente: são preços pedidos no OLX, não valores negociados."
         .to_string()
 }
 

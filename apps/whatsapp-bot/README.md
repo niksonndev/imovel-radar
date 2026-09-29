@@ -4,6 +4,16 @@ Cliente WhatsApp Web em Rust ([whatsapp-rust](https://github.com/oxidezap/whatsa
 
 Cliente não oficial: pode violar os termos da Meta e a conta pode ser suspensa.
 
+## Assistente André
+
+Com `LLM_PROVIDER=openai`, texto e áudio usam function-calling do Chat Completions; sem OpenAI, há fallback determinístico. A conversa mantém até seis trocas por quatro horas e remove padrões comuns de e-mail/CPF/cartão antes de persistir. Criação exige confirmação, remoção sempre exige confirmação e o mercado usa somente o snapshot recente, incluindo o aviso de preço pedido. Áudios de até 120 segundos/20 MiB são transcritos via Whisper quando habilitado.
+
+Quotas padrão por dia: Free 50 mensagens/5 áudios; Pro 300 mensagens/30 áudios. São limites operacionais configuráveis, não benefícios comerciais. O Postgres aplica caps de alertas/watchlist em transação e guarda contagens agregadas de áudio/tokens.
+
+Use `privacidade` para política/termos e `excluir dados` para solicitar exclusão. A exclusão confirmada apaga conta WhatsApp, alertas, matches, anúncios acompanhados, trial por e-mail, sessão e telemetria associada. A política e os termos publicados são textos de produto e devem ser revisados por assessoria jurídica antes de serem considerados documentos finais.
+
+O WhatsApp não oferece Telegram Stars. O Pro neste canal usa somente o fluxo de trial por e-mail existente; não há processamento Pix implementado.
+
 ## Como funciona
 
 - Processo único: HTTP (`GET /health`, `GET /pair`) + sessão WhatsApp + notificação diária às 10:00 (America/Maceio), só para `users.channel = 'whatsapp'`.
@@ -39,7 +49,9 @@ Blueprint em `render.yaml`: web service Docker, plano starter, disco de 1 GB em 
 
 No primeiro deploy, abra `https://<serviço>/pair?token=<PAIR_SECRET>` e escaneie. Os deploys seguintes reusam `/data/whatsapp.db`.
 
-Defina `DATABASE_URL` (Neon pooled) e `OPENAI_API_KEY` no painel. `PAIR_SECRET` é gerado pelo blueprint.
+Antes de deployar, aplique todas as migrations Alembic, inclusive `0013_assistant_usage`.
+
+Defina `DATABASE_URL` (Neon pooled), `OPENAI_API_KEY`, `PUBLIC_SITE_URL` e o destino humano real em `SUPPORT_URL`/`NEXT_PUBLIC_SUPPORT_URL` antes de anunciar atendimento. `PAIR_SECRET` é gerado pelo blueprint.
 
 ## Testes
 

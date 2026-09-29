@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use unicode_normalization::UnicodeNormalization;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -41,6 +42,7 @@ impl Default for Draft {
 pub enum Step {
     Menu,
     Intent,
+    AssistantConversation,
     City,
     Kind,
     Categories,
@@ -51,6 +53,10 @@ pub enum Step {
     Neighbourhoods { page: usize },
     Name,
     Confirm,
+    AssistantRemoveChoice { ids: Vec<i32> },
+    AssistantDeleteConfirm { id: i32 },
+    DeleteAccountConfirm,
+    Deleted,
     Alerts { ids: Vec<i32> },
     AlertDetail { id: i32 },
     Email,
@@ -63,6 +69,10 @@ pub struct Session {
     pub step: Step,
     #[serde(default)]
     pub draft: Draft,
+    #[serde(default)]
+    pub assistant_history: Vec<Value>,
+    #[serde(default)]
+    pub assistant_history_updated_at: Option<i64>,
 }
 
 impl Session {
@@ -70,6 +80,8 @@ impl Session {
         Self {
             step: Step::Menu,
             draft: Draft::default(),
+            assistant_history: Vec::new(),
+            assistant_history_updated_at: None,
         }
     }
 }
@@ -83,6 +95,9 @@ pub enum GlobalCommand {
     Help,
     Cancel,
     Pro,
+    Privacy,
+    DeleteData,
+    Support,
 }
 
 pub fn normalize_text(text: &str) -> String {
@@ -106,6 +121,9 @@ pub fn global_command(text: &str) -> Option<GlobalCommand> {
         "ajuda" | "help" => Some(GlobalCommand::Help),
         "cancelar" | "cancela" | "sair" => Some(GlobalCommand::Cancel),
         "pro" | "radar pro" => Some(GlobalCommand::Pro),
+        "privacidade" | "politica de privacidade" | "termos" => Some(GlobalCommand::Privacy),
+        "excluir dados" | "excluir_dados" | "apagar meus dados" => Some(GlobalCommand::DeleteData),
+        "suporte" | "atendimento" => Some(GlobalCommand::Support),
         _ => None,
     }
 }
@@ -161,5 +179,26 @@ mod tests {
         assert_eq!(parse_money("400 mil"), Some(400_000));
         assert_eq!(parse_money("2.500"), Some(2500));
         assert_eq!(parse_money("abc"), None);
+    }
+
+    #[test]
+    fn privacy_and_support_commands_are_global() {
+        assert_eq!(global_command("/privacidade"), Some(GlobalCommand::Privacy));
+        assert_eq!(global_command("excluir dados"), Some(GlobalCommand::DeleteData));
+        assert_eq!(global_command("suporte"), Some(GlobalCommand::Support));
+    }
+
+    #[test]
+    fn assistant_session_roundtrips_short_history() {
+        let mut session = Session::menu();
+        session.step = Step::AssistantConversation;
+        session.assistant_history = vec![serde_json::json!({
+            "role": "user",
+            "content": "Maceió"
+        })];
+        session.assistant_history_updated_at = Some(1_800_000_000);
+        let encoded = serde_json::to_value(&session).unwrap();
+        let decoded: Session = serde_json::from_value(encoded).unwrap();
+        assert_eq!(decoded, session);
     }
 }

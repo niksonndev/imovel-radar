@@ -1,13 +1,17 @@
 use std::time::Duration;
 
 use chrono::Utc;
+use serde_json::{json, Value};
 
-use crate::ai::{extract_alert_intent, match_neighbourhoods};
+use crate::ai::{
+    call_assistant_function, extract_alert_intent, match_neighbourhoods, mock_extract_alert,
+    AssistantFunctionCall,
+};
 use crate::config::Config;
 use crate::db::Db;
 use crate::intelligence::prepare_match_carousel;
 use crate::models::{ClaimStatus, CreateAlertStatus, Listing, WatchStatus};
-use crate::money::{effective_listing_price, json_fee};
+use crate::money::{effective_listing_price, format_brl, json_fee};
 use crate::session::{
     global_command, normalize_text, parse_index_list, parse_money, Draft, GlobalCommand, Session,
     Step,
@@ -41,6 +45,29 @@ pub async fn handle_text(
     chat_id: i64,
     raw: &str,
 ) -> anyhow::Result<Vec<OutMsg>> {
+    handle_inbound(db, cfg, http, chat_id, raw, None, false).await
+}
+
+pub async fn handle_transcribed_audio(
+    db: &Db,
+    cfg: &Config,
+    http: &reqwest::Client,
+    chat_id: i64,
+    raw: &str,
+    duration_seconds: u32,
+) -> anyhow::Result<Vec<OutMsg>> {
+    handle_inbound(db, cfg, http, chat_id, raw, Some(duration_seconds), true).await
+}
+
+async fn handle_inbound(
+    db: &Db,
+    cfg: &Config,
+    http: &reqwest::Client,
+    chat_id: i64,
+    raw: &str,
+    audio_seconds: Option<u32>,
+    quota_preconsumed: bool,
+) -> anyhow::Result<Vec<OutMsg>> {
     let ttl = Duration::from_secs((cfg.session_ttl_hours.max(1) as u64) * 3600);
     let mut session = match db.load_session(chat_id, ttl).await {
         Ok(Some(session)) => session,
@@ -61,9 +88,38 @@ pub async fn handle_text(
     }
 
     let step = session.step.clone();
+    if raw.chars().count() > cfg.assistant_max_message_chars
+        && matches!(step, Step::Menu | Step::Intent | Step::AssistantConversation)
+    {
+        return store(
+            db,
+            chat_id,
+            &session,
+            vec![text(format!(
+                "Sua mensagem passou do limite de {} caracteres. Envie um trecho menor.",
+                cfg.assistant_max_message_chars
+            ))],
+        )
+        .await;
+    }
+    if audio_seconds.is_some() && !matches!(step, Step::Menu | Step::Intent | Step::AssistantConversation) {
+        return store(
+            db,
+            chat_id,
+            &session,
+            vec![text("O fluxo atual precisa de respostas por texto. Seu rascunho continua salvo.")],
+        )
+        .await;
+    }
     let messages = match step {
-        Step::Menu => on_menu(db, cfg, chat_id, &mut session, raw).await?,
+        Step::Menu => on_menu(db, cfg, http, chat_id, &mut session, raw, audio_seconds, quota_preconsumed).await?,
+        Step::Intent if cfg.llm_provider == "openai" && normalize_text(raw) != "1" => {
+            assistant_turn(db, cfg, http, chat_id, &mut session, raw, audio_seconds, quota_preconsumed).await?
+        }
         Step::Intent => on_intent(db, cfg, http, chat_id, &mut session, raw).await?,
+        Step::AssistantConversation => {
+            assistant_turn(db, cfg, http, chat_id, &mut session, raw, audio_seconds, quota_preconsumed).await?
+        }
         Step::City => on_city(db, &mut session, raw).await?,
         Step::Kind => on_kind(&mut session, raw),
         Step::Categories => on_categories(&mut session, raw),
@@ -74,8 +130,18 @@ pub async fn handle_text(
         Step::Neighbourhoods { page } => on_neighbourhoods(db, &mut session, raw, page).await?,
         Step::Name => on_name(&mut session, raw),
         Step::Confirm => finish_alert(db, cfg, chat_id, &mut session, raw).await?,
+        Step::Alerts { ids: _ } if raw.trim().parse::<usize>().is_err() => {
+            assistant_turn(db, cfg, http, chat_id, &mut session, raw, audio_seconds, quota_preconsumed).await?
+        }
         Step::Alerts { ids } => on_alerts(db, chat_id, &mut session, raw, &ids).await?,
+        Step::AlertDetail { id: _ } if !matches!(raw.trim(), "1" | "2" | "3") => {
+            assistant_turn(db, cfg, http, chat_id, &mut session, raw, audio_seconds, quota_preconsumed).await?
+        }
         Step::AlertDetail { id } => on_alert_detail(db, chat_id, &mut session, raw, id).await?,
+        Step::AssistantRemoveChoice { ids } => on_assistant_remove_choice(db, chat_id, &mut session, raw, &ids).await?,
+        Step::AssistantDeleteConfirm { id } => on_assistant_delete_confirm(db, chat_id, &mut session, raw, id).await?,
+        Step::DeleteAccountConfirm => on_delete_account_confirm(db, chat_id, &mut session, raw).await?,
+        Step::Deleted => vec![text("Seus dados foram excluídos.")],
         Step::Email => on_email(db, cfg, chat_id, &mut session, raw).await?,
         Step::MatchCarousel { index, listing_ids } => {
             on_match_carousel(db, cfg, chat_id, &mut session, raw, index, &listing_ids).await?
@@ -93,6 +159,12 @@ async fn store(
     session: &Session,
     messages: Vec<OutMsg>,
 ) -> anyhow::Result<Vec<OutMsg>> {
+    if matches!(session.step, Step::Deleted) {
+        if let Err(error) = db.clear_session(chat_id).await {
+            tracing::error!(%error, "limpar sessão após exclusão");
+        }
+        return Ok(messages);
+    }
     if let Err(error) = db.save_session(chat_id, session).await {
         tracing::error!(%error, "falha ao gravar sessão");
     }
@@ -128,6 +200,22 @@ async fn on_global(
         GlobalCommand::MyAlerts => list_alerts(db, chat_id, session).await?,
         GlobalCommand::Watching => list_watches(db, chat_id, session).await?,
         GlobalCommand::Pro => start_email(db, cfg, chat_id, session).await?,
+        GlobalCommand::Privacy => vec![text(format!(
+            "Privacidade e uso dos dados: {}/privacidade\nTermos: {}/termos\n\nPara solicitar a exclusão dos dados, digite *excluir dados*.",
+            cfg.public_site_url, cfg.public_site_url
+        ))],
+        GlobalCommand::DeleteData => {
+            session.draft = Draft::default();
+            session.step = Step::DeleteAccountConfirm;
+            vec![text("A exclusão remove sua conta WhatsApp, alertas, anúncios acompanhados, e-mail do trial e memória curta. Mensagens já enviadas continuam no histórico do WhatsApp. Para confirmar, responda *EXCLUIR*. Para cancelar, digite *cancelar*.")]
+        }
+        GlobalCommand::Support => {
+            if cfg.support_url.starts_with("https://") || cfg.support_url.starts_with("http://") {
+                vec![text(format!("Canal de atendimento: {}", cfg.support_url))]
+            } else {
+                vec![text("O canal de atendimento humano ainda não está configurado. Não envie dados sensíveis por aqui.")]
+            }
+        }
     };
     store(db, chat_id, session, messages).await
 }
@@ -146,9 +234,12 @@ fn start_alert(cfg: &Config, session: &mut Session) -> Vec<OutMsg> {
 async fn on_menu(
     db: &Db,
     cfg: &Config,
+    http: &reqwest::Client,
     chat_id: i64,
     session: &mut Session,
     raw: &str,
+    audio_seconds: Option<u32>,
+    quota_preconsumed: bool,
 ) -> anyhow::Result<Vec<OutMsg>> {
     match raw.trim() {
         "1" => Ok(start_alert(cfg, session)),
@@ -159,8 +250,525 @@ async fn on_menu(
             Ok(vec![text(help_text()), text(main_menu())])
         }
         "5" => start_email(db, cfg, chat_id, session).await,
-        _ => Ok(vec![text("Não entendi. Responda com um número de 1 a 5."), text(main_menu())]),
+        _ => assistant_turn(db, cfg, http, chat_id, session, raw, audio_seconds, quota_preconsumed).await,
     }
+}
+
+async fn assistant_turn(
+    db: &Db,
+    cfg: &Config,
+    http: &reqwest::Client,
+    chat_id: i64,
+    session: &mut Session,
+    raw: &str,
+    audio_seconds: Option<u32>,
+    quota_preconsumed: bool,
+) -> anyhow::Result<Vec<OutMsg>> {
+    let now = Utc::now().timestamp();
+    if session
+        .assistant_history_updated_at
+        .is_some_and(|updated| now - updated > cfg.assistant_memory_ttl_seconds)
+    {
+        session.assistant_history.clear();
+    }
+    let messages = if cfg.llm_provider == "openai" && !cfg.openai_api_key.is_empty() {
+        let allowed = if quota_preconsumed {
+            true
+        } else {
+            db.consume_assistant_usage(chat_id, audio_seconds, cfg).await?
+        };
+        if !allowed {
+            let user = db.get_user(chat_id).await?;
+            let pro = Db::is_pro(user.as_ref(), Utc::now());
+            let limit = if audio_seconds.is_some() {
+                if pro { cfg.assistant_pro_audio_per_day } else { cfg.assistant_free_audio_per_day }
+            } else if pro {
+                cfg.assistant_pro_messages_per_day
+            } else {
+                cfg.assistant_free_messages_per_day
+            };
+            let item = if audio_seconds.is_some() { "áudios" } else { "mensagens do assistente" };
+            vec![text(format!(
+                "Você atingiu o limite diário de {limit} {item} do {}. Tente novamente amanhã.",
+                if pro { "Radar Pro" } else { "plano grátis" }
+            ))]
+        } else {
+            let history_start = session
+                .assistant_history
+                .len()
+                .saturating_sub(cfg.assistant_memory_turns.saturating_mul(2));
+            let history = session.assistant_history[history_start..].to_vec();
+            match call_assistant_function(http, cfg, raw, &history).await {
+                Ok(Some(call)) => {
+                    if call.total_tokens.is_some() {
+                        let input_tokens = call.input_tokens.unwrap_or_default();
+                        let output_tokens = call.output_tokens.unwrap_or_default();
+                        match db.record_assistant_tokens(chat_id, input_tokens, output_tokens).await {
+                            Ok(total) if total >= cfg.assistant_daily_token_alert as u64 => {
+                                tracing::warn!(daily_tokens = total, "limite de custo de modelo atingido");
+                            }
+                            Ok(_) => {}
+                            Err(error) => tracing::error!(%error, "telemetria de tokens indisponível"),
+                        }
+                    }
+                    execute_assistant_call(db, chat_id, session, raw, &call).await?
+                }
+                Ok(None) | Err(_) => deterministic_assistant(db, chat_id, session, raw).await?,
+            }
+        }
+    } else {
+        deterministic_assistant(db, chat_id, session, raw).await?
+    };
+    let answer = messages
+        .iter()
+        .filter_map(|message| match message {
+            OutMsg::Text(body) => Some(body.as_str()),
+            OutMsg::Image { caption, .. } => Some(caption.as_str()),
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    remember_exchange(cfg, session, raw, &answer);
+    Ok(messages)
+}
+
+async fn execute_assistant_call(
+    db: &Db,
+    chat_id: i64,
+    session: &mut Session,
+    raw: &str,
+    call: &AssistantFunctionCall,
+) -> anyhow::Result<Vec<OutMsg>> {
+    tracing::info!(tool = %call.name, total_tokens = ?call.total_tokens, "assistant function call");
+    let args = &call.arguments;
+    match call.name.as_str() {
+        "list_alerts" => list_alerts(db, chat_id, session).await,
+        "create_alert" => apply_assistant_create(db, session, args, raw).await,
+        "remove_alerts" => {
+            let reference = args["alert_ref"].as_str().unwrap_or("");
+            start_assistant_remove(db, chat_id, session, reference).await
+        }
+        "consult_market" => assistant_market(db, args).await,
+        "help" => Ok(vec![text(help_text())]),
+        "respond" => {
+            let answer = args["text"].as_str().unwrap_or("Posso ajudar com alertas e dados do mercado imobiliário.");
+            Ok(vec![text(answer.chars().take(800).collect::<String>())])
+        }
+        _ => {
+            session.step = Step::Menu;
+            Ok(vec![text("Posso ajudar com alertas imobiliários nas cidades cobertas."), text(main_menu())])
+        }
+    }
+}
+
+async fn deterministic_assistant(
+    db: &Db,
+    chat_id: i64,
+    session: &mut Session,
+    raw: &str,
+) -> anyhow::Result<Vec<OutMsg>> {
+    let norm = normalize_text(raw);
+    if ["meus alertas", "quais sao meus alertas", "listar alertas", "alertas"]
+        .iter()
+        .any(|pattern| norm.contains(pattern))
+    {
+        return list_alerts(db, chat_id, session).await;
+    }
+    if ["remover", "apagar alerta", "excluir alerta", "apaga alerta"]
+        .iter()
+        .any(|pattern| norm.contains(pattern))
+    {
+        let reference = raw
+            .split_once("alerta")
+            .map(|(_, rest)| rest.trim_matches(|ch: char| ch.is_ascii_punctuation() || ch.is_whitespace()))
+            .unwrap_or("");
+        return start_assistant_remove(db, chat_id, session, reference).await;
+    }
+    if ["media", "média", "preco", "preço", "mercado", "por m2", "por metro quadrado"]
+        .iter()
+        .any(|pattern| norm.contains(pattern))
+    {
+        let extracted = mock_extract_alert(raw);
+        let args = json!({
+            "municipality": extracted.municipality,
+            "listing_kind": extracted.listing_kind,
+            "neighbourhoods": extracted.neighbourhoods,
+            "metric": if norm.contains("m2") || norm.contains("metro quadrado") { "mean_price_m2" } else { "mean_price" }
+        });
+        return assistant_market(db, &args).await;
+    }
+    if ["ajuda", "help", "o que voce faz", "comandos", "como funciona"]
+        .iter()
+        .any(|pattern| norm.contains(pattern))
+    {
+        session.step = Step::Menu;
+        return Ok(vec![text(help_text())]);
+    }
+    if ["quero", "procuro", "criar alerta", "novo alerta", "apartamento", "apto", "alugar", "comprar"]
+        .iter()
+        .any(|pattern| norm.contains(pattern))
+    {
+        let extracted = mock_extract_alert(raw);
+        let args = json!({
+            "municipality": extracted.municipality,
+            "listing_kind": extracted.listing_kind,
+            "categories": extracted.categories,
+            "min_price": extracted.min_price,
+            "max_price": extracted.max_price,
+            "min_rooms": extracted.min_rooms,
+            "neighbourhoods": extracted.neighbourhoods,
+            "alert_name": null
+        });
+        return apply_assistant_create(db, session, &args, raw).await;
+    }
+    session.step = Step::Menu;
+    Ok(vec![text("Posso ajudar a criar, listar ou remover alertas e consultar o mercado em Maceió, Recife e Natal.")])
+}
+
+async fn apply_assistant_create(
+    db: &Db,
+    session: &mut Session,
+    args: &Value,
+    raw: &str,
+) -> anyhow::Result<Vec<OutMsg>> {
+    let extracted = mock_extract_alert(raw);
+    if let Some(city) = args["municipality"].as_str().or(extracted.municipality.as_deref()) {
+        if !matches!(city, "Maceió" | "Recife" | "Natal") {
+            session.step = Step::AssistantConversation;
+            return Ok(vec![text("Ainda não cobrimos essa cidade. Hoje atendemos Maceió, Recife e Natal.")]);
+        }
+        session.draft.municipality = Some(city.to_string());
+    }
+    if let Some(kind) = args["listing_kind"].as_str().or(extracted.listing_kind.as_deref()) {
+        if matches!(kind, "aluguel" | "venda") {
+            session.draft.listing_kind = Some(kind.to_string());
+        }
+    }
+    let minimum = args["min_price"].as_i64().or(extracted.min_price);
+    let maximum = args["max_price"].as_i64().or(extracted.max_price);
+    if minimum.is_some_and(|value| value <= 0) || maximum.is_some_and(|value| value <= 0) {
+        session.step = Step::AssistantConversation;
+        return Ok(vec![text("O preço precisa ser maior que zero. Qual faixa você procura?")]);
+    }
+    if minimum.zip(maximum).is_some_and(|(min, max)| min > max) {
+        session.step = Step::AssistantConversation;
+        return Ok(vec![text("O preço mínimo ficou acima do máximo. Qual faixa devo usar?")]);
+    }
+    if minimum.is_some() {
+        session.draft.min_price = minimum;
+    }
+    if maximum.is_some() {
+        session.draft.max_price = maximum;
+    }
+    if let Some(rooms) = args["min_rooms"].as_i64().or(extracted.min_rooms.map(i64::from)) {
+        if (1..=20).contains(&rooms) {
+            session.draft.min_rooms = Some(rooms as i32);
+        }
+    }
+    if let Some(categories) = args["categories"].as_array() {
+        session.draft.categories = categories
+            .iter()
+            .filter_map(Value::as_str)
+            .filter(|value| matches!(*value, "Apartamentos" | "Casas" | "Aluguel de quartos"))
+            .map(str::to_string)
+            .collect();
+    } else if let Some(categories) = extracted.categories {
+        session.draft.categories = categories;
+    }
+
+    let has_any_neighbourhood = raw.to_lowercase().contains("qualquer bairro")
+        || raw.to_lowercase().contains("todos os bairros");
+    let raw_neighbourhoods: Vec<String> = args["neighbourhoods"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(str::to_string)
+        .collect();
+    let raw_neighbourhoods = if raw_neighbourhoods.is_empty() {
+        extracted.neighbourhoods.unwrap_or_default()
+    } else {
+        raw_neighbourhoods
+    };
+    if has_any_neighbourhood {
+        session.draft.neighbourhoods.clear();
+        session.draft.pending_raw_neighbourhoods.clear();
+    } else if !raw_neighbourhoods.is_empty() {
+        let Some(city) = session.draft.municipality.clone() else {
+            session.draft.pending_raw_neighbourhoods = raw_neighbourhoods;
+            session.step = Step::AssistantConversation;
+            return Ok(vec![text("Qual cidade? Hoje atendemos Maceió, Recife e Natal.")]);
+        };
+        apply_neighbourhoods(db, session, &raw_neighbourhoods).await?;
+        if session.draft.neighbourhoods.is_empty() {
+            session.draft.pending_raw_neighbourhoods = raw_neighbourhoods;
+            session.step = Step::AssistantConversation;
+            return Ok(vec![text(format!(
+                "Não localizei esse bairro em {city}. Quer tentar outro ou usar qualquer bairro?"
+            ))]);
+        }
+    }
+
+    let price_reference = session.draft.max_price.or(session.draft.min_price);
+    if session.draft.listing_kind.is_none() {
+        if let Some(price) = price_reference {
+            if price <= 20_000 {
+                session.draft.listing_kind = Some("aluguel".to_string());
+            } else if price >= 50_000 {
+                session.draft.listing_kind = Some("venda".to_string());
+            }
+        }
+    }
+    let mut missing = Vec::new();
+    if session.draft.municipality.is_none() {
+        missing.push("a cidade (Maceió, Recife ou Natal)".to_string());
+    }
+    if session.draft.listing_kind.is_none() {
+        missing.push("o tipo: aluguel ou venda".to_string());
+    }
+    if session.draft.min_price.is_none() && session.draft.max_price.is_none() {
+        missing.push("a faixa de preço".to_string());
+    }
+    if !missing.is_empty() {
+        session.step = Step::AssistantConversation;
+        return Ok(vec![text(format!("Para montar seu alerta, me diga {}.", missing.join(" e ")))]);
+    }
+    let suggested_name = auto_alert_name(&session.draft);
+    let name = args["alert_name"]
+        .as_str()
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| value.chars().take(120).collect())
+        .unwrap_or(suggested_name);
+    session.draft.alert_name = Some(name);
+    session.step = Step::Confirm;
+    Ok(vec![text(confirm_prompt(&session.draft))])
+}
+
+async fn start_assistant_remove(
+    db: &Db,
+    chat_id: i64,
+    session: &mut Session,
+    reference: &str,
+) -> anyhow::Result<Vec<OutMsg>> {
+    let alerts = db.alerts_for_user(chat_id).await?;
+    if alerts.is_empty() {
+        session.step = Step::Menu;
+        return Ok(vec![text("Você ainda não tem alertas para remover.")]);
+    }
+    let reference = normalize_text(reference);
+    let candidates: Vec<_> = alerts
+        .iter()
+        .filter(|alert| {
+            reference.is_empty()
+                || normalize_text(&format!(
+                    "{} {} {} {}",
+                    alert.alert_name.as_deref().unwrap_or(""),
+                    alert.municipality,
+                    alert.neighbourhoods.join(" "),
+                    alert.listing_kind
+                ))
+                .contains(&reference)
+        })
+        .collect();
+    if candidates.is_empty() {
+        session.step = Step::Menu;
+        return Ok(vec![text("Não encontrei esse alerta. Digite *meus alertas* para ver os seus.")]);
+    }
+    if candidates.len() == 1 {
+        let alert = candidates[0];
+        session.step = Step::AssistantDeleteConfirm { id: alert.id };
+        return Ok(vec![text(format!(
+            "Confirma a remoção deste alerta?\n\n{}\n1. Confirmar remoção\n2. Cancelar",
+            alert_detail(alert)
+        ))]);
+    }
+    let ids: Vec<i32> = candidates.iter().map(|alert| alert.id).collect();
+    session.step = Step::AssistantRemoveChoice { ids };
+    let mut lines = vec!["Encontrei mais de um alerta. Qual você quer remover?".to_string()];
+    for (index, alert) in candidates.iter().enumerate() {
+        lines.push(format!(
+            "{}. {} · {} · {}",
+            index + 1,
+            alert.alert_name.as_deref().unwrap_or("Sem nome"),
+            alert.municipality,
+            alert.neighbourhoods.join(", ")
+        ));
+    }
+    lines.push("Responda com o número. Não vou remover vários alertas de uma vez.".to_string());
+    Ok(vec![text(lines.join("\n"))])
+}
+
+async fn assistant_market(db: &Db, args: &Value) -> anyhow::Result<Vec<OutMsg>> {
+    let Some(municipality) = args["municipality"].as_str() else {
+        return Ok(vec![text("De qual cidade você quer consultar: Maceió, Recife ou Natal?")]);
+    };
+    if !matches!(municipality, "Maceió" | "Recife" | "Natal") {
+        return Ok(vec![text("Ainda não cobrimos essa cidade. Hoje atendemos Maceió, Recife e Natal.")]);
+    }
+    let Some(kind) = args["listing_kind"].as_str() else {
+        return Ok(vec![text("Você quer consultar aluguel ou venda?")]);
+    };
+    if !matches!(kind, "aluguel" | "venda") {
+        return Ok(vec![text("Você quer consultar aluguel ou venda?")]);
+    }
+    let Some(snapshot) = db.snapshot().await? else {
+        return Ok(vec![text("A coleta de mercado ainda não está disponível. Tente novamente mais tarde.")]);
+    };
+    let Some(city) = snapshot["cities"]
+        .as_array()
+        .and_then(|cities| cities.iter().find(|city| city["municipality"] == municipality))
+    else {
+        return Ok(vec![text(format!("Ainda não há dados de mercado de {municipality}."))]);
+    };
+    let Some(stats) = city["kinds"].get(kind) else {
+        return Ok(vec![text(format!("Ainda não há amostra de {kind} em {municipality}."))]);
+    };
+    let metric = args["metric"].as_str().unwrap_or("mean_price");
+    let field = if metric == "mean_price_m2" { "mean_price_m2" } else { "mean_price" };
+    let raw_neighbourhoods: Vec<String> = args["neighbourhoods"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(str::to_string)
+        .collect();
+    let row: Option<Value> = if raw_neighbourhoods.is_empty() {
+        None
+    } else {
+        let rows = stats["neighbourhoods"].as_array().cloned().unwrap_or_default();
+        let available: Vec<String> = rows
+            .iter()
+            .filter_map(|row| row["name"].as_str().map(str::to_string))
+            .collect();
+        let matched = match_neighbourhoods(Some(&raw_neighbourhoods), &available);
+        matched.first().and_then(|name| {
+            rows.iter()
+                .find(|row| row["name"].as_str() == Some(name.as_str()))
+                .cloned()
+        })
+    };
+    let is_neighbourhood = row.is_some();
+    let source = row.as_ref().unwrap_or(stats);
+    if is_neighbourhood && source["ranked"].as_bool() != Some(true) {
+        return Ok(vec![text("Ainda não há amostra confiável desse bairro.")]);
+    }
+    let Some(value) = source[field].as_i64() else {
+        return Ok(vec![text("Ainda não há essa métrica na coleta mais recente.")]);
+    };
+    let label = if field == "mean_price_m2" {
+        "Preço médio pedido por m²"
+    } else {
+        "Média do preço pedido"
+    };
+    let location = row
+        .as_ref()
+        .and_then(|row| row["name"].as_str())
+        .map(|name| format!("em {name}, {municipality}"))
+        .unwrap_or_else(|| format!("em {municipality}"));
+    let sample = source["sample"].as_i64().map(|count| format!(" · {count} anúncios na amostra")).unwrap_or_default();
+    let per_m2 = if field == "mean_price_m2" { "/m²" } else { "" };
+    Ok(vec![text(format!(
+        "{label} de {kind} {location}: *{}*{per_m2}{sample}.\n\nPreço pedido no OLX; valor pode mudar e a negociação é com o anunciante.",
+        format_brl(Some(value))
+    ))])
+}
+
+async fn on_assistant_remove_choice(
+    db: &Db,
+    chat_id: i64,
+    session: &mut Session,
+    raw: &str,
+    ids: &[i32],
+) -> anyhow::Result<Vec<OutMsg>> {
+    let Ok(index) = raw.trim().parse::<usize>() else {
+        return Ok(vec![text("Responda com o número do alerta que deseja remover.")]);
+    };
+    let Some(id) = ids.get(index.saturating_sub(1)).copied() else {
+        return Ok(vec![text("Esse número não está na lista. Escolha um alerta da lista.")]);
+    };
+    let Some(alert) = db.alert_for_user(chat_id, id).await? else {
+        session.step = Step::Menu;
+        return Ok(vec![text("Não encontrei esse alerta. Digite *meus alertas* para atualizar a lista.")]);
+    };
+    session.step = Step::AssistantDeleteConfirm { id };
+    Ok(vec![text(format!(
+        "Confirma a remoção deste alerta?\n\n{}\n1. Confirmar remoção\n2. Cancelar",
+        alert_detail(&alert)
+    ))])
+}
+
+async fn on_assistant_delete_confirm(
+    db: &Db,
+    chat_id: i64,
+    session: &mut Session,
+    raw: &str,
+    id: i32,
+) -> anyhow::Result<Vec<OutMsg>> {
+    match normalize_text(raw).as_str() {
+        "1" | "sim" | "confirmar" | "confirmar remocao" | "remover" => {
+            let deleted = db.delete_alert(chat_id, id).await?;
+            session.step = Step::Menu;
+            let result = if deleted { "Alerta removido." } else { "Não encontrei esse alerta." };
+            Ok(vec![text(result), text(main_menu())])
+        }
+        "2" | "nao" | "cancelar" | "cancela" => {
+            session.step = Step::Menu;
+            Ok(vec![text("Tudo bem, não removi o alerta."), text(main_menu())])
+        }
+        _ => Ok(vec![text("Responda *1* para confirmar a remoção ou *2* para cancelar.")]),
+    }
+}
+
+async fn on_delete_account_confirm(
+    db: &Db,
+    chat_id: i64,
+    session: &mut Session,
+    raw: &str,
+) -> anyhow::Result<Vec<OutMsg>> {
+    if normalize_text(raw) == "excluir" {
+        match db.delete_whatsapp_user_data(chat_id).await {
+            Ok(true) => {
+                *session = Session::menu();
+                session.step = Step::Deleted;
+                Ok(vec![text("Seus dados do Imóvel Radar foram excluídos. As mensagens enviadas continuam no histórico do WhatsApp.")])
+            }
+            Ok(false) => {
+                session.step = Step::Deleted;
+                Ok(vec![text("Não encontrei uma conta WhatsApp para excluir.")])
+            }
+            Err(error) => {
+                tracing::error!(%error, "exclusão de dados WhatsApp");
+                session.step = Step::DeleteAccountConfirm;
+                Ok(vec![text("Não consegui concluir a exclusão agora. Tente novamente ou fale com o suporte.")])
+            }
+        }
+    } else if matches!(normalize_text(raw).as_str(), "cancelar" | "nao" | "não") {
+        *session = Session::menu();
+        Ok(vec![text("Solicitação cancelada; seus dados foram mantidos."), text(main_menu())])
+    } else {
+        Ok(vec![text("Para confirmar a exclusão, responda *EXCLUIR*. Para cancelar, digite *cancelar*.")])
+    }
+}
+
+fn remember_exchange(cfg: &Config, session: &mut Session, user: &str, assistant: &str) {
+    let clean = |value: &str| -> String {
+        let email = regex::Regex::new(r"(?i)[\w.+-]+@[\w.-]+\.[a-z]{2,}").unwrap();
+        let document = regex::Regex::new(r"\b(?:\d{3}\.\d{3}\.\d{3}-\d{2}|\d{11})\b").unwrap();
+        let card = regex::Regex::new(r"\b(?:\d[ -]?){13,19}\b").unwrap();
+        let value = email.replace_all(value, "[e-mail removido]");
+        let value = document.replace_all(&value, "[documento removido]");
+        card.replace_all(&value, "[número removido]")
+            .chars()
+            .take(1600)
+            .collect()
+    };
+    session.assistant_history.push(json!({"role":"user","content":clean(user)}));
+    session.assistant_history.push(json!({"role":"assistant","content":clean(assistant)}));
+    let max_entries = cfg.assistant_memory_turns.saturating_mul(2);
+    if session.assistant_history.len() > max_entries {
+        let remove = session.assistant_history.len() - max_entries;
+        session.assistant_history.drain(0..remove);
+    }
+    session.assistant_history_updated_at = Some(Utc::now().timestamp());
 }
 
 async fn on_intent(
@@ -684,15 +1292,14 @@ async fn on_alert_detail(
 ) -> anyhow::Result<Vec<OutMsg>> {
     match raw.trim() {
         "1" => {
-            let deleted = db.delete_alert(chat_id, id).await.unwrap_or(false);
-            let note = if deleted {
-                "Alerta removido."
-            } else {
-                "Não achei esse alerta."
+            let Some(alert) = db.alert_for_user(chat_id, id).await? else {
+                return list_alerts(db, chat_id, session).await;
             };
-            let mut messages = vec![text(note)];
-            messages.extend(list_alerts(db, chat_id, session).await?);
-            Ok(messages)
+            session.step = Step::AssistantDeleteConfirm { id };
+            Ok(vec![text(format!(
+                "Confirma a remoção deste alerta?\n\n{}\n1. Confirmar remoção\n2. Cancelar",
+                alert_detail(&alert)
+            ))])
         }
         "2" => {
             let name = db

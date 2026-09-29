@@ -241,18 +241,35 @@ impl Db {
         draft: &Draft,
         cfg: &Config,
     ) -> anyhow::Result<CreateAlertStatus> {
-        let alerts = self.alerts_for_user(chat_id).await?;
+        let mut tx = self.pool.begin().await?;
+        let user_row = sqlx::query(
+            "SELECT chat_id, plan, pro_until, email, email_pro_trial_claimed_at, channel, whatsapp_jid
+             FROM users WHERE chat_id = $1 AND channel = 'whatsapp' FOR UPDATE",
+        )
+        .bind(chat_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some(user) = user_row.map(user_from_row).transpose()?.flatten() else {
+            anyhow::bail!("usuário WhatsApp não encontrado");
+        };
+        let alert_sql = alert_select("WHERE chat_id = $1 ORDER BY id DESC");
+        let rows = sqlx::query(sqlx::AssertSqlSafe(alert_sql))
+            .bind(chat_id)
+            .fetch_all(&mut *tx)
+            .await?;
+        let alerts = rows.into_iter().map(alert_from_row).collect::<anyhow::Result<Vec<_>>>()?;
         if let Some(existing) = find_equivalent(&alerts, draft) {
+            tx.commit().await?;
             return Ok(CreateAlertStatus::Reused(existing.id));
         }
-        let user = self.get_user(chat_id).await?;
-        let cap = if Self::is_pro(user.as_ref(), Utc::now()) {
+        let cap = if Self::is_pro(Some(&user), Utc::now()) {
             cfg.alert_pro_cap
         } else {
             cfg.alert_free_cap
         };
         let active = alerts.iter().filter(|alert| alert.active).count() as i64;
         if active >= cap {
+            tx.commit().await?;
             return Ok(CreateAlertStatus::CapReached);
         }
         let neighbourhoods = json_list(&draft.neighbourhoods);
@@ -273,8 +290,9 @@ impl Db {
         .bind(draft.min_rooms)
         .bind(neighbourhoods)
         .bind(categories)
-        .fetch_one(&self.pool)
+        .fetch_one(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(CreateAlertStatus::Created(row.try_get("id")?))
     }
 
@@ -375,29 +393,41 @@ impl Db {
         let Some(listing) = self.listing(listing_id).await? else {
             return Ok(WatchStatus::ListingMissing);
         };
+        let mut tx = self.pool.begin().await?;
+        let user_row = sqlx::query(
+            "SELECT chat_id, plan, pro_until, email, email_pro_trial_claimed_at, channel, whatsapp_jid
+             FROM users WHERE chat_id = $1 AND channel = 'whatsapp' FOR UPDATE",
+        )
+        .bind(chat_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some(user) = user_row.map(user_from_row).transpose()?.flatten() else {
+            anyhow::bail!("usuário WhatsApp não encontrado");
+        };
         if let Some(existing) = sqlx::query(
             "SELECT id FROM watched_listings WHERE chat_id = $1 AND listing_id = $2",
         )
         .bind(chat_id)
         .bind(listing_id)
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *tx)
         .await?
         {
+            tx.commit().await?;
             return Ok(WatchStatus::Duplicate(existing.try_get("id")?));
         }
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM watched_listings WHERE chat_id = $1",
         )
         .bind(chat_id)
-        .fetch_one(&self.pool)
+        .fetch_one(&mut *tx)
         .await?;
-        let user = self.get_user(chat_id).await?;
-        let cap = if Self::is_pro(user.as_ref(), Utc::now()) {
+        let cap = if Self::is_pro(Some(&user), Utc::now()) {
             cfg.watch_pro_cap
         } else {
             cfg.watch_free_cap
         };
         if count >= cap {
+            tx.commit().await?;
             return Ok(WatchStatus::CapReached);
         }
         let baseline = effective_listing_price(
@@ -415,8 +445,9 @@ impl Db {
         .bind(listing_id)
         .bind(baseline)
         .bind(listing.active)
-        .fetch_one(&self.pool)
+        .fetch_one(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(WatchStatus::Created(row.try_get("id")?))
     }
 
@@ -536,6 +567,115 @@ impl Db {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    pub async fn consume_assistant_usage(
+        &self,
+        chat_id: i64,
+        audio_seconds: Option<u32>,
+        cfg: &Config,
+    ) -> anyhow::Result<bool> {
+        let user = self.get_user(chat_id).await?;
+        let pro = Self::is_pro(user.as_ref(), Utc::now());
+        let message_limit = if pro {
+            cfg.assistant_pro_messages_per_day
+        } else {
+            cfg.assistant_free_messages_per_day
+        };
+        let audio_limit = if pro {
+            cfg.assistant_pro_audio_per_day
+        } else {
+            cfg.assistant_free_audio_per_day
+        };
+        if audio_seconds.is_some() && audio_limit == 0 {
+            return Ok(false);
+        }
+        let row = sqlx::query(
+            "INSERT INTO assistant_usage
+                (chat_id, usage_date, message_count, audio_count, audio_seconds)
+             VALUES ($1, $2, 1, $3, $4)
+             ON CONFLICT (chat_id, usage_date) DO UPDATE
+             SET message_count = assistant_usage.message_count + 1,
+                 audio_count = assistant_usage.audio_count + EXCLUDED.audio_count,
+                 audio_seconds = assistant_usage.audio_seconds + EXCLUDED.audio_seconds
+             WHERE assistant_usage.message_count < $5
+               AND ($6::boolean = false OR assistant_usage.audio_count < $7)
+             RETURNING message_count",
+        )
+        .bind(chat_id)
+        .bind(Utc::now().date_naive())
+        .bind(i32::from(audio_seconds.is_some()))
+        .bind(audio_seconds.unwrap_or_default() as i32)
+        .bind(message_limit)
+        .bind(audio_seconds.is_some())
+        .bind(audio_limit)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.is_some())
+    }
+
+    pub async fn record_assistant_tokens(
+        &self,
+        chat_id: i64,
+        input_tokens: u64,
+        output_tokens: u64,
+    ) -> anyhow::Result<u64> {
+        let tokens = input_tokens.saturating_add(output_tokens);
+        if tokens == 0 {
+            return Ok(0);
+        }
+        let row = sqlx::query(
+            "INSERT INTO assistant_usage (chat_id, usage_date, input_tokens, output_tokens, total_tokens)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (chat_id, usage_date) DO UPDATE
+             SET input_tokens = assistant_usage.input_tokens + EXCLUDED.input_tokens,
+                 output_tokens = assistant_usage.output_tokens + EXCLUDED.output_tokens,
+                 total_tokens = assistant_usage.total_tokens + EXCLUDED.total_tokens
+             RETURNING total_tokens",
+        )
+        .bind(chat_id)
+        .bind(Utc::now().date_naive())
+        .bind(input_tokens.min(i64::MAX as u64) as i64)
+        .bind(output_tokens.min(i64::MAX as u64) as i64)
+        .bind(tokens.min(i64::MAX as u64) as i64)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(row.try_get::<i64, _>("total_tokens")?.max(0) as u64)
+    }
+
+    pub async fn delete_whatsapp_user_data(&self, chat_id: i64) -> anyhow::Result<bool> {
+        let mut tx = self.pool.begin().await?;
+        let user = sqlx::query(
+            "SELECT chat_id FROM users WHERE chat_id = $1 AND channel = 'whatsapp' FOR UPDATE",
+        )
+        .bind(chat_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if user.is_none() {
+            return Ok(false);
+        }
+        sqlx::query("DELETE FROM alert_matches WHERE alert_id IN (SELECT id FROM alerts WHERE chat_id = $1)")
+            .bind(chat_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM alerts WHERE chat_id = $1")
+            .bind(chat_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM watched_listings WHERE chat_id = $1")
+            .bind(chat_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM bot_session WHERE chat_id = $1")
+            .bind(chat_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM users WHERE chat_id = $1 AND channel = 'whatsapp'")
+            .bind(chat_id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(true)
     }
 }
 

@@ -1,9 +1,11 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::Utc;
 use whatsapp_bot::config::{ensure_parent_dir, Config};
+use whatsapp_bot::ai::transcribe_audio;
 use whatsapp_bot::db::Db;
-use whatsapp_bot::handlers::{handle_text, should_show_typing};
+use whatsapp_bot::handlers::{handle_text, handle_transcribed_audio, should_show_typing};
 use whatsapp_bot::http;
 use whatsapp_bot::jobs::{due, now_maceio, read_stamp, run_daily, write_stamp, Sender};
 use whatsapp_bot::wa::{qr_ascii, Pairing, WaSender};
@@ -79,14 +81,12 @@ async fn main() -> anyhow::Result<()> {
                 {
                     return;
                 }
-                let Some(body) = ctx.message.text_content() else {
-                    return;
-                };
-                let body = body.to_string();
                 let chat = ctx.info.source.chat.clone();
                 let jid = chat.to_string();
-                if should_show_typing(&body) {
-                    let _ = ctx.client.chatstate().send_composing(&chat).await;
+                let audio = ctx.message.get_base_message().audio_message.as_option();
+                let body = ctx.message.text_content().map(str::to_string);
+                if body.is_none() && audio.is_none() {
+                    return;
                 }
                 let chat_id = match db.ensure_whatsapp_user(&jid).await {
                     Ok(chat_id) => chat_id,
@@ -96,7 +96,98 @@ async fn main() -> anyhow::Result<()> {
                         return;
                     }
                 };
-                match handle_text(&db, &cfg, &http_client, chat_id, &body).await {
+                let result = if let Some(body) = body {
+                    if should_show_typing(&body) {
+                        let _ = ctx.client.chatstate().send_composing(&chat).await;
+                    }
+                    handle_text(&db, &cfg, &http_client, chat_id, &body).await
+                } else if let Some(audio) = audio {
+                    if cfg.llm_provider != "openai" || cfg.openai_api_key.is_empty() {
+                        let _ = ctx.reply("A transcrição de áudio não está habilitada agora. Envie sua solicitação por texto.").await;
+                        return;
+                    }
+                    if audio.view_once.unwrap_or(false) {
+                        let _ = ctx.reply("Não transcrevo áudios de visualização única. Envie texto ou um áudio normal.").await;
+                        return;
+                    }
+                    let duration = audio.seconds.unwrap_or(0);
+                    if duration > cfg.assistant_max_audio_seconds {
+                        let _ = ctx.reply(format!("O áudio pode ter no máximo {} segundos. Envie um trecho menor.", cfg.assistant_max_audio_seconds)).await;
+                        return;
+                    }
+                    if audio.file_length.unwrap_or(0) > cfg.assistant_max_audio_bytes as u64 {
+                        let _ = ctx.reply("O arquivo de áudio é grande demais. Envie um áudio menor.").await;
+                        return;
+                    }
+                    let ttl = Duration::from_secs((cfg.session_ttl_hours.max(1) as u64) * 3600);
+                    match db.load_session(chat_id, ttl).await {
+                        Ok(Some(session)) if !matches!(session.step, whatsapp_bot::session::Step::Menu | whatsapp_bot::session::Step::Intent | whatsapp_bot::session::Step::AssistantConversation) => {
+                            let _ = ctx.reply("O fluxo atual precisa de respostas por texto. Seu rascunho continua salvo.").await;
+                            return;
+                        }
+                        Err(error) => {
+                            tracing::error!(%error, "verificar estado antes de transcrever");
+                            let _ = ctx.reply("Não consegui validar sua conversa agora. Tente novamente.").await;
+                            return;
+                        }
+                        _ => {}
+                    }
+                    match db.consume_assistant_usage(chat_id, Some(duration), &cfg).await {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            let user = db.get_user(chat_id).await.ok().flatten();
+                            let pro = Db::is_pro(user.as_ref(), Utc::now());
+                            let limit = if pro { cfg.assistant_pro_audio_per_day } else { cfg.assistant_free_audio_per_day };
+                            let _ = ctx.reply(format!("Você atingiu o limite diário de {limit} áudios do {}. Tente novamente amanhã.", if pro { "Radar Pro" } else { "plano grátis" })).await;
+                            return;
+                        }
+                        Err(error) => {
+                            tracing::error!(%error, "reservar quota para áudio");
+                            let _ = ctx.reply("Não consegui validar seu limite de áudio agora. Tente novamente.").await;
+                            return;
+                        }
+                    }
+                    let _ = ctx.client.chatstate().send_composing(&chat).await;
+                    let bytes = match ctx.client.download(audio).await {
+                        Ok(bytes) if bytes.len() <= cfg.assistant_max_audio_bytes => bytes,
+                        Ok(_) => {
+                            let _ = ctx.reply("O arquivo de áudio é grande demais. Envie um áudio menor.").await;
+                            return;
+                        }
+                        Err(error) => {
+                            tracing::warn!(%error, "download de áudio falhou");
+                            let _ = ctx.reply("Não consegui baixar seu áudio agora. Tente novamente ou envie por texto.").await;
+                            return;
+                        }
+                    };
+                    let mime = audio
+                        .mimetype
+                        .as_deref()
+                        .unwrap_or("audio/ogg")
+                        .split(';')
+                        .next()
+                        .unwrap_or("audio/ogg")
+                        .trim()
+                        .to_lowercase();
+                    match transcribe_audio(&http_client, &cfg, bytes, &mime).await {
+                        Ok(Some(text)) => handle_transcribed_audio(
+                            &db, &cfg, &http_client, chat_id, &text, duration,
+                        )
+                        .await,
+                        Ok(None) => {
+                            let _ = ctx.reply("Não consegui transcrever esse áudio. Tente novamente ou envie por texto.").await;
+                            return;
+                        }
+                        Err(error) => {
+                            tracing::warn!(%error, "transcrição WhatsApp falhou");
+                            let _ = ctx.reply("Não consegui transcrever esse áudio agora. Tente novamente ou envie por texto.").await;
+                            return;
+                        }
+                    }
+                } else {
+                    return;
+                };
+                match result {
                     Ok(messages) => {
                         let sender = WaSender::new(ctx.client.clone(), http_client);
                         if let Err(error) = sender.send_to(&jid, &messages).await {
