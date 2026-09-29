@@ -8,9 +8,9 @@ const WINDOW_LIGHTS = [true, true, false, true, true, true, true, false, true, t
 export function PropertyCard() {
   return (
     <div data-msg="listing" className="hidden w-[96%] self-start">
-      <div className="overflow-hidden rounded-2xl rounded-bl-md bg-[#182533] shadow-lg shadow-black/30">
+      <div className="overflow-hidden rounded-2xl rounded-bl-md bg-[#1b1d21] shadow-lg shadow-black/30">
         <div className="relative h-28 overflow-hidden bg-[#10283a]">
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,#24577a_0%,#0c1822_78%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,#17344d_0%,#0a1219_78%)]" />
           <div className="absolute -right-6 -top-8 size-32 rounded-full bg-[#f0d8b0]/20 blur-2xl" />
           <div className="absolute bottom-0 left-1/2 h-[80%] w-[70%] -translate-x-1/2 rounded-t-sm border border-white/20 bg-[#08131c]/80">
             <div className="grid h-full grid-cols-4 grid-rows-3 gap-1.5 p-2">
@@ -40,7 +40,7 @@ export function PropertyCard() {
         </div>
       </div>
 
-      <div className="mt-1 grid grid-cols-2 overflow-hidden rounded-xl bg-[#24384a]">
+      <div className="mt-1 grid grid-cols-2 overflow-hidden rounded-xl bg-[#23262c]">
         <span className="border-r border-white/10 py-2.5 text-center text-[13px] font-medium text-white">
           Ver anúncio
         </span>

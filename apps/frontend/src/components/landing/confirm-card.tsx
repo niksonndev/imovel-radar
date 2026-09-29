@@ -3,7 +3,7 @@ import { ALERT_SUMMARY } from "./script";
 export function ConfirmCard({ time }: { time: string }) {
   return (
     <div data-msg="confirm" className="hidden w-[94%] self-start">
-      <div className="rounded-2xl rounded-bl-md bg-[#182533] px-3.5 py-3 shadow-sm shadow-black/25">
+      <div className="rounded-2xl rounded-bl-md bg-[#1b1d21] px-3.5 py-3 shadow-sm shadow-black/25">
         <p className="text-sm font-medium text-white">🧾 Confirmação do alerta</p>
         <ul className="mt-2 space-y-1">
           {ALERT_SUMMARY.map((row) => (

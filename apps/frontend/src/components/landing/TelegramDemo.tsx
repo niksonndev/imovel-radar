@@ -230,25 +230,25 @@ export function TelegramDemo({
         <div
           data-demo-shell
           className={cn(
-            "flex h-[min(34rem,calc(100svh-11.5rem))] min-h-112 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#0e1621] shadow-[0_24px_80px_-24px_rgba(0,119,188,0.55)]",
+            "flex h-[min(30rem,calc(100svh-11.5rem))] min-h-[26rem] flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0d11] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.7)]",
             shellClassName,
           )}
         >
-          <header className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-[#17212b] px-4 py-3">
-            <div className="flex size-10 items-center justify-center rounded-full bg-[#0077BC]">
+          <header className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-[#101014] px-4 py-3">
+            <div className="flex size-10 items-center justify-center rounded-full bg-[#0A84FF]">
               <Radar className="size-5 text-white" />
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-white">Imóvel Radar</p>
-              <p className="text-xs text-[#d7e6f2]">bot</p>
+              <p className="text-xs text-[#a9a9b3]">bot</p>
             </div>
           </header>
 
           <div
             ref={viewportRef}
-            className="relative min-h-0 flex-1 overflow-hidden bg-[#0e1621] bg-[radial-gradient(circle_at_12%_0%,rgba(0,119,188,0.18),transparent_42%),radial-gradient(circle_at_100%_100%,rgba(0,152,102,0.1),transparent_38%)]"
+            className="relative min-h-0 flex-1 overflow-hidden bg-[#0a0c0f]"
           >
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-linear-to-b from-[#0e1621] to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-linear-to-b from-[#0a0c0f] to-transparent" />
             <div ref={stackRef} className="flex flex-col gap-2 px-3 py-4 will-change-transform">
               {DEMO_STEPS.map((step) => {
                 if (step.kind === "confirm") {

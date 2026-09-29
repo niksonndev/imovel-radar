@@ -23,7 +23,7 @@ export function ChatBubble({ id, role, time, title, body }: ChatBubbleProps) {
       <div
         className={cn(
           "rounded-2xl px-3 py-2 shadow-sm shadow-black/25",
-          isUser ? "rounded-br-md bg-[#0077BC]" : "rounded-bl-md bg-[#182533]",
+          isUser ? "rounded-br-md bg-[#0A84FF]" : "rounded-bl-md bg-[#1b1d21]",
         )}
       >
         {title ? (
