@@ -109,7 +109,7 @@ pub fn match_score(listing: &Listing, alert: &Alert) -> i32 {
     (price_pts + nbhd_pts + rooms_pts + cat_pts).round() as i32
 }
 
-pub fn neighbourhood_median_price(
+pub fn neighbourhood_mean_price(
     snapshot: Option<&Value>,
     municipality: &str,
     listing_kind: &str,
@@ -133,7 +133,7 @@ pub fn neighbourhood_median_price(
             if row.get("ranked").and_then(|v| v.as_bool()) != Some(true) {
                 return None;
             }
-            return row.get("median_price").and_then(|v| v.as_i64());
+            return row.get("mean_price").and_then(|v| v.as_i64());
         }
         return None;
     }
@@ -197,14 +197,14 @@ pub(crate) fn classify_headline(
         );
     }
     let asked = listing.price_value.map(i64::from);
-    let median = neighbourhood_median_price(
+    let mean = neighbourhood_mean_price(
         snapshot,
         &listing.municipality,
         &listing.listing_kind,
         &listing.neighbourhood,
     );
-    if let (Some(asked), Some(median)) = (asked, median) {
-        if (asked as f64) <= median as f64 * BELOW_AVG_RATIO {
+    if let (Some(asked), Some(mean)) = (asked, mean) {
+        if (asked as f64) <= mean as f64 * BELOW_AVG_RATIO {
             return (
                 EventPriority::BelowAverage,
                 "🏷️ Preço abaixo da média da região".to_string(),

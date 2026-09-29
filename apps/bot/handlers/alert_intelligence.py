@@ -2,7 +2,7 @@
 
 A coleta é diária, então “publicado há 8 minutos” só aparece quando
 ``first_seen_at`` é de fato recente. Queda de preço, volta ao ar e
-preço abaixo da mediana da região têm prioridade porque quase todo
+preço abaixo da média da região têm prioridade porque quase todo
 match novo também é “recente”.
 """
 
@@ -174,14 +174,14 @@ def match_score(listing: Listing, alert: _AlertLike) -> int:
     return int(round(price_pts + nbhd_pts + rooms_pts + cat_pts))
 
 
-def neighbourhood_median_price(
+def neighbourhood_mean_price(
     snapshot: dict[str, Any] | None,
     *,
     municipality: str,
     listing_kind: str,
     neighbourhood: str,
 ) -> int | None:
-    """Mediana do bairro no snapshot do scraper, só com amostra ranqueada."""
+    """Média do bairro no snapshot do scraper, só com amostra ranqueada."""
     if not snapshot or not neighbourhood:
         return None
     cities = snapshot.get("cities")
@@ -204,8 +204,8 @@ def neighbourhood_median_price(
                 continue
             if row.get("ranked") is not True:
                 return None
-            median = row.get("median_price")
-            return int(median) if isinstance(median, int) else None
+            mean = row.get("mean_price")
+            return int(mean) if isinstance(mean, int) else None
         return None
     return None
 
@@ -269,13 +269,13 @@ def classify_listing_event(
         )
 
     asked = _asked_price(listing)
-    median = neighbourhood_median_price(
+    mean = neighbourhood_mean_price(
         snapshot,
         municipality=getattr(listing, "municipality", None) or "",
         listing_kind=getattr(listing, "listing_kind", None) or "aluguel",
         neighbourhood=listing.neighbourhood or "",
     )
-    if asked is not None and median is not None and asked <= int(median * BELOW_AVG_RATIO):
+    if asked is not None and mean is not None and asked <= int(mean * BELOW_AVG_RATIO):
         return AlertEvent(
             kind=EventKind.BELOW_AVERAGE,
             headline="🏷️ Preço abaixo da média da região",

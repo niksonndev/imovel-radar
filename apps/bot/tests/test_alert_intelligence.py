@@ -13,7 +13,7 @@ from handlers.alert_intelligence import (
     format_drop_amount,
     format_published_ago,
     match_score,
-    neighbourhood_median_price,
+    neighbourhood_mean_price,
     prepare_match_carousel,
 )
 
@@ -53,7 +53,7 @@ def _listing(**overrides: object) -> SimpleNamespace:
     return SimpleNamespace(**values)
 
 
-def _snapshot(*, median: int = 2_200, ranked: bool = True) -> dict:
+def _snapshot(*, mean: int = 2_200, ranked: bool = True) -> dict:
     return {
         "cities": [
             {
@@ -63,7 +63,7 @@ def _snapshot(*, median: int = 2_200, ranked: bool = True) -> dict:
                         "neighbourhoods": [
                             {
                                 "name": "Ponta Verde",
-                                "median_price": median,
+                                "mean_price": mean,
                                 "ranked": ranked,
                             }
                         ]
@@ -146,17 +146,17 @@ def test_new_alert_seed_is_not_back_on_market() -> None:
     assert event.kind != EventKind.BACK_ON_MARKET
 
 
-def test_below_neighbourhood_median() -> None:
+def test_below_neighbourhood_mean() -> None:
     listing = _listing(
         price_value=1_800,
         first_seen_at=NOW - timedelta(hours=2),
         properties={"rooms": 2},
     )
-    # Faixa larga para o match ficar < 90; o preço ainda está ~18% abaixo da mediana.
+    # Faixa larga para o match ficar < 90; o preço ainda está ~18% abaixo da média.
     event = classify_listing_event(
         listing,  # type: ignore[arg-type]
         _alert(min_price=1_000, max_price=3_500, neighbourhoods=None, categories=None),  # type: ignore[arg-type]
-        snapshot=_snapshot(median=2_200),
+        snapshot=_snapshot(mean=2_200),
         now=NOW,
     )
     assert event.kind == EventKind.BELOW_AVERAGE
@@ -165,13 +165,13 @@ def test_below_neighbourhood_median() -> None:
 
 def test_unranked_neighbourhood_skips_below_average() -> None:
     listing = _listing(first_seen_at=NOW - timedelta(days=2), price_value=1_800)
-    median = neighbourhood_median_price(
+    mean = neighbourhood_mean_price(
         _snapshot(ranked=False),
         municipality="Maceió",
         listing_kind="aluguel",
         neighbourhood="Ponta Verde",
     )
-    assert median is None
+    assert mean is None
     event = classify_listing_event(
         listing,  # type: ignore[arg-type]
         _alert(neighbourhoods=None, categories=None, min_price=1_000, max_price=3_500),  # type: ignore[arg-type]
