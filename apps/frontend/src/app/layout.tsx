@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { GoogleTagManager } from "@next/third-parties/google";
-import { Archivo_Black, Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Poppins } from "next/font/google";
 import "./globals.css";
 
 import { AiSeoJsonLd } from "@/components/ai-seo/json-ld";
@@ -8,9 +8,9 @@ import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 
 const GTM_ID = "GTM-WDVXQDFF";
 
-const archivoBlack = Archivo_Black({
-  weight: "400",
-  variable: "--font-archivo-black",
+const poppins = Poppins({
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-poppins",
   subsets: ["latin"],
 });
 
@@ -75,7 +75,7 @@ export default function RootLayout({
     <html
       lang="pt-BR"
       suppressHydrationWarning
-      className={`${archivoBlack.variable} ${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${poppins.variable} ${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <GoogleTagManager gtmId={GTM_ID} />
       <body className="min-h-full flex flex-col">
