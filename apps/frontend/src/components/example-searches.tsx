@@ -34,7 +34,7 @@ export function ExampleSearches() {
         <TrackedCta
           href={TELEGRAM_BOT_URL}
           ctaId="example_searches"
-          className="btn-shine"
+          variant="pill"
         >
           {EXAMPLE_SEARCHES_CTA}
         </TrackedCta>

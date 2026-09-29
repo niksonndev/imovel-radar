@@ -3,7 +3,7 @@
 import { sendGTMEvent } from "@next/third-parties/google";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Send } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import type { VariantProps } from "class-variance-authority";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
@@ -51,7 +51,7 @@ export function TrackedCta({
       }}
       {...rest}
     >
-      {showIcon ? <Send className="size-4" data-icon="inline-start" /> : null}
+      {showIcon ? <ArrowRight className="size-4 transition-transform group-hover/button:translate-x-0.5" data-icon="inline-end" /> : null}
       {children}
     </a>
   );
