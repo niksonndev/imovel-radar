@@ -6,10 +6,12 @@ import { PricingSection } from "@/components/pricing-section";
 import { FaqSection } from "@/components/faq-section";
 import { CTASection } from "@/components/cta-section";
 import { Footer } from "@/components/footer";
+import { Header } from "@/components/header";
 
 export default function Home() {
   return (
     <div className="flex flex-1 flex-col">
+      <Header />
       <main className="bg-surface">
         <HeroSection />
         <HowItWorks />
