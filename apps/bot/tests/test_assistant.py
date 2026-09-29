@@ -217,3 +217,49 @@ def test_remove_confirm_cb_cancel() -> None:
 
     asyncio.run(assistant_mod.assistant_remove_confirm_cb(update, MagicMock()))
     assert query.edit_message_text.called
+
+
+def test_assistant_audio_transcribes_and_responds(monkeypatch) -> None:
+    msg = MagicMock()
+    msg.voice = MagicMock(file_id="fid")
+    msg.audio = None
+    msg.reply_text = AsyncMock()
+    update = MagicMock()
+    update.effective_message = msg
+    update.effective_user = MagicMock(id=123)
+    update.effective_chat = MagicMock()
+    update.effective_chat.send_action = AsyncMock()
+
+    monkeypatch.setattr(
+        assistant_mod,
+        "_audio_to_text",
+        AsyncMock(return_value="quais são meus alertas"),
+    )
+    monkeypatch.setattr(
+        assistant_mod,
+        "extract_assistant_intent",
+        AsyncMock(return_value=AssistantIntent(tool="listar_alertas")),
+    )
+    monkeypatch.setattr(assistant_mod, "get_alerts_for_user", AsyncMock(return_value=[_alert()]))
+
+    asyncio.run(assistant_mod.assistant_audio(update, MagicMock()))
+    reply = msg.reply_text.call_args[0][0]
+    assert "Apto Ponta Verde" in reply
+
+
+def test_assistant_audio_fallback_when_no_transcription(monkeypatch) -> None:
+    msg = MagicMock()
+    msg.voice = MagicMock(file_id="fid")
+    msg.audio = None
+    msg.reply_text = AsyncMock()
+    update = MagicMock()
+    update.effective_message = msg
+    update.effective_user = MagicMock(id=123)
+    update.effective_chat = MagicMock()
+    update.effective_chat.send_action = AsyncMock()
+
+    monkeypatch.setattr(assistant_mod, "_audio_to_text", AsyncMock(return_value=None))
+
+    asyncio.run(assistant_mod.assistant_audio(update, MagicMock()))
+    reply = msg.reply_text.call_args[0][0]
+    assert "Não consegui transcrever" in reply
