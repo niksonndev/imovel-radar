@@ -94,3 +94,6 @@ logs/
 *.tfstate.*
 infra/*.tfvars
 dist/
+
+# previews gerados localmente (restyle)
+docs/preview/
