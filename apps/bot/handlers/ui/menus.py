@@ -27,9 +27,11 @@ def ajuda_comandos_plain() -> str:
         "/start — boas-vindas e menu principal\n"
         "/novo_alerta — criar alerta de aluguel ou compra\n"
         "/cancelar — sai do wizard de novo alerta\n"
+        "/privacidade — política de privacidade e termos\n"
+        "/excluir_dados — solicita a exclusão da conta e dos dados\n"
+        "/suporte — atendimento do operador, quando configurado\n"
     ]
-    if config.BILLING_ENABLED:
-        lines.append("/cancelar_pro — cancela a assinatura Radar Pro (Stars)\n")
+    lines.append("/cancelar_pro — cancela a renovação Radar Pro (Stars)\n")
     lines.append("/ajuda — esta mensagem")
     return "".join(lines)
 

@@ -8,6 +8,7 @@ retorna ``None`` para o assistente cair num fallback amigável.
 from __future__ import annotations
 
 import logging
+import mimetypes
 
 import httpx
 
@@ -23,6 +24,7 @@ async def transcribe_audio(
     model: str = WHISPER_MODEL,
     timeout_s: float = 30.0,
     filename: str = "audio.ogg",
+    content_type: str | None = None,
 ) -> str | None:
     """Envia o áudio para a OpenAI e retorna o texto transcrito (ou None)."""
     if not audio_bytes or not api_key:
@@ -32,7 +34,15 @@ async def transcribe_audio(
             resp = await client.post(
                 "https://api.openai.com/v1/audio/transcriptions",
                 headers={"Authorization": f"Bearer {api_key}"},
-                files={"file": (filename, audio_bytes, "application/octet-stream")},
+                files={
+                    "file": (
+                        filename,
+                        audio_bytes,
+                        content_type
+                        or mimetypes.guess_type(filename)[0]
+                        or "application/octet-stream",
+                    )
+                },
                 data={"model": model},
             )
             if resp.status_code != 200:

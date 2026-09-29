@@ -1089,11 +1089,29 @@ def test_claim_email_pro_trial_activates(session: Session, monkeypatch) -> None:
 def test_claim_email_pro_trial_rejects_invalid(session: Session) -> None:
     session.add(User(chat_id=702))
     session.commit()
-    status, user = queries.claim_email_pro_trial(
-        session, chat_id=702, email_raw="not-an-email"
-    )
+    status, user = queries.claim_email_pro_trial(session, chat_id=702, email_raw="not-an-email")
     assert status == "invalid_email"
     assert user is None
+
+
+def test_delete_user_data_removes_user_and_alerts(session: Session) -> None:
+    chat_id = 8080
+    queries.ensure_user(session, chat_id)
+    queries.create_alert(
+        session,
+        chat_id=chat_id,
+        alert_name="Apto Recife",
+        min_price=None,
+        max_price=2000,
+        neighbourhoods=[],
+        listing_kind="aluguel",
+        municipality="Recife",
+    )
+
+    assert queries.delete_user_data(session, chat_id)
+    assert queries.get_user(session, chat_id) is None
+    assert queries.get_alerts_for_user(session, chat_id) == []
+    assert not queries.delete_user_data(session, chat_id)
 
 
 def test_claim_email_pro_trial_rejects_second_claim(session: Session, monkeypatch) -> None:
@@ -1103,9 +1121,7 @@ def test_claim_email_pro_trial_rejects_second_claim(session: Session, monkeypatc
     session.add(User(chat_id=703))
     session.commit()
 
-    status1, _ = queries.claim_email_pro_trial(
-        session, chat_id=703, email_raw="once@example.com"
-    )
+    status1, _ = queries.claim_email_pro_trial(session, chat_id=703, email_raw="once@example.com")
     session.commit()
     assert status1 == "activated"
 
@@ -1117,23 +1133,17 @@ def test_claim_email_pro_trial_rejects_second_claim(session: Session, monkeypatc
     session.add(user)
     session.commit()
 
-    status2, _ = queries.claim_email_pro_trial(
-        session, chat_id=703, email_raw="other@example.com"
-    )
+    status2, _ = queries.claim_email_pro_trial(session, chat_id=703, email_raw="other@example.com")
     assert status2 == "already_claimed"
 
 
-def test_claim_email_pro_trial_rejects_duplicate_email(
-    session: Session, monkeypatch
-) -> None:
+def test_claim_email_pro_trial_rejects_duplicate_email(session: Session, monkeypatch) -> None:
     monkeypatch.setattr("config.EMAIL_PRO_TRIAL_DAYS", 30)
     session.add(User(chat_id=704))
     session.add(User(chat_id=705))
     session.commit()
 
-    status1, _ = queries.claim_email_pro_trial(
-        session, chat_id=704, email_raw="shared@example.com"
-    )
+    status1, _ = queries.claim_email_pro_trial(session, chat_id=704, email_raw="shared@example.com")
     session.commit()
     assert status1 == "activated"
 
@@ -1160,9 +1170,7 @@ def test_claim_email_pro_trial_rejects_already_pro(session: Session, monkeypatch
     )
     session.commit()
 
-    status, user = queries.claim_email_pro_trial(
-        session, chat_id=706, email_raw="pro@example.com"
-    )
+    status, user = queries.claim_email_pro_trial(session, chat_id=706, email_raw="pro@example.com")
     assert status == "already_pro"
     assert user is not None
     assert user.email is None
@@ -1191,6 +1199,43 @@ def test_latest_market_snapshot_returns_newest_payload(session: Session) -> None
         )
     )
     session.commit()
-    assert queries.get_latest_market_snapshot(session) == {
-        "cities": [{"municipality": "Maceió"}]
-    }
+    assert queries.get_latest_market_snapshot(session) == {"cities": [{"municipality": "Maceió"}]}
+
+
+def test_upsert_assistant_usage_accumulates_and_delete_removes(session: Session) -> None:
+    chat_id = 9001
+    queries.ensure_user(session, chat_id)
+    day = date(2026, 9, 29)
+
+    queries.upsert_assistant_usage(
+        session,
+        chat_id=chat_id,
+        usage_date=day,
+        input_tokens=80,
+        output_tokens=20,
+        total_tokens=100,
+    )
+    queries.upsert_assistant_usage(
+        session,
+        chat_id=chat_id,
+        usage_date=day,
+        message_count=1,
+        total_tokens=50,
+    )
+    session.commit()
+
+    row = session.exec(
+        select(queries.AssistantUsage).where(queries.AssistantUsage.chat_id == chat_id)
+    ).one()
+    assert row.total_tokens == 150  # 100 + 50
+    assert row.input_tokens == 80
+    assert row.output_tokens == 20
+    assert row.message_count == 1
+
+    # deletion of the user also removes the usage telemetry
+    assert queries.delete_user_data(session, chat_id) is True
+    session.commit()
+    leftover = session.exec(
+        select(queries.AssistantUsage).where(queries.AssistantUsage.chat_id == chat_id)
+    ).first()
+    assert leftover is None

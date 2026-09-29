@@ -181,6 +181,7 @@ async def wiz_nl_text(update: Update, context: CustomContext) -> int:
     from handlers.create_new_alert import CITY, INTENT
 
     assert update.effective_message is not None
+    user = update.effective_user
     text = (update.effective_message.text or "").strip()
     if not text:
         await update.effective_message.reply_text(
@@ -198,12 +199,42 @@ async def wiz_nl_text(update: Update, context: CustomContext) -> int:
     except Exception:
         pass
 
+    if user is not None and config.LLM_PROVIDER == "openai" and config.resolve_openai_api_key():
+        from handlers.assistant import _consume_daily_usage
+
+        quota_status = await _consume_daily_usage(context, user.id, audio=False)
+        if quota_status != "allowed":
+            if quota_status == "limited":
+                await update.effective_message.reply_text(
+                    "Você atingiu o limite diário de mensagens do assistente. "
+                    "Tente novamente amanhã."
+                )
+            else:
+                await update.effective_message.reply_text(
+                    "Não consegui validar seu acesso agora. Tente novamente em instantes."
+                )
+            return INTENT
+
+    async def record_usage(input_tokens: int, output_tokens: int) -> None:
+        if user is None:
+            return
+        from handlers.assistant import _record_token_usage
+
+        await _record_token_usage(
+            context,
+            user.id,
+            input_tokens + output_tokens,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
     extracted = await extract_alert_intent(
         text,
         provider=config.LLM_PROVIDER,
         api_key=config.resolve_openai_api_key(),
         model=config.LLM_MODEL,
         timeout_s=config.LLM_TIMEOUT_SECONDS,
+        usage_callback=record_usage if user is not None else None,
     )
 
     if extracted is None:
@@ -248,9 +279,7 @@ async def wiz_nl_text(update: Update, context: CustomContext) -> int:
                     municipality=city,
                     listing_kind=draft.get("listing_kind"),
                 )
-                draft["neighbourhoods"] = match_neighbourhoods(
-                    extracted.neighbourhoods, available
-                )
+                draft["neighbourhoods"] = match_neighbourhoods(extracted.neighbourhoods, available)
             except Exception:
                 logger.exception("Falha ao buscar bairros para match inicial")
         else:

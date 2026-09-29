@@ -11,6 +11,7 @@ import json
 import logging
 import re
 import unicodedata
+from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 import httpx
@@ -259,9 +260,8 @@ def mock_extract_alert(text: str) -> ExtractedAlert:
         categories = ["Apartamentos"]
     elif re.search(r"\b(casa|casas|sobrado)\b", norm):
         categories = ["Casas"]
-    elif (
-        re.search(r"\b(quarto|quartos para alugar)\b", norm)
-        and not re.search(r"\d+\s*quartos", norm)
+    elif re.search(r"\b(quarto|quartos para alugar)\b", norm) and not re.search(
+        r"\d+\s*quartos", norm
     ):
         categories = ["Aluguel de quartos"]
 
@@ -338,6 +338,7 @@ async def extract_alert_with_openai(
     api_key: str,
     model: str = "gpt-4o-mini",
     timeout_s: float = 8.0,
+    usage_callback: Callable[[int, int], Awaitable[None]] | None = None,
 ) -> ExtractedAlert | None:
     """Envia o texto para a OpenAI Chat Completions com JSON Schema estrito."""
     payload = {
@@ -374,6 +375,15 @@ async def extract_alert_with_openai(
             data = resp.json()
             content = data["choices"][0]["message"]["content"]
             parsed = json.loads(content)
+            if usage_callback is not None:
+                usage = data.get("usage", {})
+                input_tokens = usage.get("prompt_tokens", 0)
+                output_tokens = usage.get("completion_tokens", 0)
+                if isinstance(input_tokens, int) and isinstance(output_tokens, int):
+                    try:
+                        await usage_callback(input_tokens, output_tokens)
+                    except Exception:
+                        logger.exception("Falha ao registrar uso de tokens do extrator")
             return ExtractedAlert(**parsed)
     except httpx.TimeoutException:
         logger.warning("Timeout (%.1fs) chamando OpenAI para extração de alerta", timeout_s)
@@ -390,6 +400,7 @@ async def extract_alert_intent(
     api_key: str = "",
     model: str = "gpt-4o-mini",
     timeout_s: float = 8.0,
+    usage_callback: Callable[[int, int], Awaitable[None]] | None = None,
 ) -> ExtractedAlert | None:
     """Ponto de entrada único para extrair critérios de alerta.
 
@@ -406,6 +417,7 @@ async def extract_alert_intent(
             api_key=api_key,
             model=model,
             timeout_s=timeout_s,
+            usage_callback=usage_callback,
         )
         if result is not None:
             return result

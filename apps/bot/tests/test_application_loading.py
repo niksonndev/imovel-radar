@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 from telegram import Update
 
 from application import RadarApplication
+from handlers.setup import bot_commands
 
 
 def test_process_update_shows_loading_before_ensure_user() -> None:
@@ -74,3 +75,8 @@ def test_process_update_skips_loading_for_help() -> None:
         asyncio.run(app.process_update(update))
 
     assert order == ["ensure", "handlers"]
+
+
+def test_published_commands_include_cancel() -> None:
+    commands = {command.command for command in bot_commands()}
+    assert {"cancelar", "privacidade", "excluir_dados", "suporte"} <= commands

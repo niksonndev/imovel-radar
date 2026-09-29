@@ -26,9 +26,7 @@ class FakePaginator:
         assert names.get("#store") == "store", names
         expected = values[":s"]
         items = [
-            dict(item)
-            for (_chat_id, store), item in self._table.items.items()
-            if store == expected
+            dict(item) for (_chat_id, store), item in self._table.items.items() if store == expected
         ]
         yield {"Items": items}
 
@@ -88,6 +86,38 @@ class FakeTable:
 
     def delete_item(self, Key: dict) -> None:
         self.items.pop((Key["chat_id"], Key["store"]), None)
+
+    def update_item(
+        self,
+        Key: dict,
+        UpdateExpression: str,
+        ExpressionAttributeNames: dict,
+        ExpressionAttributeValues: dict,
+        ConditionExpression: str | None = None,
+        ReturnValues: str | None = None,
+    ) -> dict:
+        key = (Key["chat_id"], Key["store"])
+        item = self.items.setdefault(key, {"chat_id": Key["chat_id"], "store": Key["store"]})
+        if ConditionExpression:
+            message_count = item.get("messages", 0)
+            if message_count >= ExpressionAttributeValues[":message_limit"]:
+                raise ClientError(
+                    {"Error": {"Code": "ConditionalCheckFailedException"}}, "UpdateItem"
+                )
+            if (
+                ":audio_limit" in ExpressionAttributeValues
+                and item.get("audio", 0) >= ExpressionAttributeValues[":audio_limit"]
+            ):
+                raise ClientError(
+                    {"Error": {"Code": "ConditionalCheckFailedException"}}, "UpdateItem"
+                )
+        item["ttl"] = ExpressionAttributeValues[":expires"]
+        add_expression = UpdateExpression.split("ADD ", 1)[1]
+        for fragment in add_expression.split(","):
+            name_alias, value_alias = fragment.strip().split()
+            name = ExpressionAttributeNames[name_alias]
+            item[name] = item.get(name, 0) + ExpressionAttributeValues[value_alias]
+        return {"Attributes": dict(item) if ReturnValues else {}}
 
 
 def _run(coro):
@@ -189,3 +219,62 @@ def test_get_chat_data_scans_with_store_alias() -> None:
 
     loaded = _run(pers.get_chat_data())
     assert loaded == {9: {"b": 2}}
+
+
+def test_daily_assistant_usage_is_capped_and_expires() -> None:
+    table = FakeTable()
+    persistence = DynamoDBPersistence(table=table)
+
+    assert _run(
+        persistence.consume_daily_assistant_usage(
+            42, audio=True, message_limit=2, audio_limit=1, audio_seconds=30
+        )
+    )
+    assert not _run(
+        persistence.consume_daily_assistant_usage(
+            42, audio=True, message_limit=2, audio_limit=1, audio_seconds=10
+        )
+    )
+    assert _run(
+        persistence.consume_daily_assistant_usage(42, audio=False, message_limit=2, audio_limit=1)
+    )
+    assert not _run(
+        persistence.consume_daily_assistant_usage(42, audio=False, message_limit=2, audio_limit=1)
+    )
+
+    item = next(item for item in table.items.values() if item["chat_id"] == 42)
+    assert item["messages"] == 2
+    assert item["audio"] == 1
+    assert item["audio_seconds"] == 30
+    assert "ttl" in item
+
+
+def test_daily_assistant_tokens_are_aggregated() -> None:
+    table = FakeTable()
+    persistence = DynamoDBPersistence(table=table)
+
+    _run(persistence.record_daily_assistant_tokens(42, 10))
+    _run(persistence.record_daily_assistant_tokens(42, 15, input_tokens=11, output_tokens=4))
+
+    item = next(item for item in table.items.values() if item["chat_id"] == 42)
+    assert item["tokens"] == 25
+    assert item["input_tokens"] == 11
+    assert item["output_tokens"] == 4
+    assert "ttl" in item
+
+
+def test_purge_user_records_clears_only_matching_user() -> None:
+    table = FakeTable()
+    persistence = DynamoDBPersistence(table=table)
+    _run(persistence.update_user_data(42, {"assistant_history": ["private"]}))
+    _run(persistence.update_chat_data(42, {"carousel": "state"}))
+    _run(persistence.consume_daily_assistant_usage(42, audio=False, message_limit=5, audio_limit=1))
+    _run(persistence.update_conversation("new_alert", (42, 42), 2))
+    _run(persistence.update_conversation("new_alert", (43, 43), 2))
+
+    _run(persistence.purge_user_records(42))
+
+    assert not any(chat_id == 42 for chat_id, _store in table.items)
+    stored = json.loads(table.items[(0, "conversations")]["data"])
+    assert encode_conversation_key((42, 42)) not in stored["new_alert"]
+    assert stored["new_alert"][encode_conversation_key((43, 43))] == 2

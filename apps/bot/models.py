@@ -9,6 +9,10 @@ from telegram.ext import CallbackContext, ExtBot
 class UserData(TypedDict, total=False):
     create_alert_draft: CreateAlertDraft
     create_alert_wizard_state: CreateAlertWizardState
+    assistant_pending_alert: AssistantPendingAlert
+    assistant_history: list[AssistantConversationTurn]
+    assistant_history_updated_at: float
+    pending_data_deletion_token: str
 
 
 class CustomContext(CallbackContext[ExtBot, UserData, dict, dict]):
@@ -27,6 +31,23 @@ class CreateAlertDraft(TypedDict, total=False):
     categories: list[str]
     neighbourhoods: list[str]
     created_alert_id: int
+
+
+class AssistantConversationTurn(TypedDict):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class AssistantPendingAlert(TypedDict, total=False):
+    token: str
+    alert_name: str
+    municipality: str
+    listing_kind: ListingKind
+    categories: list[str] | None
+    min_price: int | None
+    max_price: int | None
+    min_rooms: int | None
+    neighbourhoods: list[str]
 
 
 class CreateAlertWizardState(TypedDict, total=False):

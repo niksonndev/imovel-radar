@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 
 from shared_models.tables import (
     Alert,
     AlertMatch,
+    AssistantUsage,
+    BotSession,
     Listing,
     ListingAlertMatch,
     ListingKind,
@@ -43,6 +45,11 @@ def ensure_user(session: Session, chat_id: int) -> bool:
 
 def get_user(session: Session, chat_id: int) -> User | None:
     return session.get(User, chat_id)
+
+
+def lock_user_for_update(session: Session, chat_id: int) -> User | None:
+    """Serializa alterações sujeitas a caps por usuário dentro da transação."""
+    return session.exec(select(User).where(User.chat_id == chat_id).with_for_update()).one_or_none()
 
 
 def is_pro(user: User | None) -> bool:
@@ -153,9 +160,7 @@ def claim_email_pro_trial(
     if user.email_pro_trial_claimed_at is not None:
         return "already_claimed", user
 
-    taken = session.exec(
-        select(User).where(User.email == email, User.chat_id != chat_id)
-    ).first()
+    taken = session.exec(select(User).where(User.email == email, User.chat_id != chat_id)).first()
     if taken is not None:
         return "email_taken", None
 
@@ -181,9 +186,7 @@ def get_users_chat_ids(session: Session) -> list[int]:
     Usuários WhatsApp usam ``chat_id`` sintético e são notificados pelo
     processo Rust — mandar esses ids ao Bot API do Telegram falha.
     """
-    return list(
-        session.exec(select(User.chat_id).where(User.channel == "telegram")).all()
-    )
+    return list(session.exec(select(User.chat_id).where(User.channel == "telegram")).all())
 
 
 # ── Neighbourhoods (lê listing) ────────────────────────────────────────────
@@ -319,6 +322,65 @@ def delete_alert_for_user(session: Session, chat_id: int, alert_id: int) -> bool
     return True
 
 
+def delete_user_data(session: Session, chat_id: int) -> bool:
+    """Remove cadastro e dados do usuário; commit permanece com o chamador."""
+    user = get_user(session, chat_id)
+    if user is None:
+        return False
+    alert_ids = [
+        alert_id
+        for alert_id in session.exec(select(Alert.id).where(Alert.chat_id == chat_id)).all()
+        if alert_id is not None
+    ]
+    if alert_ids:
+        session.exec(delete(AlertMatch).where(col(AlertMatch.alert_id).in_(alert_ids)))
+    session.exec(delete(Alert).where(Alert.chat_id == chat_id))
+    session.exec(delete(WatchedListing).where(WatchedListing.chat_id == chat_id))
+    session.exec(delete(AssistantUsage).where(AssistantUsage.chat_id == chat_id))
+    session.exec(delete(BotSession).where(BotSession.chat_id == chat_id))
+    session.delete(user)
+    session.flush()
+    return True
+
+
+def upsert_assistant_usage(
+    session: Session,
+    *,
+    chat_id: int,
+    usage_date: date,
+    message_count: int = 0,
+    audio_count: int = 0,
+    audio_seconds: int = 0,
+    input_tokens: int = 0,
+    output_tokens: int = 0,
+    total_tokens: int = 0,
+) -> None:
+    """Acumula uso diário do assistente (telemetria agregada). Não commita."""
+    stmt = postgres_insert(AssistantUsage).values(
+        chat_id=chat_id,
+        usage_date=usage_date,
+        message_count=message_count,
+        audio_count=audio_count,
+        audio_seconds=audio_seconds,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=total_tokens,
+    )
+    cols = AssistantUsage.__table__.c
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["chat_id", "usage_date"],
+        set_={
+            "message_count": cols.message_count + message_count,
+            "audio_count": cols.audio_count + audio_count,
+            "audio_seconds": cols.audio_seconds + audio_seconds,
+            "input_tokens": cols.input_tokens + input_tokens,
+            "output_tokens": cols.output_tokens + output_tokens,
+            "total_tokens": cols.total_tokens + total_tokens,
+        },
+    )
+    session.exec(stmt)
+
+
 def _json_fee(key: str):
     """Condomínio/IPTU do JSON. Ausente, nulo ou ≤ 0 conta como zero."""
     raw = cast(Listing.properties[key].as_string(), Integer)
@@ -395,10 +457,7 @@ def mark_listings_notified(session: Session, pairs: list[tuple[int, int]]) -> No
     stmt = (
         postgres_insert(AlertMatch)
         .values(
-            [
-                {"alert_id": alert_id, "listing_id": listing_id}
-                for alert_id, listing_id in pairs
-            ]
+            [{"alert_id": alert_id, "listing_id": listing_id} for alert_id, listing_id in pairs]
         )
         .on_conflict_do_nothing(index_elements=["alert_id", "listing_id"])
     )
@@ -441,9 +500,7 @@ def get_watch_for_user(
     return WatchedListingChange(watch=watch, listing=listing)
 
 
-def get_watch_by_listing(
-    session: Session, chat_id: int, listing_id: int
-) -> WatchedListing | None:
+def get_watch_by_listing(session: Session, chat_id: int, listing_id: int) -> WatchedListing | None:
     return session.exec(
         select(WatchedListing).where(
             WatchedListing.chat_id == chat_id,

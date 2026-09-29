@@ -16,6 +16,7 @@ from telegram.ext import (
 
 from handlers.data import claim_email_pro_trial, user_is_pro
 from handlers.home import MENU_NAV_CALLBACK_RE, route_menu_callback
+from handlers.privacy import privacy_delete_request, privacy_policy_cmd, support_cmd
 from handlers.ui import keyboards, menus
 from models import CustomContext
 
@@ -108,6 +109,17 @@ async def email_pro_trial_text(update: Update, context: CustomContext) -> int:
     return ConversationHandler.END
 
 
+async def email_pro_trial_audio(update: Update, context: CustomContext) -> int:
+    del context
+    message = update.effective_message
+    if message is not None:
+        await message.reply_text(
+            "Neste passo preciso do e-mail por texto. Seu trial continua aguardando; "
+            "use /cancelar para sair."
+        )
+    return ASK_EMAIL
+
+
 async def email_pro_trial_cancel_cb(update: Update, context: CustomContext) -> int:
     del context  # unused
     query = update.callback_query
@@ -161,6 +173,7 @@ def email_pro_trial_conversation() -> ConversationHandler:
         states={
             ASK_EMAIL: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, email_pro_trial_text),
+                MessageHandler(filters.VOICE | filters.AUDIO, email_pro_trial_audio),
                 CallbackQueryHandler(
                     email_pro_trial_cancel_cb, pattern=r"^email_pro_trial_cancel$"
                 ),
@@ -168,6 +181,9 @@ def email_pro_trial_conversation() -> ConversationHandler:
         },
         fallbacks=[
             CommandHandler("cancelar", email_pro_trial_cancel_cmd),
+            CommandHandler("privacidade", privacy_policy_cmd),
+            CommandHandler("suporte", support_cmd),
+            CommandHandler("excluir_dados", privacy_delete_request),
             CommandHandler("start", email_pro_trial_start_fallback),
             CallbackQueryHandler(email_pro_trial_menu_exit, pattern=MENU_NAV_CALLBACK_RE),
         ],

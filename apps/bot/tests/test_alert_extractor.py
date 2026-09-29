@@ -1,4 +1,5 @@
 import asyncio
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -93,7 +94,8 @@ def test_extract_alert_with_openai_mock_response(monkeypatch: pytest.MonkeyPatch
                         "content": fake_json_content,
                     }
                 }
-            ]
+            ],
+            "usage": {"prompt_tokens": 20, "completion_tokens": 7},
         }
         return httpx.Response(200, json=data)
 
@@ -106,7 +108,12 @@ def test_extract_alert_with_openai_mock_response(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr(httpx, "AsyncClient", custom_async_client)
 
-    result = asyncio.run(extract_alert_with_openai("texto de teste", api_key="fake-key"))
+    usage_callback = AsyncMock()
+    result = asyncio.run(
+        extract_alert_with_openai(
+            "texto de teste", api_key="fake-key", usage_callback=usage_callback
+        )
+    )
     assert result is not None
     assert result.municipality == "Maceió"
     assert result.listing_kind == "aluguel"
@@ -114,6 +121,7 @@ def test_extract_alert_with_openai_mock_response(monkeypatch: pytest.MonkeyPatch
     assert result.max_price == 3000
     assert result.min_rooms == 2
     assert result.neighbourhoods == ["Pajuçara"]
+    usage_callback.assert_awaited_once_with(20, 7)
 
 
 def test_extract_alert_with_openai_error_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:

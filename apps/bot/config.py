@@ -99,6 +99,7 @@ PRO_PRICE_BRL_LABEL = os.getenv("PRO_PRICE_BRL_LABEL", "R$ 19,90").strip() or "R
 # Período de assinatura Stars (Bot API): exatamente 30 dias.
 PRO_SUBSCRIPTION_PERIOD_SECONDS = 2592000
 
+
 # ── Dev local ────────────────────────────────────────────────────────────────
 # Persistência por arquivo SOLO para dev (pnpm run dev). No serverless se usa
 # DynamoDB (ADR 0006).
@@ -111,10 +112,32 @@ ALERT_NL_ENABLED = _env_bool("ALERT_NL_ENABLED", True)
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "mock").strip().lower()
 LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini").strip()
 LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "8.0"))
+ASSISTANT_MEMORY_TURNS = int(os.getenv("ASSISTANT_MEMORY_TURNS", "6"))
+ASSISTANT_MEMORY_TTL_SECONDS = int(os.getenv("ASSISTANT_MEMORY_TTL_SECONDS", "14400"))
+ASSISTANT_MAX_MESSAGE_CHARS = int(os.getenv("ASSISTANT_MAX_MESSAGE_CHARS", "4000"))
+ASSISTANT_FREE_MESSAGES_PER_DAY = int(os.getenv("ASSISTANT_FREE_MESSAGES_PER_DAY", "50"))
+ASSISTANT_PRO_MESSAGES_PER_DAY = int(os.getenv("ASSISTANT_PRO_MESSAGES_PER_DAY", "300"))
+ASSISTANT_FREE_AUDIO_PER_DAY = int(os.getenv("ASSISTANT_FREE_AUDIO_PER_DAY", "5"))
+ASSISTANT_PRO_AUDIO_PER_DAY = int(os.getenv("ASSISTANT_PRO_AUDIO_PER_DAY", "30"))
+ASSISTANT_MAX_AUDIO_SECONDS = int(os.getenv("ASSISTANT_MAX_AUDIO_SECONDS", "120"))
+ASSISTANT_MAX_AUDIO_BYTES = int(os.getenv("ASSISTANT_MAX_AUDIO_BYTES", str(20 * 1024 * 1024)))
+ASSISTANT_DAILY_TOKEN_ALERT = int(os.getenv("ASSISTANT_DAILY_TOKEN_ALERT", "100000"))
+ASSISTANT_MEMORY_TURNS = max(1, ASSISTANT_MEMORY_TURNS)
+ASSISTANT_MEMORY_TTL_SECONDS = max(60, ASSISTANT_MEMORY_TTL_SECONDS)
+ASSISTANT_MAX_MESSAGE_CHARS = max(100, ASSISTANT_MAX_MESSAGE_CHARS)
+ASSISTANT_FREE_MESSAGES_PER_DAY = max(1, ASSISTANT_FREE_MESSAGES_PER_DAY)
+ASSISTANT_PRO_MESSAGES_PER_DAY = max(
+    ASSISTANT_FREE_MESSAGES_PER_DAY, ASSISTANT_PRO_MESSAGES_PER_DAY
+)
+ASSISTANT_FREE_AUDIO_PER_DAY = max(0, ASSISTANT_FREE_AUDIO_PER_DAY)
+ASSISTANT_PRO_AUDIO_PER_DAY = max(ASSISTANT_FREE_AUDIO_PER_DAY, ASSISTANT_PRO_AUDIO_PER_DAY)
+ASSISTANT_MAX_AUDIO_SECONDS = max(1, ASSISTANT_MAX_AUDIO_SECONDS)
+ASSISTANT_MAX_AUDIO_BYTES = max(1024, ASSISTANT_MAX_AUDIO_BYTES)
+ASSISTANT_DAILY_TOKEN_ALERT = max(1, ASSISTANT_DAILY_TOKEN_ALERT)
+PUBLIC_SITE_URL = os.getenv("PUBLIC_SITE_URL", "https://imovel-radar.vercel.app").rstrip("/")
+SUPPORT_URL = os.getenv("SUPPORT_URL", "").strip()
 
-SSM_OPENAI_PARAM = os.getenv(
-    "SSM_OPENAI_PARAM", "/imovel-radar/prod/openai_api_key"
-).strip()
+SSM_OPENAI_PARAM = os.getenv("SSM_OPENAI_PARAM", "/imovel-radar/prod/openai_api_key").strip()
 _OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 
 
@@ -133,4 +156,3 @@ def resolve_openai_api_key() -> str:
         return resp.get("Parameter", {}).get("Value", "").strip()
     except Exception:
         return ""
-

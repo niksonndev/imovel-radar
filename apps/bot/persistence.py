@@ -30,6 +30,7 @@ import json
 import logging
 import threading
 import time
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from botocore.exceptions import ClientError
@@ -105,9 +106,7 @@ class DynamoDBPersistence(BasePersistence[dict[Any, Any], dict[Any, Any], dict[A
         self._table_name = table_name or config.DYNAMODB_TABLE
         self._ttl_hours = ttl_hours if ttl_hours is not None else config.DYNAMODB_TTL_HOURS
         self._carousel_ttl_hours = (
-            carousel_ttl_hours
-            if carousel_ttl_hours is not None
-            else config.CAROUSEL_TTL_HOURS
+            carousel_ttl_hours if carousel_ttl_hours is not None else config.CAROUSEL_TTL_HOURS
         )
         if table is not None:
             self._table = table
@@ -181,7 +180,9 @@ class DynamoDBPersistence(BasePersistence[dict[Any, Any], dict[Any, Any], dict[A
                 version = int(current.get("version", 0))
         logger.warning(
             "DynamoDB put: desistiu de gravar %s/%s após %s tentativas",
-            chat_id, store, _MAX_RETRIES,
+            chat_id,
+            store,
+            _MAX_RETRIES,
         )
 
     def _scan_by_store(self, store: str):
@@ -244,7 +245,9 @@ class DynamoDBPersistence(BasePersistence[dict[Any, Any], dict[Any, Any], dict[A
                 block[encoded_key] = new_state
             current_version = current.get("version")
             self._put_conditional(
-                _GLOBAL_CHAT_ID, "conversations", data,
+                _GLOBAL_CHAT_ID,
+                "conversations",
+                data,
                 version=int(current_version) if current_version is not None else None,
             )
 
@@ -253,16 +256,97 @@ class DynamoDBPersistence(BasePersistence[dict[Any, Any], dict[Any, Any], dict[A
             current = self._get(int(user_id), "user_data")
             current_version = current.get("version")
             self._put_conditional(
-                int(user_id), "user_data", data,
+                int(user_id),
+                "user_data",
+                data,
                 version=int(current_version) if current_version is not None else None,
             )
+
+    async def consume_daily_assistant_usage(
+        self,
+        user_id: int,
+        *,
+        audio: bool,
+        message_limit: int,
+        audio_limit: int,
+        audio_seconds: int = 0,
+    ) -> bool:
+        """Atomically enforce per-user daily LLM/audio limits in a TTL item."""
+        today = datetime.now(UTC).date().isoformat()
+        key = {"chat_id": int(user_id), "store": f"usage#{today}"}
+        expires = int((datetime.now(UTC) + timedelta(days=2)).timestamp())
+        names = {"#ttl": "ttl", "#messages": "messages"}
+        values: dict[str, Any] = {
+            ":one": 1,
+            ":message_limit": int(message_limit),
+            ":expires": expires,
+        }
+        update_expression = "SET #ttl = :expires ADD #messages :one"
+        condition = "(attribute_not_exists(#messages) OR #messages < :message_limit)"
+        if audio:
+            names.update({"#audio": "audio", "#audio_seconds": "audio_seconds"})
+            values[":audio_limit"] = int(audio_limit)
+            values[":seconds"] = max(0, int(audio_seconds))
+            update_expression += ", #audio :one, #audio_seconds :seconds"
+            condition += " AND (attribute_not_exists(#audio) OR #audio < :audio_limit)"
+        try:
+            self._table.update_item(
+                Key=key,
+                UpdateExpression=update_expression,
+                ConditionExpression=condition,
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=values,
+            )
+            return True
+        except ClientError as exc:
+            code = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
+            if code == "ConditionalCheckFailedException":
+                return False
+            logger.exception("DynamoDB falhou ao aplicar limite diário do assistente")
+            raise
+
+    async def record_daily_assistant_tokens(
+        self,
+        user_id: int,
+        tokens: int,
+        *,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+    ) -> int:
+        """Store aggregate token usage without message content or user identifiers."""
+        if tokens <= 0:
+            return 0
+        today = datetime.now(UTC).date().isoformat()
+        response = self._table.update_item(
+            Key={"chat_id": int(user_id), "store": f"usage#{today}"},
+            UpdateExpression=(
+                "SET #ttl = :expires ADD #tokens :tokens, "
+                "#input_tokens :input_tokens, #output_tokens :output_tokens"
+            ),
+            ExpressionAttributeNames={
+                "#ttl": "ttl",
+                "#tokens": "tokens",
+                "#input_tokens": "input_tokens",
+                "#output_tokens": "output_tokens",
+            },
+            ExpressionAttributeValues={
+                ":expires": int((datetime.now(UTC) + timedelta(days=2)).timestamp()),
+                ":tokens": int(tokens),
+                ":input_tokens": max(0, int(input_tokens)),
+                ":output_tokens": max(0, int(output_tokens)),
+            },
+            ReturnValues="UPDATED_NEW",
+        )
+        return int(response.get("Attributes", {}).get("tokens", 0))
 
     async def update_chat_data(self, chat_id: int, data: dict[Any, Any]) -> None:
         with self._lock:
             current = self._get(int(chat_id), "chat_data")
             current_version = current.get("version")
             self._put_conditional(
-                int(chat_id), "chat_data", data,
+                int(chat_id),
+                "chat_data",
+                data,
                 version=int(current_version) if current_version is not None else None,
             )
 
@@ -271,7 +355,9 @@ class DynamoDBPersistence(BasePersistence[dict[Any, Any], dict[Any, Any], dict[A
             current = self._get(_GLOBAL_CHAT_ID, "bot_data")
             current_version = current.get("version")
             self._put_conditional(
-                _GLOBAL_CHAT_ID, "bot_data", data,
+                _GLOBAL_CHAT_ID,
+                "bot_data",
+                data,
                 version=int(current_version) if current_version is not None else None,
             )
 
@@ -289,6 +375,42 @@ class DynamoDBPersistence(BasePersistence[dict[Any, Any], dict[Any, Any], dict[A
             self._table.delete_item(Key={"chat_id": int(user_id), "store": "user_data"})
         except ClientError:
             logger.exception("drop_user_data falhou para %s", user_id)
+
+    async def purge_user_records(self, user_id: int) -> None:
+        """Remove contexto, drafts, telemetria diária e estado de conversa do usuário."""
+        today = datetime.now(UTC).date()
+        stores = [
+            "user_data",
+            "chat_data",
+            *(f"usage#{(today - timedelta(days=offset)).isoformat()}" for offset in range(3)),
+        ]
+        for store in stores:
+            self._table.delete_item(Key={"chat_id": int(user_id), "store": store})
+
+        with self._lock:
+            current = self._get(_GLOBAL_CHAT_ID, "conversations")
+            data = _decode(current.get("data"))
+            changed = False
+            if isinstance(data, dict):
+                for name, block in data.items():
+                    if not isinstance(block, dict):
+                        continue
+                    for encoded_key in list(block):
+                        try:
+                            key = decode_conversation_key(encoded_key)
+                        except (TypeError, ValueError, json.JSONDecodeError):
+                            continue
+                        if int(user_id) in key:
+                            block.pop(encoded_key, None)
+                            changed = True
+            if changed:
+                version = current.get("version")
+                self._put_conditional(
+                    _GLOBAL_CHAT_ID,
+                    "conversations",
+                    data,
+                    version=int(version) if version is not None else None,
+                )
 
     async def refresh_user_data(self, user_id: int, user_data: dict[Any, Any]) -> None:
         return

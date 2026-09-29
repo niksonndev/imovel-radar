@@ -1,6 +1,7 @@
 """Camada de dados da Bot Lambda — acesso direto ao Postgres compartilhado (ADR 0005).
 
 Lê/escreve no Postgres via SQLModel usando os table models de
+        queries.lock_user_for_update(session, chat_id)
 ``shared_models.tables``, que os handlers consomem diretamente (ver
 ``docs/bot-models-migration.md``). A bot é dona de
 ``users``/``alerts``/``alert_matches``/``watched_listings`` e lê ``listing``.
@@ -9,7 +10,7 @@ Lê/escreve no Postgres via SQLModel usando os table models de
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal, NamedTuple
 
 from shared_models.tables import (
@@ -66,6 +67,15 @@ async def user_is_pro(chat_id: int) -> bool:
         return queries.is_pro(queries.get_user(session, chat_id))
 
 
+async def delete_user_data(chat_id: int) -> bool:
+    """Exclui os dados do usuário e os registros associados em uma transação."""
+    with Session(get_engine()) as session:
+        deleted = queries.delete_user_data(session, chat_id)
+        if deleted:
+            session.commit()
+        return deleted
+
+
 async def watch_cap_for_user(chat_id: int) -> int:
     with Session(get_engine()) as session:
         return queries.watch_cap_for(queries.get_user(session, chat_id))
@@ -95,9 +105,7 @@ async def claim_email_pro_trial(
     chat_id: int, email_raw: str
 ) -> tuple[queries.ClaimEmailProTrialStatus, User | None]:
     with Session(get_engine()) as session:
-        status, user = queries.claim_email_pro_trial(
-            session, chat_id=chat_id, email_raw=email_raw
-        )
+        status, user = queries.claim_email_pro_trial(session, chat_id=chat_id, email_raw=email_raw)
         if status == "activated" and user is not None:
             session.commit()
             session.refresh(user)
@@ -144,6 +152,7 @@ async def create_alert(
     if min_price is None and max_price is None:
         raise ValueError("Informe min_price, max_price, ou ambos.")
     with Session(get_engine()) as session:
+        queries.lock_user_for_update(session, chat_id)
         existing = queries.find_equivalent_alert(
             session,
             chat_id=chat_id,
@@ -156,9 +165,7 @@ async def create_alert(
             categories=categories,
         )
         if existing is not None and existing.id is not None:
-            return CreateAlertResult(
-                alert_id=existing.id, created=False, status="reused"
-            )
+            return CreateAlertResult(alert_id=existing.id, created=False, status="reused")
 
         user = queries.get_user(session, chat_id)
         cap = queries.alert_cap_for(user)
@@ -203,6 +210,37 @@ async def delete_alert(alert_id: int, chat_id: int) -> dict:
     return {"message": "Alerta removido"} if deleted else {"message": "Alerta não encontrado"}
 
 
+async def record_assistant_usage(
+    *,
+    chat_id: int,
+    message_count: int = 0,
+    audio_count: int = 0,
+    audio_seconds: int = 0,
+    input_tokens: int = 0,
+    output_tokens: int = 0,
+    total_tokens: int = 0,
+) -> None:
+    """Telemetria agregada diária do assistente (tokens + contadores). Best-effort: o
+    chamador não deve depender disso para responder."""
+    try:
+        usage_date = datetime.now(UTC).date()
+        with Session(get_engine()) as session:
+            queries.upsert_assistant_usage(
+                session,
+                chat_id=chat_id,
+                usage_date=usage_date,
+                message_count=message_count,
+                audio_count=audio_count,
+                audio_seconds=audio_seconds,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+            )
+            session.commit()
+    except Exception:
+        logger.exception("Falha ao gravar telemetria de uso do assistente")
+
+
 # ── Matches / notificação (lê listing, escreve alert_matches) ──────────────
 async def get_unnotified_listings(chat_id: int) -> list[ListingAlertMatch]:
     """Listings não notificados para os alertas ativos do usuário."""
@@ -231,6 +269,7 @@ async def mark_listings_notified(chat_id: int, pairs: list[tuple[int, int]]) -> 
 # ── Watchlist (dona: bot) ──────────────────────────────────────────────────
 async def create_watch(*, chat_id: int, listing_id: int) -> CreateWatchResult:
     with Session(get_engine()) as session:
+        queries.lock_user_for_update(session, chat_id)
         status, watch_id = queries.create_watch(session, chat_id=chat_id, listing_id=listing_id)
         if status == "created":
             session.commit()

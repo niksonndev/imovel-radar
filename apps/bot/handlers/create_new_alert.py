@@ -37,6 +37,7 @@ from handlers.data import (
 )
 from handlers.home import MENU_NAV_CALLBACK_RE, route_menu_callback
 from handlers.nl_intent import advance_nl_flow, wiz_nl_buttons_cb, wiz_nl_text
+from handlers.privacy import privacy_delete_request, privacy_policy_cmd, support_cmd
 from handlers.ui import keyboards, menus
 from models import (
     CreateAlertDraft,
@@ -803,6 +804,9 @@ def new_alert_conversation() -> ConversationHandler:
         },
         fallbacks=[
             CommandHandler("cancelar", cancel_wiz),
+            CommandHandler("privacidade", privacy_policy_cmd),
+            CommandHandler("excluir_dados", privacy_delete_request),
+            CommandHandler("suporte", support_cmd),
             CommandHandler("start", start_fallback),
             CallbackQueryHandler(abort_wizard_for_menu, pattern=MENU_NAV_CALLBACK_RE),
         ],

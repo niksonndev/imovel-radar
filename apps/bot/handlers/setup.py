@@ -14,14 +14,24 @@ from telegram.ext import (
     filters,
 )
 
-import config
-from handlers.assistant import assistant_audio, assistant_message, assistant_remove_confirm_cb
+from handlers.assistant import (
+    assistant_audio,
+    assistant_create_confirm_cb,
+    assistant_message,
+    assistant_remove_confirm_cb,
+)
 from handlers.billing import register_billing_handlers
 from handlers.carousel import register_handlers as register_carousel_handlers
 from handlers.create_new_alert import new_alert_conversation
 from handlers.email_pro_trial import email_pro_trial_conversation
 from handlers.home import present_message, show_main_menu
 from handlers.meus_alertas import meus_alertas_actions_callback, meus_alertas_callback
+from handlers.privacy import (
+    privacy_delete_confirm_cb,
+    privacy_delete_request,
+    privacy_policy_cmd,
+    support_cmd,
+)
 from handlers.ui import keyboards, menus
 from handlers.watchlist import (
     carousel_watch_callback,
@@ -38,8 +48,11 @@ def bot_commands() -> list[BotCommand]:
         BotCommand("start", "Abre o menu principal"),
         BotCommand("novo_alerta", "Cria um novo alerta"),
     ]
-    if config.BILLING_ENABLED:
-        cmds.append(BotCommand("cancelar_pro", "Cancela a assinatura Radar Pro"))
+    cmds.append(BotCommand("cancelar_pro", "Cancela a renovação Radar Pro"))
+    cmds.append(BotCommand("cancelar", "Cancela o fluxo atual"))
+    cmds.append(BotCommand("privacidade", "Privacidade e uso dos dados"))
+    cmds.append(BotCommand("excluir_dados", "Solicita a exclusão da conta e dos dados"))
+    cmds.append(BotCommand("suporte", "Abre o canal de atendimento configurado"))
     cmds.append(BotCommand("ajuda", "Mostra ajuda de uso"))
     return cmds
 
@@ -97,6 +110,9 @@ def setup(app: Application) -> None:
     app.add_handler(email_pro_trial_conversation())
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("ajuda", help_cmd))
+    app.add_handler(CommandHandler("privacidade", privacy_policy_cmd))
+    app.add_handler(CommandHandler("excluir_dados", privacy_delete_request))
+    app.add_handler(CommandHandler("suporte", support_cmd))
 
     # Handlers de callback específicos
     app.add_handler(CallbackQueryHandler(meus_alertas_callback, pattern=r"^menu_meus_alertas$"))
@@ -116,6 +132,15 @@ def setup(app: Application) -> None:
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, assistant_audio))
     app.add_handler(
         CallbackQueryHandler(assistant_remove_confirm_cb, pattern=r"^ass_rm_(yes_\d+|no)$")
+    )
+    app.add_handler(
+        CallbackQueryHandler(assistant_create_confirm_cb, pattern=r"^ass_cr_(yes|no)_[a-f0-9]{12}$")
+    )
+    app.add_handler(
+        CallbackQueryHandler(
+            privacy_delete_confirm_cb,
+            pattern=r"^privacy_delete_(yes|no)_[a-f0-9]{12}$",
+        )
     )
 
     # Nota: a garantia de que o usuário existe no Postgres é feita de forma
