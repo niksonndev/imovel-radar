@@ -268,19 +268,13 @@ def _tool_ajuda() -> AssistantReply:
         "• remover um alerta (ex.: <b>remove o alerta de Ponta Verde</b>)\n"
         "• criar um alerta (ex.: <b>quero apto em Jatiúca até R$ 2.500</b>)\n"
         "• consultar o mercado (ex.: <b>média de aluguel em Boa Viagem?</b>)\n"
+        "\nE também aceito <b>mensagens de voz</b> — me manda um áudio com o que você precisa 🙂\n"
     )
 
 
 # ── Dispatcher ─────────────────────────────────────────────────────────────
-async def assistant_message(update: Update, context: CustomContext) -> None:
-    message = update.effective_message
-    user = update.effective_user
-    if message is None or user is None:
-        return
-    text = (message.text or "").strip()
-    if not text:
-        return
-
+async def _handle_text(message, user_id: int, text: str) -> None:
+    """Extrai a intenção e responde (compartilhado por texto e áudio)."""
     intent = await extract_assistant_intent(
         text,
         provider=config.LLM_PROVIDER,
@@ -290,13 +284,13 @@ async def assistant_message(update: Update, context: CustomContext) -> None:
     )
     try:
         if intent.tool == "remover_alertas":
-            reply = await _tool_remover(user.id, intent)
+            reply = await _tool_remover(user_id, intent)
         elif intent.tool == "listar_alertas":
-            reply = await _tool_listar(user.id)
+            reply = await _tool_listar(user_id)
         elif intent.tool == "consultar_mercado":
             reply = await _tool_consultar_mercado(intent)
         elif intent.tool == "criar_alerta":
-            reply = await _tool_criar(user.id, text)
+            reply = await _tool_criar(user_id, text)
         elif intent.tool == "ajuda":
             reply = _tool_ajuda()
         else:
@@ -313,6 +307,57 @@ async def assistant_message(update: Update, context: CustomContext) -> None:
         parse_mode=ParseMode.HTML,
         reply_markup=reply.markup,
     )
+
+
+async def assistant_message(update: Update, context: CustomContext) -> None:
+    message = update.effective_message
+    user = update.effective_user
+    if message is None or user is None:
+        return
+    text = (message.text or "").strip()
+    if not text:
+        return
+    await _handle_text(message, user.id, text)
+
+
+async def _audio_to_text(context: CustomContext, file_id: str) -> str | None:
+    """Baixa o áudio do Telegram e transcreve via Whisper."""
+    from infrastructure.ai.transcription import transcribe_audio
+
+    api_key = config.resolve_openai_api_key()
+    if config.LLM_PROVIDER != "openai" or not api_key:
+        return None
+    file = await context.bot.get_file(file_id)
+    raw = await file.download_as_bytearray()
+    text = await transcribe_audio(
+        bytes(raw),
+        api_key=api_key,
+        filename="audio",  # extensão inferida pelo Telegram no MIME
+    )
+    return text
+
+
+async def assistant_audio(update: Update, context: CustomContext) -> None:
+    message = update.effective_message
+    user = update.effective_user
+    if message is None or user is None:
+        return
+    voice = message.voice or message.audio
+    if voice is None:
+        return
+    try:
+        if update.effective_chat:
+            await update.effective_chat.send_action("record_voice")
+    except Exception:
+        pass
+
+    text = await _audio_to_text(context, voice.file_id)
+    if not text:
+        await message.reply_text(
+            "Não consegui transcrever seu áudio agora. Tente mandar por texto 🙂"
+        )
+        return
+    await _handle_text(message, user.id, text)
 
 
 async def assistant_remove_confirm_cb(update: Update, context: CustomContext) -> None:

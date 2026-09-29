@@ -15,7 +15,7 @@ from telegram.ext import (
 )
 
 import config
-from handlers.assistant import assistant_message, assistant_remove_confirm_cb
+from handlers.assistant import assistant_audio, assistant_message, assistant_remove_confirm_cb
 from handlers.billing import register_billing_handlers
 from handlers.carousel import register_handlers as register_carousel_handlers
 from handlers.create_new_alert import new_alert_conversation
@@ -113,6 +113,7 @@ def setup(app: Application) -> None:
     # as ConversationHandlers (wizard de criar alerta / trial de e-mail) consumam
     # primeiro as mensagens dentro dos respectivos fluxos.
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, assistant_message))
+    app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, assistant_audio))
     app.add_handler(
         CallbackQueryHandler(assistant_remove_confirm_cb, pattern=r"^ass_rm_(yes_\d+|no)$")
     )
