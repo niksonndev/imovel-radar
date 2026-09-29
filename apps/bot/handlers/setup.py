@@ -10,9 +10,12 @@ from telegram.ext import (
     Application,
     CallbackQueryHandler,
     CommandHandler,
+    MessageHandler,
+    filters,
 )
 
 import config
+from handlers.assistant import assistant_message, assistant_remove_confirm_cb
 from handlers.billing import register_billing_handlers
 from handlers.carousel import register_handlers as register_carousel_handlers
 from handlers.create_new_alert import new_alert_conversation
@@ -99,14 +102,20 @@ def setup(app: Application) -> None:
     app.add_handler(CallbackQueryHandler(meus_alertas_callback, pattern=r"^menu_meus_alertas$"))
     app.add_handler(CallbackQueryHandler(meus_alertas_actions_callback, pattern=r"^mal_"))
     app.add_handler(CallbackQueryHandler(watchlist_menu_callback, pattern=r"^menu_watchlist$"))
-    app.add_handler(
-        CallbackQueryHandler(watchlist_actions_callback, pattern=r"^wl_(p_|rm_|m$|b$)")
-    )
+    app.add_handler(CallbackQueryHandler(watchlist_actions_callback, pattern=r"^wl_(p_|rm_|m$|b$)"))
     app.add_handler(CallbackQueryHandler(carousel_watch_callback, pattern=r"^wch_\d+$"))
     app.add_handler(CallbackQueryHandler(show_main_menu, pattern=r"^menu_home$"))
     app.add_handler(CallbackQueryHandler(main_menu_callback, pattern=r"^menu_ajuda$"))
     register_billing_handlers(app)
     register_carousel_handlers(app)
+
+    # Assistente de texto livre (fora do wizard). Registrado por último para que
+    # as ConversationHandlers (wizard de criar alerta / trial de e-mail) consumam
+    # primeiro as mensagens dentro dos respectivos fluxos.
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, assistant_message))
+    app.add_handler(
+        CallbackQueryHandler(assistant_remove_confirm_cb, pattern=r"^ass_rm_(yes_\d+|no)$")
+    )
 
     # Nota: a garantia de que o usuário existe no Postgres é feita de forma
     # global, antes de qualquer handler, via RadarApplication.process_update
