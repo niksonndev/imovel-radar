@@ -47,12 +47,12 @@ async fn pair(State(state): State<AppState>, Query(query): Query<PairQuery>) -> 
     if state.pairing.is_connected() {
         return (StatusCode::OK, "Já pareado.").into_response();
     }
-    // ?raw=1 → PNG a secas (para tools/curl).
+    // ?raw=1 → PNG puro (para curl/ferramentas).
     if query.raw == Some(true) {
         let Some(code) = state.pairing.qr() else {
             return (
                 StatusCode::SERVICE_UNAVAILABLE,
-                "Ainda sem QR. A página refresca sozinha.",
+                "Ainda sem QR. A página atualiza sozinha.",
             )
                 .into_response();
         };
@@ -70,22 +70,22 @@ async fn pair(State(state): State<AppState>, Query(query): Query<PairQuery>) -> 
         }
     }
     // HTML que se auto-atualiza cada 5 s → sempre mostra o QR vigente.
-    // Quando não há QR agora, mostra um aviso em vez de una img rota.
+    // Quando não há QR agora, mostra um aviso em vez de uma imagem quebrada.
     let qr_part = match state.pairing.qr() {
         Some(_) => format!(
             "<img src=\"/pair?token={token}&amp;raw=1\" alt=\"QR\" \
 style=\"width:340px;height:340px;image-rendering:pixelated;border-radius:12px;border:1px solid #333;margin-top:16px\">",
             token = &query.token,
         ),
-        None => format!("<p style=\"opacity:.7;margin-top:24px\">Conectando, preparando QR...<br>(la página se refresca sola).</p>"),
+        None => format!("<p style=\"opacity:.7;margin-top:24px\">Conectando, preparando o QR...<br>(a página atualiza sozinha).</p>"),
     };
     let page = format!(
-        "<!doctype html><html lang=es><head><meta charset=utf-8>\
+        "<!doctype html><html lang=pt-BR><head><meta charset=utf-8>\
 <meta http-equiv=refresh content=5>\
-<title>Emparejar WhatsApp</title></head>\
+<title>Vincular WhatsApp</title></head>\
 <body style=\"background:#09090b;color:#e4e4e7;font-family:sans-serif;text-align:center;margin:32px\">\
-<p style=\"opacity:.8\">Escaneá este QR con WhatsApp &gt; Dispositivos vinculados.<br>\
-La página se refresca sola y siempre muestra el QR actual.</p>\
+<p style=\"opacity:.8\">Escaneie este QR com o WhatsApp &gt; Dispositivos conectados.<br>\
+A página atualiza sozinha e sempre mostra o QR atual.</p>\
 {qr_part}\
 </body></html>",
         qr_part = qr_part,
