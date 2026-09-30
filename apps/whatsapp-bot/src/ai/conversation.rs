@@ -142,7 +142,7 @@ pub async fn transcribe_audio(
         .file_name(format!("audio.{extension}"))
         .mime_str(mime_type)?;
     let form = reqwest::multipart::Form::new()
-        .text("model", "whisper-1")
+        .text("model", "gpt-4o-mini-transcribe")
         .part("file", part);
     let response = http
         .post("https://api.openai.com/v1/audio/transcriptions")
