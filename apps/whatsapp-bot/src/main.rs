@@ -81,18 +81,24 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    let backend = SqliteStore::new(&cfg.session_path).await?;
-    let pairing_qr = pairing.clone();
-    let pairing_events = pairing.clone();
-    let message_db = db.clone();
-    let message_cfg = cfg.clone();
-    let message_http = http_client.clone();
+    // Ciclo de pareamento: o cliente do whatsapp-rust se desconecta sozinho
+    // quando os QRs se esgotam sem pareamento (~160 s) e um cliente encerrado
+    // não pode ser reiniciado — cada ciclo precisa de um cliente novo para
+    // voltar a oferecer QR. Depois de pareado o ciclo termina e o bot segue com
+    // o keepalive/reconexão próprios da lib.
+    let (client, handle) = 'pareamento: loop {
+        let backend = SqliteStore::new(&cfg.session_path).await?;
+        let pairing_qr = pairing.clone();
+        let pairing_events = pairing.clone();
+        let message_db = db.clone();
+        let message_cfg = cfg.clone();
+        let message_http = http_client.clone();
 
-    let bot = Bot::builder()
+        let bot = Bot::builder()
         .with_backend(backend)
         .skip_history_sync()
         .with_event_delivery(EventDelivery::Ordered { capacity: 256 })
-        .on_qr_code(move |code, _timeout| {
+        .on_qr_code(move |code, timeout| {
             let pairing = pairing_qr.clone();
             async move {
                 let text = code.to_string();
@@ -100,15 +106,24 @@ async fn main() -> anyhow::Result<()> {
                     Ok(ascii) => println!("{ascii}"),
                     Err(_) => println!("QR recebido. Abra /pair para a imagem."),
                 }
-                pairing.set_qr(text);
+                pairing.set_qr(text, timeout);
             }
         })
         .on_event(move |event, _client| {
             let pairing = pairing_events.clone();
             async move {
-                if matches!(&*event, Event::Connected(_)) {
-                    pairing.mark_connected();
-                    tracing::info!("conectado ao WhatsApp");
+                match &*event {
+                    Event::Connected(_) => {
+                        pairing.mark_connected();
+                        tracing::info!("conectado ao WhatsApp");
+                    }
+                    Event::PairingQrCodesExhausted(_) => {
+                        // Sem pareamento os QRs se esgotam e o cliente se
+                        // desconecta; o supervisor abaixo sobe um cliente novo.
+                        pairing.mark_exhausted();
+                        tracing::warn!("QRs esgotados sem pareamento");
+                    }
+                    _ => {}
                 }
             }
         })
@@ -248,8 +263,16 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .await?;
 
-    let client = bot.client();
-    let handle = bot.spawn();
+        let client = bot.client();
+        let handle = bot.spawn();
+        if wait_for_pairing(&pairing, &client).await {
+            break 'pareamento (client, handle);
+        }
+        tracing::warn!("QRs esgotados: subindo um cliente novo para oferecer QR de novo");
+        handle.abort();
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    };
+
     let notify_db = db.clone();
     let notify_cfg = cfg.clone();
     let notify_http = http_client.clone();
@@ -309,6 +332,18 @@ async fn main() -> anyhow::Result<()> {
     ping_task.abort();
     backup_task.abort();
     Ok(())
+}
+
+async fn wait_for_pairing(pairing: &Pairing, client: &Arc<Client>) -> bool {
+    loop {
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        if client.is_logged_in() {
+            return true;
+        }
+        if pairing.is_exhausted() {
+            return false;
+        }
+    }
 }
 
 async fn wait_for_shutdown() {
