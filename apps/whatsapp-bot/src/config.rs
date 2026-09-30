@@ -82,7 +82,7 @@ impl Config {
                 .clamp(1, 10_000) as i32,
             assistant_pro_messages_per_day: env_i64("ASSISTANT_PRO_MESSAGES_PER_DAY", 300)
                 .clamp(1, 50_000) as i32,
-            assistant_free_audio_per_day: env_i64("ASSISTANT_FREE_AUDIO_PER_DAY", 5).clamp(0, 1_000)
+            assistant_free_audio_per_day: env_i64("ASSISTANT_FREE_AUDIO_PER_DAY", 8).clamp(0, 1_000)
                 as i32,
             assistant_pro_audio_per_day: env_i64("ASSISTANT_PRO_AUDIO_PER_DAY", 30).clamp(0, 5_000)
                 as i32,

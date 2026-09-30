@@ -13,8 +13,8 @@ use crate::intelligence::prepare_match_carousel;
 use crate::models::{ClaimStatus, CreateAlertStatus, Listing, WatchStatus};
 use crate::money::{effective_listing_price, format_brl, json_fee};
 use crate::session::{
-    global_command, normalize_text, parse_index_list, parse_money, Draft, GlobalCommand, Session,
-    Step,
+    global_command, normalize_text, parse_index_list, parse_money, parse_number_words, Draft,
+    GlobalCommand, Session, Step,
 };
 use crate::ui::{
     alert_detail, alerts_list, auto_alert_name, cap_alerts, cap_watches, card_caption,
@@ -99,15 +99,6 @@ async fn handle_inbound(
                 "Sua mensagem passou do limite de {} caracteres. Envie um trecho menor.",
                 cfg.assistant_max_message_chars
             ))],
-        )
-        .await;
-    }
-    if audio_seconds.is_some() && !matches!(step, Step::Menu | Step::Intent | Step::AssistantConversation) {
-        return store(
-            db,
-            chat_id,
-            &session,
-            vec![text("O fluxo atual precisa de respostas por texto. Seu rascunho continua salvo.")],
         )
         .await;
     }
@@ -867,10 +858,14 @@ async fn apply_neighbourhoods(
 }
 
 async fn on_city(db: &Db, session: &mut Session, raw: &str) -> anyhow::Result<Vec<OutMsg>> {
+    let norm = normalize_text(raw);
     let city = match raw.trim() {
         "1" => "Maceió",
         "2" => "Recife",
         "3" => "Natal",
+        _ if norm.contains("maceio") => "Maceió",
+        _ if norm.contains("recife") => "Recife",
+        _ if norm.contains("natal") => "Natal",
         _ => return Ok(vec![text("Responda 1, 2 ou 3."), text(city_prompt())]),
     };
     session.draft.municipality = Some(city.to_string());
@@ -887,9 +882,14 @@ async fn on_city(db: &Db, session: &mut Session, raw: &str) -> anyhow::Result<Ve
 }
 
 fn on_kind(session: &mut Session, raw: &str) -> Vec<OutMsg> {
+    let norm = normalize_text(raw);
     let kind = match raw.trim() {
         "1" => "aluguel",
         "2" => "venda",
+        _ if norm.contains("aluga") || norm.contains("aluguel") || norm.contains("mensal") => {
+            "aluguel"
+        }
+        _ if norm.contains("vend") || norm.contains("compr") || norm.contains("propriet") => "venda",
         _ => return vec![text("Responda 1 para alugar ou 2 para comprar."), text(kind_prompt())],
     };
     session.draft.listing_kind = Some(kind.to_string());
@@ -944,6 +944,11 @@ fn on_price(session: &mut Session, raw: &str) -> Vec<OutMsg> {
     }
     let presets = price_presets(&kind, &city);
     let Ok(index) = raw.trim().parse::<usize>() else {
+        // Áudio/fala: interpretar um valor falado como teto de orçamento.
+        if let Some(value) = parse_money(raw) {
+            session.draft.max_price = Some(value);
+            return after_price(session);
+        }
         return vec![text("Escolha um número da lista."), text(price_prompt(&kind, &city))];
     };
     let Some(preset) = presets.get(index - 1) else {
@@ -983,12 +988,15 @@ fn after_price(session: &mut Session) -> Vec<OutMsg> {
 }
 
 async fn on_rooms(db: &Db, session: &mut Session, raw: &str) -> anyhow::Result<Vec<OutMsg>> {
+    let norm = normalize_text(raw);
     let rooms = match raw.trim() {
         "1" => None,
         "2" => Some(1),
         "3" => Some(2),
         "4" => Some(3),
         "5" => Some(4),
+        _ if matches!(norm.as_str(), "qualquer" | "nenhum" | "indiferente" | "tanto faz") => None,
+        _ if parse_number_words(raw).is_some() => parse_number_words(raw).map(|value| value as i32),
         _ => return Ok(vec![text("Responda de 1 a 5."), text(rooms_prompt())]),
     };
     session.draft.min_rooms = rooms;
@@ -1035,6 +1043,39 @@ async fn on_neighbourhoods(
         return Ok(vec![text(neighbourhoods_prompt(&all, page, &session.draft.neighbourhoods))]);
     }
     let Some(indexes) = parse_index_list(raw) else {
+        // Áudio/fala: buscar bairros pelo nome (pode vir mais de um).
+        let norm = normalize_text(raw);
+        if norm.is_empty() || matches!(norm.as_str(), "qualquer" | "todas" | "todos" | "nenhum" | "indiferente" | "tanto faz") {
+            session.draft.alert_name = Some(auto_alert_name(&session.draft));
+            session.step = Step::Name;
+            return Ok(vec![text(name_prompt(session.draft.alert_name.as_deref().unwrap_or("Alerta")))]);
+        }
+        let chunks: Vec<String> = raw
+            .split(|ch: char| matches!(ch, ',' | ';' | '(' | ')'))
+            .flat_map(|part| part.split(" e "))
+            .flat_map(|part| part.split(" ou "))
+            .map(str::trim)
+            .filter(|part| !part.is_empty())
+            .map(str::to_string)
+            .collect();
+        let matched = match_neighbourhoods(
+            if chunks.is_empty() { None } else { Some(&chunks) },
+            &all,
+        );
+        if matched.is_empty() {
+            return Ok(vec![
+                text("Não reconheci esse bairro. Escolha um número da lista ou fale o nome."),
+                text(neighbourhoods_prompt(&all, page, &session.draft.neighbourhoods)),
+            ]);
+        }
+        for name in matched {
+            if let Some(pos) = session.draft.neighbourhoods.iter().position(|item| item == &name) {
+                session.draft.neighbourhoods.remove(pos);
+            } else {
+                session.draft.neighbourhoods.push(name);
+            }
+        }
+        session.step = Step::Neighbourhoods { page };
         return Ok(vec![text(neighbourhoods_prompt(&all, page, &session.draft.neighbourhoods))]);
     };
     let start = page * PAGE;
@@ -1056,7 +1097,7 @@ async fn on_neighbourhoods(
 }
 
 fn on_name(session: &mut Session, raw: &str) -> Vec<OutMsg> {
-    let name = if raw.trim() == "1" {
+    let name = if raw.trim() == "1" || normalize_text(raw) == "um" {
         session.draft.alert_name.clone().unwrap_or_else(|| auto_alert_name(&session.draft))
     } else {
         let cleaned = raw.trim();

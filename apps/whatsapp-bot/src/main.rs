@@ -177,19 +177,6 @@ async fn main() -> anyhow::Result<()> {
                         let _ = ctx.reply("O arquivo de áudio é grande demais. Envie um áudio menor.").await;
                         return;
                     }
-                    let ttl = Duration::from_secs((cfg.session_ttl_hours.max(1) as u64) * 3600);
-                    match db.load_session(chat_id, ttl).await {
-                        Ok(Some(session)) if !matches!(session.step, whatsapp_bot::session::Step::Menu | whatsapp_bot::session::Step::Intent | whatsapp_bot::session::Step::AssistantConversation) => {
-                            let _ = ctx.reply("O fluxo atual precisa de respostas por texto. Seu rascunho continua salvo.").await;
-                            return;
-                        }
-                        Err(error) => {
-                            tracing::error!(%error, "verificar estado antes de transcrever");
-                            let _ = ctx.reply("Não consegui validar sua conversa agora. Tente novamente.").await;
-                            return;
-                        }
-                        _ => {}
-                    }
                     match db.consume_assistant_usage(chat_id, Some(duration), &cfg).await {
                         Ok(true) => {}
                         Ok(false) => {

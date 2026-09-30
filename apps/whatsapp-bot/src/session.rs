@@ -151,15 +151,108 @@ pub fn parse_index_list(text: &str) -> Option<Vec<usize>> {
 pub fn parse_money(text: &str) -> Option<i64> {
     let norm = normalize_text(text);
     let digits: String = norm.chars().filter(|ch| ch.is_ascii_digit()).collect();
-    if digits.is_empty() {
-        return None;
+    if !digits.is_empty() {
+        let mut value: i64 = digits.parse().ok()?;
+        if (norm.contains("mil") || norm.split_whitespace().any(|word| word == "k"))
+            && value < 10_000
+        {
+            value *= 1000;
+        }
+        return Some(value);
     }
-    let mut value: i64 = digits.parse().ok()?;
-    if (norm.contains("mil") || norm.split_whitespace().any(|word| word == "k")) && value < 10_000
-    {
-        value *= 1000;
+    parse_number_words(text)
+}
+
+/// Converte números por extenso/compostos em pt-BR em inteiro.
+/// Entende unidades, dezenas, centenas, milhares e milhões, inclusive compostos
+/// como "mil e quinhentos" (1500), "dois mil" (2000) ou "trezentos mil" (300000).
+/// Serve para interpretar áudios transcritos nos passos de preço/quartos do wizard.
+pub fn parse_number_words(text: &str) -> Option<i64> {
+    use std::collections::HashMap;
+    let words: HashMap<&str, i64> = [
+        ("um", 1),
+        ("uma", 1),
+        ("dois", 2),
+        ("duas", 2),
+        ("tres", 3),
+        ("quatro", 4),
+        ("cinco", 5),
+        ("seis", 6),
+        ("sete", 7),
+        ("oito", 8),
+        ("nove", 9),
+        ("dez", 10),
+        ("onze", 11),
+        ("doze", 12),
+        ("treze", 13),
+        ("quatorze", 14),
+        ("catorze", 14),
+        ("quinze", 15),
+        ("dezesseis", 16),
+        ("dezessete", 17),
+        ("dezoito", 18),
+        ("dezenove", 19),
+        ("vinte", 20),
+        ("trinta", 30),
+        ("quarenta", 40),
+        ("cinquenta", 50),
+        ("sessenta", 60),
+        ("setenta", 70),
+        ("oitenta", 80),
+        ("noventa", 90),
+        ("cem", 100),
+        ("cento", 100),
+        ("duzentos", 200),
+        ("duzentas", 200),
+        ("trezentos", 300),
+        ("trezentas", 300),
+        ("quatrocentos", 400),
+        ("quatrocentas", 400),
+        ("quinhentos", 500),
+        ("quinhentas", 500),
+        ("seiscentos", 600),
+        ("seiscentas", 600),
+        ("setecentos", 700),
+        ("setecentas", 700),
+        ("oitocentos", 800),
+        ("oitocentas", 800),
+        ("novecentos", 900),
+        ("novecentas", 900),
+    ]
+    .iter()
+    .copied()
+    .collect();
+    let multiples: HashMap<&str, i64> = [
+        ("mil", 1_000),
+        ("milhao", 1_000_000),
+        ("milhoes", 1_000_000),
+    ]
+    .iter()
+    .copied()
+    .collect();
+
+    let mut total: i64 = 0;
+    let mut current: i64 = 0;
+    let mut seen_any = false;
+    for token in normalize_text(text).split_whitespace() {
+        if matches!(token, "e" | "de" | "reais" | "real" | "ao" | "a" | "por" | "mes" | "mês") {
+            continue;
+        }
+        if let Some(&mult) = multiples.get(token) {
+            current = current.max(1) * mult;
+            total += current;
+            current = 0;
+            seen_any = true;
+        } else if let Some(&value) = words.get(token) {
+            current += value;
+            seen_any = true;
+        }
     }
-    Some(value)
+    if seen_any {
+        Some(total + current)
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -179,6 +272,19 @@ mod tests {
         assert_eq!(parse_money("400 mil"), Some(400_000));
         assert_eq!(parse_money("2.500"), Some(2500));
         assert_eq!(parse_money("abc"), None);
+        assert_eq!(parse_money("até dois mil"), Some(2000));
+        assert_eq!(parse_money("mil e quinhentos"), Some(1500));
+        assert_eq!(parse_money("trezentos mil reais"), Some(300_000));
+        assert_eq!(parse_money("cento e vinte"), Some(120));
+    }
+
+    #[test]
+    fn number_words_parse_compounds() {
+        assert_eq!(parse_number_words("dois mil"), Some(2000));
+        assert_eq!(parse_number_words("dois mil e duzentos e cinquenta"), Some(2250));
+        assert_eq!(parse_number_words("setecentos mil"), Some(700_000));
+        assert_eq!(parse_number_words("um milhao"), Some(1_000_000));
+        assert_eq!(parse_number_words("abc"), None);
     }
 
     #[test]
