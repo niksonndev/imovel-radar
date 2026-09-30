@@ -24,6 +24,7 @@ pub struct Config {
     pub assistant_daily_token_alert: i64,
     pub public_site_url: String,
     pub support_url: String,
+    pub render_external_url: String,
     pub alert_nl_enabled: bool,
     pub watch_free_cap: i64,
     pub watch_pro_cap: i64,
@@ -38,11 +39,10 @@ pub struct Config {
 impl Config {
     pub fn from_env() -> anyhow::Result<Self> {
         let _ = dotenvy::dotenv();
-        let database_url = normalize_database_url(
-            &std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        let database_url =
+            normalize_database_url(&std::env::var("DATABASE_URL").unwrap_or_else(|_| {
                 "postgresql://postgres:teste123@localhost:5432/imovel_radar".to_string()
-            }),
-        );
+            }));
         if database_url.is_empty() {
             return Err(anyhow!("DATABASE_URL vazio"));
         }
@@ -76,19 +76,33 @@ impl Config {
             llm_timeout: Duration::from_secs_f64(timeout_secs.max(1.0)),
             assistant_memory_turns: env_i64("ASSISTANT_MEMORY_TURNS", 6).clamp(1, 20) as usize,
             assistant_memory_ttl_seconds: env_i64("ASSISTANT_MEMORY_TTL_SECONDS", 14_400).max(60),
-            assistant_max_message_chars: env_i64("ASSISTANT_MAX_MESSAGE_CHARS", 4_000).clamp(100, 10_000) as usize,
-            assistant_free_messages_per_day: env_i64("ASSISTANT_FREE_MESSAGES_PER_DAY", 50).clamp(1, 10_000) as i32,
-            assistant_pro_messages_per_day: env_i64("ASSISTANT_PRO_MESSAGES_PER_DAY", 300).clamp(1, 50_000) as i32,
-            assistant_free_audio_per_day: env_i64("ASSISTANT_FREE_AUDIO_PER_DAY", 5).clamp(0, 1_000) as i32,
-            assistant_pro_audio_per_day: env_i64("ASSISTANT_PRO_AUDIO_PER_DAY", 30).clamp(0, 5_000) as i32,
-            assistant_max_audio_seconds: env_i64("ASSISTANT_MAX_AUDIO_SECONDS", 120).clamp(1, 600) as u32,
-            assistant_max_audio_bytes: env_i64("ASSISTANT_MAX_AUDIO_BYTES", 20 * 1024 * 1024).clamp(1_024, 100 * 1024 * 1024) as usize,
+            assistant_max_message_chars: env_i64("ASSISTANT_MAX_MESSAGE_CHARS", 4_000)
+                .clamp(100, 10_000) as usize,
+            assistant_free_messages_per_day: env_i64("ASSISTANT_FREE_MESSAGES_PER_DAY", 50)
+                .clamp(1, 10_000) as i32,
+            assistant_pro_messages_per_day: env_i64("ASSISTANT_PRO_MESSAGES_PER_DAY", 300)
+                .clamp(1, 50_000) as i32,
+            assistant_free_audio_per_day: env_i64("ASSISTANT_FREE_AUDIO_PER_DAY", 5).clamp(0, 1_000)
+                as i32,
+            assistant_pro_audio_per_day: env_i64("ASSISTANT_PRO_AUDIO_PER_DAY", 30).clamp(0, 5_000)
+                as i32,
+            assistant_max_audio_seconds: env_i64("ASSISTANT_MAX_AUDIO_SECONDS", 120).clamp(1, 600)
+                as u32,
+            assistant_max_audio_bytes: env_i64("ASSISTANT_MAX_AUDIO_BYTES", 20 * 1024 * 1024)
+                .clamp(1_024, 100 * 1024 * 1024) as usize,
             assistant_daily_token_alert: env_i64("ASSISTANT_DAILY_TOKEN_ALERT", 100_000).max(1),
             public_site_url: std::env::var("PUBLIC_SITE_URL")
                 .unwrap_or_else(|_| "https://imovel-radar.vercel.app".to_string())
                 .trim_end_matches('/')
                 .to_string(),
-            support_url: std::env::var("SUPPORT_URL").unwrap_or_default().trim().to_string(),
+            support_url: std::env::var("SUPPORT_URL")
+                .unwrap_or_default()
+                .trim()
+                .to_string(),
+            render_external_url: std::env::var("RENDER_EXTERNAL_URL")
+                .unwrap_or_default()
+                .trim()
+                .to_string(),
             alert_nl_enabled: env_bool("ALERT_NL_ENABLED", true),
             watch_free_cap: env_i64("WATCHLIST_FREE_CAP", 2),
             watch_pro_cap: env_i64("WATCHLIST_PRO_CAP", 10),

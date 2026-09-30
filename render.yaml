@@ -2,17 +2,13 @@ services:
   - type: web
     name: imovel-radar-whatsapp-bot
     runtime: docker
-    plan: starter
+    plan: free
     region: ohio
     numInstances: 1
     dockerfilePath: ./apps/whatsapp-bot/Dockerfile
     dockerContext: .
     healthCheckPath: /health
     autoDeployTrigger: commit
-    disk:
-      name: whatsapp-session
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: DATABASE_URL
         sync: false

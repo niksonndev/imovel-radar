@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::Utc;
-use whatsapp_bot::config::{ensure_parent_dir, Config};
 use whatsapp_bot::ai::transcribe_audio;
+use whatsapp_bot::config::{ensure_parent_dir, Config};
 use whatsapp_bot::db::Db;
 use whatsapp_bot::handlers::{handle_text, handle_transcribed_audio, should_show_typing};
 use whatsapp_bot::http;
@@ -37,6 +37,49 @@ async fn main() -> anyhow::Result<()> {
             tracing::error!(%error, "http encerrou");
         }
     });
+
+    // Gambiarra keep-alive: Render free dorme sem tráfego HTTP de entrada. O bot
+    // se auto-pinga (a própria URL pública + /health) a cada 10 min para ficar vivo.
+    let ping_cfg = cfg.clone();
+    let ping_http = http_client.clone();
+    let ping_task = tokio::spawn(async move {
+        let base = ping_cfg
+            .render_external_url
+            .trim_end_matches('/')
+            .to_string();
+        if base.is_empty() {
+            return;
+        }
+        let url = format!("{base}/health");
+        tracing::info!(%url, "auto-ping ativo (10 min)");
+        loop {
+            tokio::time::sleep(Duration::from_secs(600)).await;
+            match ping_http.get(&url).send().await {
+                Ok(resp) => tracing::info!(status = resp.status().as_u16(), "auto-ping render"),
+                Err(error) => tracing::warn!(%error, "auto-ping render falhou"),
+            }
+        }
+    });
+
+    // Gambiarra anti-repair: se o arquivo local de sessão não existe, restaura do Neon
+    // (evita re-emparelhar por QR após reinício do Render free).
+    let session_file = std::path::Path::new(&cfg.session_path);
+    let missing = !session_file.exists()
+        || std::fs::metadata(session_file)
+            .map(|m| m.len() == 0)
+            .unwrap_or(true);
+    if missing {
+        match db.load_session_backup().await {
+            Ok(Some(bytes)) if !bytes.is_empty() => {
+                if let Err(error) = std::fs::write(&cfg.session_path, &bytes) {
+                    tracing::error!(%error, "restaurar sessão do Neon");
+                } else {
+                    tracing::info!("sessão do WhatsApp restaurada do Neon");
+                }
+            }
+            _ => {}
+        }
+    }
 
     let backend = SqliteStore::new(&cfg.session_path).await?;
     let pairing_qr = pairing.clone();
@@ -230,11 +273,41 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // Backup periódico da sessão (arquivo SQLite) para o Neon — anti-repair se o
+    // container for recriado (free não tem disco persistente).
+    let backup_db = db.clone();
+    let backup_path = cfg.session_path.clone();
+    let backup_task = tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(300)).await; // 5 min
+            match std::fs::read(&backup_path) {
+                Ok(bytes) if !bytes.is_empty() => {
+                    if let Err(error) = backup_db.save_session_backup(&bytes).await {
+                        tracing::warn!(%error, "backup da sessão no Neon");
+                    }
+                }
+                _ => {}
+            }
+        }
+    });
+
     wait_for_shutdown().await;
     tracing::info!("encerrando");
+    // Backup final da sessão antes de morrer.
+    if let Ok(bytes) = std::fs::read(&cfg.session_path) {
+        if !bytes.is_empty() {
+            if let Err(error) = db.save_session_backup(&bytes).await {
+                tracing::error!(%error, "backup final da sessão no Neon");
+            } else {
+                tracing::info!("backup final da sessão no Neon");
+            }
+        }
+    }
     handle.shutdown().await;
     notify_task.abort();
     http_task.abort();
+    ping_task.abort();
+    backup_task.abort();
     Ok(())
 }
 

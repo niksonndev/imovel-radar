@@ -10,7 +10,7 @@ use crate::models::{
     json_strings, Alert, ClaimStatus, CreateAlertStatus, Listing, ListingMatch, User, Watch,
     WatchStatus,
 };
-use crate::money::{json_fee, effective_listing_price};
+use crate::money::{effective_listing_price, json_fee};
 use crate::session::{Draft, Session};
 
 const EFFECTIVE_PRICE: &str = "\
@@ -39,7 +39,41 @@ impl Db {
             .connect(url)
             .await
             .context("conectar no Postgres")?;
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS wa_session_backup (
+                channel    TEXT        PRIMARY KEY,
+                payload    BYTEA       NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )",
+        )
+        .execute(&pool)
+        .await
+        .context("criar tabela de backup da sessão do WhatsApp")?;
         Ok(Self { pool })
+    }
+
+    /// Guarda um backup da sessão (arquivo SQLite do WhatsApp) no Postgres/Neon.
+    pub async fn save_session_backup(&self, payload: &[u8]) -> anyhow::Result<()> {
+        sqlx::query(
+            "INSERT INTO wa_session_backup (channel, payload) VALUES ('whatsapp', $1)
+             ON CONFLICT (channel)
+             DO UPDATE SET payload = EXCLUDED.payload, updated_at = now()",
+        )
+        .bind(payload)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Restaura o último backup da sessão, se existir.
+    pub async fn load_session_backup(&self) -> anyhow::Result<Option<Vec<u8>>> {
+        let row = sqlx::query("SELECT payload FROM wa_session_backup WHERE channel = 'whatsapp'")
+            .fetch_optional(&self.pool)
+            .await?;
+        match row {
+            Some(r) => Ok(Some(r.try_get::<Vec<u8>, _>("payload")?)),
+            None => Ok(None),
+        }
     }
 
     pub async fn ensure_whatsapp_user(&self, jid: &str) -> anyhow::Result<i64> {
@@ -89,7 +123,9 @@ impl Db {
         )
         .fetch_all(&self.pool)
         .await?;
-        rows.into_iter().map(user_from_row).collect::<Result<Vec<_>, _>>()?
+        rows.into_iter()
+            .map(user_from_row)
+            .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .flatten()
             .collect::<Vec<_>>()
@@ -122,13 +158,11 @@ impl Db {
         if user.email_pro_trial_claimed_at.is_some() {
             return Ok(ClaimStatus::AlreadyClaimed);
         }
-        let taken = sqlx::query(
-            "SELECT 1 FROM users WHERE email = $1 AND chat_id <> $2 LIMIT 1",
-        )
-        .bind(&email)
-        .bind(chat_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+        let taken = sqlx::query("SELECT 1 FROM users WHERE email = $1 AND chat_id <> $2 LIMIT 1")
+            .bind(&email)
+            .bind(chat_id)
+            .fetch_optional(&mut *tx)
+            .await?;
         if taken.is_some() {
             return Ok(ClaimStatus::EmailTaken);
         }
@@ -185,9 +219,9 @@ impl Db {
         let rows = sqlx::query(sqlx::AssertSqlSafe(alert_select(
             "WHERE chat_id = $1 ORDER BY id DESC",
         )))
-            .bind(chat_id)
-            .fetch_all(&self.pool)
-            .await?;
+        .bind(chat_id)
+        .fetch_all(&self.pool)
+        .await?;
         rows.into_iter().map(alert_from_row).collect()
     }
 
@@ -201,14 +235,18 @@ impl Db {
         rows.into_iter().map(alert_from_row).collect()
     }
 
-    pub async fn alert_for_user(&self, chat_id: i64, alert_id: i32) -> anyhow::Result<Option<Alert>> {
+    pub async fn alert_for_user(
+        &self,
+        chat_id: i64,
+        alert_id: i32,
+    ) -> anyhow::Result<Option<Alert>> {
         let row = sqlx::query(sqlx::AssertSqlSafe(alert_select(
             "WHERE chat_id = $1 AND id = $2",
         )))
-            .bind(chat_id)
-            .bind(alert_id)
-            .fetch_optional(&self.pool)
-            .await?;
+        .bind(chat_id)
+        .bind(alert_id)
+        .fetch_optional(&self.pool)
+        .await?;
         row.map(alert_from_row).transpose()
     }
 
@@ -257,7 +295,10 @@ impl Db {
             .bind(chat_id)
             .fetch_all(&mut *tx)
             .await?;
-        let alerts = rows.into_iter().map(alert_from_row).collect::<anyhow::Result<Vec<_>>>()?;
+        let alerts = rows
+            .into_iter()
+            .map(alert_from_row)
+            .collect::<anyhow::Result<Vec<_>>>()?;
         if let Some(existing) = find_equivalent(&alerts, draft) {
             tx.commit().await?;
             return Ok(CreateAlertStatus::Reused(existing.id));
@@ -363,11 +404,10 @@ impl Db {
     }
 
     pub async fn snapshot(&self) -> anyhow::Result<Option<Value>> {
-        let row = sqlx::query(
-            "SELECT payload FROM market_snapshot ORDER BY collected_on DESC LIMIT 1",
-        )
-        .fetch_optional(&self.pool)
-        .await?;
+        let row =
+            sqlx::query("SELECT payload FROM market_snapshot ORDER BY collected_on DESC LIMIT 1")
+                .fetch_optional(&self.pool)
+                .await?;
         let Some(row) = row else {
             return Ok(None);
         };
@@ -404,23 +444,21 @@ impl Db {
         let Some(user) = user_row.map(user_from_row).transpose()?.flatten() else {
             anyhow::bail!("usuário WhatsApp não encontrado");
         };
-        if let Some(existing) = sqlx::query(
-            "SELECT id FROM watched_listings WHERE chat_id = $1 AND listing_id = $2",
-        )
-        .bind(chat_id)
-        .bind(listing_id)
-        .fetch_optional(&mut *tx)
-        .await?
+        if let Some(existing) =
+            sqlx::query("SELECT id FROM watched_listings WHERE chat_id = $1 AND listing_id = $2")
+                .bind(chat_id)
+                .bind(listing_id)
+                .fetch_optional(&mut *tx)
+                .await?
         {
             tx.commit().await?;
             return Ok(WatchStatus::Duplicate(existing.try_get("id")?));
         }
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM watched_listings WHERE chat_id = $1",
-        )
-        .bind(chat_id)
-        .fetch_one(&mut *tx)
-        .await?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM watched_listings WHERE chat_id = $1")
+                .bind(chat_id)
+                .fetch_one(&mut *tx)
+                .await?;
         let cap = if Self::is_pro(Some(&user), Utc::now()) {
             cfg.watch_pro_cap
         } else {
@@ -520,17 +558,16 @@ impl Db {
         chat_id: i64,
         ttl: Duration,
     ) -> anyhow::Result<Option<Session>> {
-        let row = sqlx::query(
-            "SELECT state, updated_at FROM bot_session WHERE chat_id = $1",
-        )
-        .bind(chat_id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let row = sqlx::query("SELECT state, updated_at FROM bot_session WHERE chat_id = $1")
+            .bind(chat_id)
+            .fetch_optional(&self.pool)
+            .await?;
         let Some(row) = row else {
             return Ok(None);
         };
         let updated_at: DateTime<Utc> = row.try_get("updated_at")?;
-        if Utc::now() - updated_at > ChronoDuration::from_std(ttl).unwrap_or(ChronoDuration::hours(4))
+        if Utc::now() - updated_at
+            > ChronoDuration::from_std(ttl).unwrap_or(ChronoDuration::hours(4))
         {
             self.clear_session(chat_id).await?;
             return Ok(None);
