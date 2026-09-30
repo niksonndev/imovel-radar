@@ -24,9 +24,7 @@ def test_transcribe_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(httpx, "AsyncClient", custom_async_client)
 
-    result = asyncio.run(
-        transcribe_audio(b"audio-bytes", api_key="k", content_type="audio/ogg")
-    )
+    result = asyncio.run(transcribe_audio(b"audio-bytes", api_key="k", content_type="audio/ogg"))
     assert result == "quero alugar em ponta verde até 2000"
 
 

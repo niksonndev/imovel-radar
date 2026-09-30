@@ -100,9 +100,7 @@ def test_function_call_without_tool_returns_none(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr(httpx, "AsyncClient", custom_async_client)
 
-    call = asyncio.run(
-        call_assistant_function("oi", history=[], api_key="k")
-    )
+    call = asyncio.run(call_assistant_function("oi", history=[], api_key="k"))
     assert call is None
 
 

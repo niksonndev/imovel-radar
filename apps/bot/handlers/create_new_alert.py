@@ -222,11 +222,7 @@ async def _enter_neighbourhoods(msg: Message, context: CustomContext) -> None:
         return
 
     wizard_state["neighbourhood_page"] = 0
-    intro = (
-        menus.wizard_bairros_vazios()
-        if not nb_options
-        else menus.wizard_bairros_instrucao(sel)
-    )
+    intro = menus.wizard_bairros_vazios() if not nb_options else menus.wizard_bairros_instrucao(sel)
     await msg.reply_text(
         intro,
         parse_mode=ParseMode.MARKDOWN,
@@ -700,9 +696,7 @@ async def wiz_confirm_cb(update: Update, context: CustomContext) -> int:
                     match_rows = [
                         ListingAlertMatch(listing=item, alert_id=alert_id) for item in listings
                     ]
-                    listings, headlines = prepare_match_carousel(
-                        match_rows, [alert], snapshot
-                    )
+                    listings, headlines = prepare_match_carousel(match_rows, [alert], snapshot)
                 assert context.chat_data is not None
                 await send_carousel(
                     context.application.bot,

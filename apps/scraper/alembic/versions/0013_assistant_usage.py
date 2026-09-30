@@ -35,7 +35,9 @@ def upgrade() -> None:
         sa.CheckConstraint("message_count >= 0", name="ck_assistant_usage_messages_nonnegative"),
         sa.CheckConstraint("audio_count >= 0", name="ck_assistant_usage_audio_nonnegative"),
         sa.CheckConstraint("input_tokens >= 0", name="ck_assistant_usage_input_tokens_nonnegative"),
-        sa.CheckConstraint("output_tokens >= 0", name="ck_assistant_usage_output_tokens_nonnegative"),
+        sa.CheckConstraint(
+            "output_tokens >= 0", name="ck_assistant_usage_output_tokens_nonnegative"
+        ),
         sa.CheckConstraint("total_tokens >= 0", name="ck_assistant_usage_tokens_nonnegative"),
     )
     op.create_index("ix_assistant_usage_usage_date", "assistant_usage", ["usage_date"])

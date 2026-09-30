@@ -517,9 +517,7 @@ def test_audio_to_text_preserves_telegram_audio_metadata(monkeypatch) -> None:
     transcribe = AsyncMock(return_value="texto reconhecido")
     monkeypatch.setattr(assistant_mod.config, "LLM_PROVIDER", "openai")
     monkeypatch.setattr(assistant_mod.config, "resolve_openai_api_key", lambda: "key")
-    monkeypatch.setattr(
-        "infrastructure.ai.transcription.transcribe_audio", transcribe
-    )
+    monkeypatch.setattr("infrastructure.ai.transcription.transcribe_audio", transcribe)
 
     result = asyncio.run(assistant_mod._audio_to_text(context, media))
 

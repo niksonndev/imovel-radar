@@ -13,9 +13,7 @@ from infrastructure.ai.alert_extractor import (
 
 def test_mock_extract_maceio_sale_apartment() -> None:
     res = asyncio.run(
-        extract_alert_intent(
-            "Apartamento até 400 mil perto da Ponta Verde", provider="mock"
-        )
+        extract_alert_intent("Apartamento até 400 mil perto da Ponta Verde", provider="mock")
     )
     assert res is not None
     assert res.municipality == "Maceió"
@@ -29,9 +27,7 @@ def test_mock_extract_maceio_sale_apartment() -> None:
 
 
 def test_mock_extract_recife_rent_kitnet() -> None:
-    res = asyncio.run(
-        extract_alert_intent("aluguel kitnet Boa Viagem até 2.500", provider="mock")
-    )
+    res = asyncio.run(extract_alert_intent("aluguel kitnet Boa Viagem até 2.500", provider="mock"))
     assert res is not None
     assert res.municipality == "Recife"
     assert res.listing_kind == "aluguel"
@@ -44,9 +40,7 @@ def test_mock_extract_recife_rent_kitnet() -> None:
 
 def test_mock_extract_natal_sale_house() -> None:
     res = asyncio.run(
-        extract_alert_intent(
-            "casa em Natal até 500 mil com 3 quartos", provider="mock"
-        )
+        extract_alert_intent("casa em Natal até 500 mil com 3 quartos", provider="mock")
     )
     assert res is not None
     assert res.municipality == "Natal"

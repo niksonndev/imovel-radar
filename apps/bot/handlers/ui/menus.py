@@ -44,10 +44,7 @@ def pro_upsell_hint() -> str:
     """Texto curto de upsell (Stars ou trial por e-mail)."""
     if config.BILLING_ENABLED:
         return pro_price_label()
-    return (
-        f"Cadastre seu e-mail e ganhe *{config.EMAIL_PRO_TRIAL_DAYS} dias* "
-        "de Radar Pro grátis"
-    )
+    return f"Cadastre seu e-mail e ganhe *{config.EMAIL_PRO_TRIAL_DAYS} dias* de Radar Pro grátis"
 
 
 def pro_pitch_message() -> str:
@@ -106,17 +103,11 @@ def email_pro_trial_ask() -> str:
 
 
 def email_pro_trial_invalid() -> str:
-    return (
-        "Esse e-mail não parece válido. "
-        "Envie de novo no formato `voce@email.com`."
-    )
+    return "Esse e-mail não parece válido. Envie de novo no formato `voce@email.com`."
 
 
 def email_pro_trial_email_taken() -> str:
-    return (
-        "Esse e-mail já foi usado em outra conta. "
-        "Tente outro e-mail ou fale com o suporte."
-    )
+    return "Esse e-mail já foi usado em outra conta. Tente outro e-mail ou fale com o suporte."
 
 
 def email_pro_trial_already_claimed() -> str:
@@ -164,8 +155,7 @@ def alert_cap_reached(*, is_pro_user: bool = False) -> str:
 
 def meus_alertas_erro() -> str:
     return (
-        "📋 *Meus Alertas*\n\n"
-        "Não consegui carregar seus alertas agora. Tente de novo em instantes."
+        "📋 *Meus Alertas*\n\nNão consegui carregar seus alertas agora. Tente de novo em instantes."
     )
 
 
@@ -404,11 +394,7 @@ def watchlist_change_removed_message(*, title: str, url: str | None) -> str:
 
 def watchlist_change_reactivated_message(*, title: str, url: str | None) -> str:
     esc_title = escape_markdown(title[:80], version=1)
-    body = (
-        "👀 *Anúncio de volta*\n\n"
-        f"*{esc_title}*\n"
-        "Esse anúncio voltou a aparecer no radar."
-    )
+    body = f"👀 *Anúncio de volta*\n\n*{esc_title}*\nEsse anúncio voltou a aparecer no radar."
     if url:
         body += f"\n🔗 {escape_markdown(url, version=1)}"
     return body
@@ -443,11 +429,7 @@ def wizard_preco_intro(*, listing_kind: str) -> str:
     fees = ""
     if listing_kind != "venda":
         fees = "\n\nCondomínio e IPTU entram na conta."
-    return (
-        f"💰 *Faixa de preço ({label})*\n\n"
-        "Toque em uma opção ou *Personalizado*."
-        f"{fees}"
-    )
+    return f"💰 *Faixa de preço ({label})*\n\nToque em uma opção ou *Personalizado*.{fees}"
 
 
 def wizard_quartos_intro() -> str:
@@ -573,10 +555,7 @@ def wizard_nao_salvo() -> str:
 
 def db_loading() -> str:
     """Loading explícito enquanto o Postgres (Neon) acorda / responde."""
-    return (
-        "⏳ *Carregando…*\n\n"
-        "Isso pode levar alguns segundos."
-    )
+    return "⏳ *Carregando…*\n\nIsso pode levar alguns segundos."
 
 
 def wizard_seed_loading() -> str:

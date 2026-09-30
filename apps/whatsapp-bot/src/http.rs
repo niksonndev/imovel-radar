@@ -70,7 +70,7 @@ async fn pair(State(state): State<AppState>, Query(query): Query<PairQuery>) -> 
                     ],
                     bytes,
                 )
-                    .into_response()
+                    .into_response();
             }
             Err(error) => {
                 tracing::error!(%error, "render do QR");
