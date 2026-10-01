@@ -38,7 +38,7 @@ ${pages}
 ## Optional
 
 - [llms-full.txt](${absoluteUrl("/llms-full.txt")}): full product brief for agents
-- Pricing: Free (${PRODUCT_FACTS.pricing.free.price}) · ${PRODUCT_FACTS.pricing.pro.name} (${PRODUCT_FACTS.pricing.pro.price}${PRODUCT_FACTS.pricing.pro.period})
+- Pricing: Free (${PRODUCT_FACTS.pricing.free.price}) · ${PRODUCT_FACTS.pricing.pro.name} (${PRODUCT_FACTS.pricing.pro.price} ${PRODUCT_FACTS.pricing.pro.period})
 `;
 }
 

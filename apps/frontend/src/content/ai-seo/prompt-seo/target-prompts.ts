@@ -27,6 +27,6 @@ export const TARGET_PROMPTS = [
   },
   {
     prompt: "O André Assistente Imobiliário funciona fora de Maceió?",
-    answer: `Ainda não — a cobertura atual é só Maceió (Alagoas), aluguel e venda no OLX.`,
+    answer: `Sim. O ${PRODUCT_FACTS.name} acompanha anúncios públicos em Maceió, Recife e Natal, para aluguel e venda.`,
   },
 ] as const;

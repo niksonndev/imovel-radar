@@ -66,7 +66,7 @@ export const PRICING_FREE = {
     '1 alerta ativo',
     'Até 2 anúncios acompanhados',
     'Resumo diário pelo WhatsApp',
-    'Aluguel e venda em Maceió e Recife',
+    'Aluguel e venda em Maceió, Recife e Natal',
     'Link direto pro anúncio no OLX',
   ],
 } as const;
@@ -102,7 +102,7 @@ export const FAQ_ITEMS = [
   },
   {
     question: 'Só funciona em Maceió?',
-    answer: 'Hoje o André acompanha anúncios do OLX em Maceió e em Recife.',
+    answer: 'Hoje o André acompanha anúncios do OLX em Maceió, Recife e Natal.',
   },
   {
     question: 'De onde vêm os anúncios?',
