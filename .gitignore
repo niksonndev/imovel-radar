@@ -64,9 +64,6 @@ dmypy.json
 *.swo
 *~
 
-# Cursor (opcional: descomente se não quiser versionar regras locais)
-# .cursor/
-
 # OS
 .DS_Store
 Thumbs.db
