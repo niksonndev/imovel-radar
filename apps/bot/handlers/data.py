@@ -1,10 +1,6 @@
-"""Camada de dados da Bot Lambda — acesso direto ao Postgres compartilhado (ADR 0005).
+"""Acesso direto ao Postgres compartilhado pelo runtime Telegram legado (ADR 0005).
 
-Lê/escreve no Postgres via SQLModel usando os table models de
-        queries.lock_user_for_update(session, chat_id)
-``shared_models.tables``, que os handlers consomem diretamente (ver
-``docs/bot-models-migration.md``). A bot é dona de
-``users``/``alerts``/``alert_matches``/``watched_listings`` e lê ``listing``.
+Os handlers consomem os table models de ``shared_models.tables`` diretamente.
 """
 
 from __future__ import annotations

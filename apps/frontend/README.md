@@ -1,6 +1,6 @@
-# Frontend — Imóvel Radar
+# Frontend — André Assistente Imobiliário
 
-Landing page estática (SSG) do Imóvel Radar. O objetivo é uma única ação de conversão: levar o visitante para o bot do Telegram.
+Site estático do André Assistente Imobiliário. A ação principal leva o visitante à conversa oficial no WhatsApp; comunicados ficam em `/novidades`.
 
 ## Stack
 
@@ -51,7 +51,7 @@ tests/
 
 Todo o texto da landing vive em [`src/content/page-content.ts`](src/content/page-content.ts). Alterar o copy **não exige mudanças nos componentes**.
 
-A URL do bot do Telegram também está nesse arquivo (`TELEGRAM_BOT_URL`).
+O CTA oficial de WhatsApp e os links internos de novidades também são definidos nesse arquivo.
 
 ## Deploy
 
