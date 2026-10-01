@@ -33,6 +33,12 @@ pub struct Config {
     pub email_trial_days: i64,
     pub session_ttl_hours: i64,
     pub notify_stamp_path: String,
+    /// Segundos que o boot espera pelo lock consultivo da sessão do WhatsApp
+    /// antes de desistir e seguir mesmo assim (válvula de escape).
+    pub session_lock_wait_seconds: u64,
+    /// Alerta operacional (Telegram). Vazio = só log.
+    pub ops_alert_telegram_token: String,
+    pub ops_alert_telegram_chat_id: String,
     pub log_level: String,
 }
 
@@ -111,10 +117,24 @@ impl Config {
             email_trial_days: env_i64("EMAIL_PRO_TRIAL_DAYS", 30),
             session_ttl_hours: env_i64("SESSION_TTL_HOURS", 4),
             notify_stamp_path,
+            session_lock_wait_seconds: env_i64("WA_SESSION_LOCK_WAIT_SECONDS", 300).clamp(0, 3_600)
+                as u64,
+            ops_alert_telegram_token: std::env::var("OPS_ALERT_TELEGRAM_TOKEN")
+                .unwrap_or_default()
+                .trim()
+                .to_string(),
+            ops_alert_telegram_chat_id: std::env::var("OPS_ALERT_TELEGRAM_CHAT_ID")
+                .unwrap_or_default()
+                .trim()
+                .to_string(),
             log_level: std::env::var("LOG_LEVEL")
                 .unwrap_or_else(|_| "INFO".to_string())
                 .to_lowercase(),
         })
+    }
+
+    pub fn ops_alert_enabled(&self) -> bool {
+        !self.ops_alert_telegram_token.is_empty() && !self.ops_alert_telegram_chat_id.is_empty()
     }
 
     pub fn log_filter(&self) -> String {

@@ -7,6 +7,8 @@ pub mod intelligence;
 pub mod jobs;
 pub mod models;
 pub mod money;
+pub mod ops;
 pub mod session;
+pub mod snapshot;
 pub mod ui;
 pub mod wa;

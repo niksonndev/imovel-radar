@@ -4,7 +4,7 @@ use axum::extract::{Query, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
-use axum::Router;
+use axum::{Json, Router};
 use serde::Deserialize;
 
 use crate::config::tokens_match;
@@ -39,8 +39,20 @@ pub async fn serve(port: u16, pairing: Arc<Pairing>, pair_secret: String) -> any
     Ok(())
 }
 
-async fn health() -> &'static str {
-    "ok"
+/// Saúde do serviço + estado do pareamento. Sempre 200 (o Render derrubaria o
+/// container em loop se devolvesse 503), mas com o estado visível: um bot que
+/// restaurou a sessão e mesmo assim está oferecendo QR aparece aqui.
+async fn health(State(state): State<AppState>) -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "status": "ok",
+            "connected": state.pairing.is_connected(),
+            "pairing_exhausted": state.pairing.is_exhausted(),
+            "qr_available": state.pairing.fresh_qr().is_some(),
+            "qr_seconds_left": state.pairing.qr_seconds_left(),
+        })),
+    )
 }
 
 async fn pair(State(state): State<AppState>, Query(query): Query<PairQuery>) -> Response {

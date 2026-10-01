@@ -1,13 +1,16 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use whatsapp_bot::ai::transcribe_audio;
 use whatsapp_bot::config::{ensure_parent_dir, Config};
-use whatsapp_bot::db::Db;
+use whatsapp_bot::db::{Db, SessionLock};
 use whatsapp_bot::handlers::{handle_text, handle_transcribed_audio, should_show_typing};
 use whatsapp_bot::http;
 use whatsapp_bot::jobs::{due, now_maceio, read_stamp, run_daily, write_stamp, Sender};
+use whatsapp_bot::ops;
+use whatsapp_bot::snapshot::{snapshot_path, snapshot_sqlite};
 use whatsapp_bot::wa::{qr_ascii, Pairing, WaSender};
 use whatsapp_rust::bot::{Bot, EventDelivery};
 use whatsapp_rust::prelude::*;
@@ -61,23 +64,43 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    // Gambiarra anti-repair: se o arquivo local de sessão não existe, restaura do Neon
-    // (evita re-emparelhar por QR após reinício do Render free).
+    // Serializa a sessão: só uma instância fala com o WhatsApp por vez. Num
+    // deploy o Render pode sobrepor instâncias por alguns segundos e duas
+    // conexões com a MESMA identidade fazem o WhatsApp derrubar uma delas — e o
+    // processo derrubado gravaria um snapshot "deslogado" por cima do bom.
+    // O lock é consultivo (Postgres), cai sozinho se o processo morrer.
+    let session_lock = acquire_session_lock(&db, &cfg, &http_client).await;
+
+    // Anti-repair: se o arquivo local de sessão não existe, restaura do Neon
+    // (evita re-emparelhar por QR após reinício do Render free). O snapshot é
+    // consistente (VACUUM INTO): traz o estado real do SQLite que roda em WAL,
+    // inclusive as páginas que ainda não foram checkpointadas.
     let session_file = std::path::Path::new(&cfg.session_path);
     let missing = !session_file.exists()
         || std::fs::metadata(session_file)
             .map(|m| m.len() == 0)
             .unwrap_or(true);
+    let mut restored_from_backup = false;
     if missing {
         match db.load_session_backup().await {
-            Ok(Some(bytes)) if !bytes.is_empty() => {
-                if let Err(error) = std::fs::write(&cfg.session_path, &bytes) {
-                    tracing::error!(%error, "restaurar sessão do Neon");
-                } else {
-                    tracing::info!("sessão do WhatsApp restaurada do Neon");
+            Ok(Some(backup)) if !backup.payload.is_empty() => {
+                match std::fs::write(&cfg.session_path, &backup.payload) {
+                    Ok(()) => {
+                        restored_from_backup = true;
+                        if backup.logged_in {
+                            tracing::info!("sessão do WhatsApp restaurada do Neon (logada)");
+                        } else {
+                            tracing::warn!(
+                                "sessão restaurada do Neon foi tirada DESLOGADA; \
+                                 pode ser preciso re-parear"
+                            );
+                        }
+                    }
+                    Err(error) => tracing::error!(%error, "restaurar sessão do Neon"),
                 }
             }
-            _ => {}
+            Ok(_) => {}
+            Err(error) => tracing::error!(%error, "ler backup da sessão no Neon"),
         }
     }
 
@@ -86,6 +109,9 @@ async fn main() -> anyhow::Result<()> {
     // não pode ser reiniciado — cada ciclo precisa de um cliente novo para
     // voltar a oferecer QR. Depois de pareado o ciclo termina e o bot segue com
     // o keepalive/reconexão próprios da lib.
+    // Um snapshot foi restaurado mas o cliente está pedindo QR de novo: é o
+    // cenário de re-pareamento. Avisa uma vez (Telegram, se configurado).
+    let re_pair_alerted = Arc::new(AtomicBool::new(false));
     let (client, handle) = 'pareamento: loop {
         let backend = SqliteStore::new(&cfg.session_path).await?;
         let pairing_qr = pairing.clone();
@@ -98,32 +124,66 @@ async fn main() -> anyhow::Result<()> {
         .with_backend(backend)
         .skip_history_sync()
         .with_event_delivery(EventDelivery::Ordered { capacity: 256 })
-        .on_qr_code(move |code, timeout| {
-            let pairing = pairing_qr.clone();
-            async move {
-                let text = code.to_string();
-                match qr_ascii(&text) {
-                    Ok(ascii) => println!("{ascii}"),
-                    Err(_) => println!("QR recebido. Abra /pair para a imagem."),
+        .on_qr_code({
+            let alert_cfg = cfg.clone();
+            let alert_http = http_client.clone();
+            let alerted = re_pair_alerted.clone();
+            move |code, timeout| {
+                let pairing = pairing_qr.clone();
+                let alert_cfg = alert_cfg.clone();
+                let alert_http = alert_http.clone();
+                let alerted = alerted.clone();
+                async move {
+                    let text = code.to_string();
+                    match qr_ascii(&text) {
+                        Ok(ascii) => println!("{ascii}"),
+                        Err(_) => println!("QR recebido. Abra /pair para a imagem."),
+                    }
+                    if restored_from_backup && !alerted.swap(true, Ordering::SeqCst) {
+                        ops::alert(
+                            &alert_cfg,
+                            &alert_http,
+                            "⚠️ Imóvel Radar (WhatsApp): a sessão restaurada NÃO logou e o bot \
+                             está oferecendo QR de re-pareamento.",
+                        )
+                        .await;
+                    }
+                    pairing.set_qr(text, timeout);
                 }
-                pairing.set_qr(text, timeout);
             }
         })
-        .on_event(move |event, _client| {
-            let pairing = pairing_events.clone();
-            async move {
-                match &*event {
-                    Event::Connected(_) => {
-                        pairing.mark_connected();
-                        tracing::info!("conectado ao WhatsApp");
+        .on_event({
+            let alert_cfg = cfg.clone();
+            let alert_http = http_client.clone();
+            let alerted = re_pair_alerted.clone();
+            move |event, _client| {
+                let pairing = pairing_events.clone();
+                let alert_cfg = alert_cfg.clone();
+                let alert_http = alert_http.clone();
+                let alerted = alerted.clone();
+                async move {
+                    match &*event {
+                        Event::Connected(_) => {
+                            pairing.mark_connected();
+                            tracing::info!("conectado ao WhatsApp");
+                        }
+                        Event::PairingQrCodesExhausted(_) => {
+                            // Sem pareamento os QRs se esgotam e o cliente se
+                            // desconecta; o supervisor abaixo sobe um cliente novo.
+                            pairing.mark_exhausted();
+                            tracing::warn!("QRs esgotados sem pareamento");
+                            if restored_from_backup && !alerted.swap(true, Ordering::SeqCst) {
+                                ops::alert(
+                                    &alert_cfg,
+                                    &alert_http,
+                                    "⚠️ Imóvel Radar (WhatsApp): QRs de re-pareamento esgotados \
+                                     sem ninguém escanear.",
+                                )
+                                .await;
+                            }
+                        }
+                        _ => {}
                     }
-                    Event::PairingQrCodesExhausted(_) => {
-                        // Sem pareamento os QRs se esgotam e o cliente se
-                        // desconecta; o supervisor abaixo sobe um cliente novo.
-                        pairing.mark_exhausted();
-                        tracing::warn!("QRs esgotados sem pareamento");
-                    }
-                    _ => {}
                 }
             }
         })
@@ -260,10 +320,18 @@ async fn main() -> anyhow::Result<()> {
         tokio::time::sleep(Duration::from_secs(2)).await;
     };
 
+    // Guarda o snapshot assim que pareia: sem isso, um restart nos primeiros
+    // minutos perderia a sessão recém-criada e pediria QR de novo.
+    match persist_session(&db, &cfg.session_path, client.is_logged_in()).await {
+        Ok(true) => tracing::info!("snapshot inicial da sessão no Neon"),
+        Ok(false) => {}
+        Err(error) => tracing::warn!(%error, "snapshot inicial da sessão"),
+    }
+
     let notify_db = db.clone();
     let notify_cfg = cfg.clone();
     let notify_http = http_client.clone();
-    let notify_client = client;
+    let notify_client = client.clone();
     let notify_task = tokio::spawn(async move {
         let sender = WaSender::new(notify_client, notify_http);
         loop {
@@ -283,42 +351,111 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    // Backup periódico da sessão (arquivo SQLite) para o Neon — anti-repair se o
-    // container for recriado (free não tem disco persistente).
+    // Backup periódico da sessão para o Neon — anti-repair se o container for
+    // recriado (o free não tem disco persistente). O snapshot é consistente
+    // (VACUUM INTO), não uma cópia crua do .db.
     let backup_db = db.clone();
     let backup_path = cfg.session_path.clone();
+    let backup_client = client.clone();
     let backup_task = tokio::spawn(async move {
         loop {
-            tokio::time::sleep(Duration::from_secs(300)).await; // 5 min
-            match std::fs::read(&backup_path) {
-                Ok(bytes) if !bytes.is_empty() => {
-                    if let Err(error) = backup_db.save_session_backup(&bytes).await {
-                        tracing::warn!(%error, "backup da sessão no Neon");
-                    }
-                }
-                _ => {}
+            // 5 min.
+            tokio::time::sleep(Duration::from_secs(300)).await;
+            // Estado lido no momento do snapshot: um snapshot deslogado nunca
+            // sobrescreve um logado no Neon (ver save_session_backup).
+            let logged_in = backup_client.is_logged_in();
+            match persist_session(&backup_db, &backup_path, logged_in).await {
+                Ok(true) => tracing::debug!(logged_in, "backup da sessão no Neon"),
+                Ok(false) => tracing::warn!(
+                    "snapshot deslogado ignorado: já existe um snapshot logado no Neon"
+                ),
+                Err(error) => tracing::warn!(%error, "backup da sessão no Neon"),
             }
         }
     });
 
     wait_for_shutdown().await;
     tracing::info!("encerrando");
-    // Backup final da sessão antes de morrer.
-    if let Ok(bytes) = std::fs::read(&cfg.session_path) {
-        if !bytes.is_empty() {
-            if let Err(error) = db.save_session_backup(&bytes).await {
-                tracing::error!(%error, "backup final da sessão no Neon");
-            } else {
-                tracing::info!("backup final da sessão no Neon");
-            }
-        }
-    }
+    // Ordem importa: o "logado" é lido ANTES de fechar o cliente (o snapshot
+    // final precisa sair marcado como logado para valer), o cliente fecha em
+    // seguida (checkpoint do WAL) e só então o snapshot é tirado — com o SQLite
+    // já quieto.
+    let was_logged_in = client.is_logged_in();
     handle.shutdown().await;
+    match persist_session(&db, &cfg.session_path, was_logged_in).await {
+        Ok(true) => tracing::info!(logged_in = was_logged_in, "backup final da sessão no Neon"),
+        Ok(false) => tracing::warn!(
+            "backup final ignorado: já existe um snapshot logado no Neon mais recente"
+        ),
+        Err(error) => tracing::error!(%error, "backup final da sessão no Neon"),
+    }
+    // Libera o lock só depois do backup: a próxima instância restaura o estado
+    // mais novo antes de subir o cliente.
+    if let Some(lock) = session_lock {
+        db.unlock_session(lock).await;
+    }
     notify_task.abort();
     http_task.abort();
     ping_task.abort();
     backup_task.abort();
     Ok(())
+}
+
+/// Snapshot consistente da sessão + gravação no Neon.
+///
+/// `VACUUM INTO` é I/O de arquivo e roda no pool de threads bloqueantes para não
+/// travar o runtime async.
+async fn persist_session(db: &Db, session_path: &str, logged_in: bool) -> anyhow::Result<bool> {
+    let src = session_path.to_string();
+    let tmp = snapshot_path(session_path);
+    let bytes = tokio::task::spawn_blocking(move || snapshot_sqlite(&src, &tmp)).await??;
+    if bytes.is_empty() {
+        anyhow::bail!("snapshot da sessão vazio");
+    }
+    db.save_session_backup(&bytes, logged_in).await
+}
+
+/// Espera (com prazo) pelo lock da sessão do WhatsApp.
+///
+/// Se outra instância o detém, é o deploy anterior ainda de pé — o Render manda
+/// SIGTERM nele em seguida e o lock cai junto com o processo. Esgotado o prazo,
+/// segue mesmo assim: uma conexão duplicada por segundos é menos ruim que um bot
+/// morto, e o alerta avisa.
+async fn acquire_session_lock(
+    db: &Db,
+    cfg: &Arc<Config>,
+    http_client: &reqwest::Client,
+) -> Option<SessionLock> {
+    let deadline = Instant::now() + Duration::from_secs(cfg.session_lock_wait_seconds);
+    let mut warned = false;
+    loop {
+        match db.try_lock_session().await {
+            Ok(Some(lock)) => {
+                tracing::info!("lock da sessão do WhatsApp adquirido");
+                return Some(lock);
+            }
+            Ok(None) => {
+                if !warned {
+                    tracing::warn!(
+                        "outra instância detém a sessão do WhatsApp; aguardando o deploy anterior encerrar"
+                    );
+                    warned = true;
+                }
+            }
+            Err(error) => tracing::warn!(%error, "tentar o lock da sessão do WhatsApp"),
+        }
+        if Instant::now() >= deadline {
+            ops::alert(
+                cfg,
+                http_client,
+                "⚠️ Imóvel Radar (WhatsApp): não obtive o lock da sessão no prazo e vou seguir \
+                 mesmo assim — risco de conexão duplicada durante o deploy.",
+            )
+            .await;
+            return None;
+        }
+        tokio::time::sleep(Duration::from_secs(3)).await;
+    }
 }
 
 async fn wait_for_pairing(pairing: &Pairing, client: &Arc<Client>) -> bool {

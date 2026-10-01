@@ -31,11 +31,31 @@ pub struct Db {
     pool: PgPool,
 }
 
+/// Chave do lock consultivo que serializa o uso da sessão do WhatsApp.
+/// `0x494D4F56454C` = "IMOVEL" em ASCII.
+const SESSION_LOCK_KEY: i64 = 0x49_4D_4F_56_45_4C;
+
+/// Conexão que SEGURA o lock da sessão enquanto o processo viver. Devolver a
+/// conexão ao pool não libera o lock (o advisory lock é do *session* do
+/// Postgres), então quem segura o lock segura a conexão até o fim.
+pub type SessionLock = sqlx::pool::PoolConnection<Postgres>;
+
+/// Snapshot da sessão guardado no Neon, com o estado em que foi tirado.
+pub struct SessionBackup {
+    pub payload: Vec<u8>,
+    /// `true` quando o cliente estava logado no momento do snapshot.
+    pub logged_in: bool,
+}
+
 impl Db {
     pub async fn connect(url: &str) -> anyhow::Result<Self> {
         let pool = sqlx::postgres::PgPoolOptions::new()
             .max_connections(5)
             .acquire_timeout(Duration::from_secs(20))
+            // Sem reciclagem: a conexão que segura o lock da sessão fica
+            // emprestada pelo processo inteiro e não pode ser fechada por idade.
+            .max_lifetime(None)
+            .idle_timeout(None)
             .connect(url)
             .await
             .context("conectar no Postgres")?;
@@ -43,37 +63,100 @@ impl Db {
             "CREATE TABLE IF NOT EXISTS wa_session_backup (
                 channel    TEXT        PRIMARY KEY,
                 payload    BYTEA       NOT NULL,
+                logged_in  BOOLEAN     NOT NULL DEFAULT false,
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
             )",
         )
         .execute(&pool)
         .await
         .context("criar tabela de backup da sessão do WhatsApp")?;
+        sqlx::query(
+            "ALTER TABLE wa_session_backup
+             ADD COLUMN IF NOT EXISTS logged_in BOOLEAN NOT NULL DEFAULT false",
+        )
+        .execute(&pool)
+        .await
+        .context("adicionar coluna logged_in ao backup da sessão")?;
         Ok(Self { pool })
     }
 
-    /// Guarda um backup da sessão (arquivo SQLite do WhatsApp) no Postgres/Neon.
-    pub async fn save_session_backup(&self, payload: &[u8]) -> anyhow::Result<()> {
-        sqlx::query(
-            "INSERT INTO wa_session_backup (channel, payload) VALUES ('whatsapp', $1)
-             ON CONFLICT (channel)
-             DO UPDATE SET payload = EXCLUDED.payload, updated_at = now()",
-        )
-        .bind(payload)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
+    /// Tenta tomar o lock da sessão do WhatsApp sem esperar.
+    ///
+    /// Só uma instância por vez pode falar com o WhatsApp com a mesma
+    /// identidade: durante um deploy o Render pode sobrepor instâncias por
+    /// alguns segundos e duas conexões simultâneas com o mesmo dispositivo
+    /// fazem o WhatsApp derrubar uma delas. Devolve `None` se outra instância
+    /// já detém o lock.
+    pub async fn try_lock_session(&self) -> anyhow::Result<Option<SessionLock>> {
+        let mut conn = self.pool.acquire().await?;
+        let acquired: bool = sqlx::query_scalar("SELECT pg_try_advisory_lock($1)")
+            .bind(SESSION_LOCK_KEY)
+            .fetch_one(&mut *conn)
+            .await?;
+        if acquired {
+            Ok(Some(conn))
+        } else {
+            Ok(None)
+        }
     }
 
-    /// Restaura o último backup da sessão, se existir.
-    pub async fn load_session_backup(&self) -> anyhow::Result<Option<Vec<u8>>> {
-        let row = sqlx::query("SELECT payload FROM wa_session_backup WHERE channel = 'whatsapp'")
-            .fetch_optional(&self.pool)
-            .await?;
-        match row {
-            Some(r) => Ok(Some(r.try_get::<Vec<u8>, _>("payload")?)),
-            None => Ok(None),
+    /// Libera o lock antes de encerrar. O processo termina logo depois, mas
+    /// soltar a conexão devolveria o lock só ao fechar o pool; liberar aqui
+    /// deixa a próxima instância subir imediatamente após o backup final.
+    pub async fn unlock_session(&self, mut conn: SessionLock) {
+        if let Err(error) = sqlx::query("SELECT pg_advisory_unlock($1)")
+            .bind(SESSION_LOCK_KEY)
+            .execute(&mut *conn)
+            .await
+        {
+            tracing::warn!(%error, "liberar o lock da sessão do WhatsApp");
         }
+    }
+
+    /// Guarda um backup da sessão (arquivo SQLite do WhatsApp) no Postgres/Neon.
+    ///
+    /// Um snapshot tirado com o cliente DESLOGADO nunca sobrescreve um tirado
+    /// com o cliente logado: sem essa guarda, uma instância que perdeu o
+    /// "conflict" durante o deploy gravaria por cima do snapshot bom e o
+    /// próximo boot restauraria uma sessão já morta — forçando re-pareamento.
+    ///
+    /// Devolve `true` quando o snapshot foi de fato gravado.
+    pub async fn save_session_backup(
+        &self,
+        payload: &[u8],
+        logged_in: bool,
+    ) -> anyhow::Result<bool> {
+        let row = sqlx::query(
+            "INSERT INTO wa_session_backup (channel, payload, logged_in, updated_at)
+             VALUES ('whatsapp', $1, $2, now())
+             ON CONFLICT (channel)
+             DO UPDATE SET payload = EXCLUDED.payload,
+                           logged_in = EXCLUDED.logged_in,
+                           updated_at = now()
+             WHERE wa_session_backup.logged_in = false OR EXCLUDED.logged_in = true
+             RETURNING 1",
+        )
+        .bind(payload)
+        .bind(logged_in)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.is_some())
+    }
+
+    /// Restaura o último backup da sessão, se existir, junto com o estado em que
+    /// ele foi tirado.
+    pub async fn load_session_backup(&self) -> anyhow::Result<Option<SessionBackup>> {
+        let row = sqlx::query(
+            "SELECT payload, logged_in FROM wa_session_backup WHERE channel = 'whatsapp'",
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        let Some(row) = row else {
+            return Ok(None);
+        };
+        let payload: Vec<u8> = row.try_get("payload")?;
+        let logged_in: bool = row.try_get("logged_in")?;
+        Ok(Some(SessionBackup { payload, logged_in }))
     }
 
     pub async fn ensure_whatsapp_user(&self, jid: &str) -> anyhow::Result<i64> {
