@@ -69,7 +69,7 @@ async fn main() -> anyhow::Result<()> {
     // conexões com a MESMA identidade fazem o WhatsApp derrubar uma delas — e o
     // processo derrubado gravaria um snapshot "deslogado" por cima do bom.
     // O lock é consultivo (Postgres), cai sozinho se o processo morrer.
-    let session_lock = acquire_session_lock(&db, &cfg, &http_client).await;
+    let session_lock = acquire_session_lock(&db, &cfg).await;
 
     // Anti-repair: se o arquivo local de sessão não existe, restaura do Neon
     // (evita re-emparelhar por QR após reinício do Render free). O snapshot é
@@ -125,13 +125,9 @@ async fn main() -> anyhow::Result<()> {
         .skip_history_sync()
         .with_event_delivery(EventDelivery::Ordered { capacity: 256 })
         .on_qr_code({
-            let alert_cfg = cfg.clone();
-            let alert_http = http_client.clone();
             let alerted = re_pair_alerted.clone();
             move |code, timeout| {
                 let pairing = pairing_qr.clone();
-                let alert_cfg = alert_cfg.clone();
-                let alert_http = alert_http.clone();
                 let alerted = alerted.clone();
                 async move {
                     let text = code.to_string();
@@ -141,8 +137,6 @@ async fn main() -> anyhow::Result<()> {
                     }
                     if restored_from_backup && !alerted.swap(true, Ordering::SeqCst) {
                         ops::alert(
-                            &alert_cfg,
-                            &alert_http,
                             "⚠️ Imóvel Radar (WhatsApp): a sessão restaurada NÃO logou e o bot \
                              está oferecendo QR de re-pareamento.",
                         )
@@ -153,13 +147,9 @@ async fn main() -> anyhow::Result<()> {
             }
         })
         .on_event({
-            let alert_cfg = cfg.clone();
-            let alert_http = http_client.clone();
             let alerted = re_pair_alerted.clone();
             move |event, _client| {
                 let pairing = pairing_events.clone();
-                let alert_cfg = alert_cfg.clone();
-                let alert_http = alert_http.clone();
                 let alerted = alerted.clone();
                 async move {
                     match &*event {
@@ -174,8 +164,6 @@ async fn main() -> anyhow::Result<()> {
                             tracing::warn!("QRs esgotados sem pareamento");
                             if restored_from_backup && !alerted.swap(true, Ordering::SeqCst) {
                                 ops::alert(
-                                    &alert_cfg,
-                                    &alert_http,
                                     "⚠️ Imóvel Radar (WhatsApp): QRs de re-pareamento esgotados \
                                      sem ninguém escanear.",
                                 )
@@ -424,7 +412,6 @@ async fn persist_session(db: &Db, session_path: &str, logged_in: bool) -> anyhow
 async fn acquire_session_lock(
     db: &Db,
     cfg: &Arc<Config>,
-    http_client: &reqwest::Client,
 ) -> Option<SessionLock> {
     let deadline = Instant::now() + Duration::from_secs(cfg.session_lock_wait_seconds);
     let mut warned = false;
@@ -446,8 +433,6 @@ async fn acquire_session_lock(
         }
         if Instant::now() >= deadline {
             ops::alert(
-                cfg,
-                http_client,
                 "⚠️ Imóvel Radar (WhatsApp): não obtive o lock da sessão no prazo e vou seguir \
                  mesmo assim — risco de conexão duplicada durante o deploy.",
             )
