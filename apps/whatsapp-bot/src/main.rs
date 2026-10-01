@@ -110,7 +110,7 @@ async fn main() -> anyhow::Result<()> {
     // voltar a oferecer QR. Depois de pareado o ciclo termina e o bot segue com
     // o keepalive/reconexão próprios da lib.
     // Um snapshot foi restaurado mas o cliente está pedindo QR de novo: é o
-    // cenário de re-pareamento. Avisa uma vez (Telegram, se configurado).
+    // cenário de re-pareamento. Avisa uma vez nos logs.
     let re_pair_alerted = Arc::new(AtomicBool::new(false));
     let (client, handle) = 'pareamento: loop {
         let backend = SqliteStore::new(&cfg.session_path).await?;
@@ -137,7 +137,7 @@ async fn main() -> anyhow::Result<()> {
                     }
                     if restored_from_backup && !alerted.swap(true, Ordering::SeqCst) {
                         ops::alert(
-                            "⚠️ Imóvel Radar (WhatsApp): a sessão restaurada NÃO logou e o bot \
+                            "⚠️ André (WhatsApp): a sessão restaurada não entrou e o assistente \
                              está oferecendo QR de re-pareamento.",
                         )
                         .await;
@@ -164,7 +164,7 @@ async fn main() -> anyhow::Result<()> {
                             tracing::warn!("QRs esgotados sem pareamento");
                             if restored_from_backup && !alerted.swap(true, Ordering::SeqCst) {
                                 ops::alert(
-                                    "⚠️ Imóvel Radar (WhatsApp): QRs de re-pareamento esgotados \
+                                    "⚠️ André (WhatsApp): QRs de re-pareamento esgotados \
                                      sem ninguém escanear.",
                                 )
                                 .await;
@@ -433,7 +433,7 @@ async fn acquire_session_lock(
         }
         if Instant::now() >= deadline {
             ops::alert(
-                "⚠️ Imóvel Radar (WhatsApp): não obtive o lock da sessão no prazo e vou seguir \
+                "⚠️ André (WhatsApp): não obtive o lock da sessão no prazo e vou seguir \
                  mesmo assim — risco de conexão duplicada durante o deploy.",
             )
             .await;

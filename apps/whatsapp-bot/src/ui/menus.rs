@@ -549,7 +549,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn recife_rent_presets_match_telegram() {
+    fn recife_rent_presets_are_consistent() {
         let presets = price_presets("aluguel", "Recife");
         assert_eq!(presets[0].max, 2_500);
         assert_eq!(presets[3].min, 7_000);

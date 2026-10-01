@@ -1,6 +1,6 @@
-# Bot WhatsApp — Imóvel Radar
+# André Assistente Imobiliário — WhatsApp
 
-Cliente WhatsApp Web em Rust ([whatsapp-rust](https://github.com/oxidezap/whatsapp-rust)), sempre ligado. Cobre o mesmo fluxo do bot Telegram: alerta em linguagem natural ou passo a passo, meus alertas, carrossel de matches, watchlist e trial de Radar Pro por e-mail. Não há Telegram Stars.
+Canal de atendimento do André, implementado em Rust com [whatsapp-rust](https://github.com/oxidezap/whatsapp-rust). Ajuda a buscar imóveis por linguagem natural, gerencia alertas e acompanha anúncios.
 
 Cliente não oficial: pode violar os termos da Meta e a conta pode ser suspensa.
 
@@ -12,13 +12,13 @@ Quotas padrão por dia: Free 50 mensagens/5 áudios; Pro 300 mensagens/30 áudio
 
 Use `privacidade` para política/termos e `excluir dados` para solicitar exclusão. A exclusão confirmada apaga conta WhatsApp, alertas, matches, anúncios acompanhados, trial por e-mail, sessão e telemetria associada. A política e os termos publicados são textos de produto e devem ser revisados por assessoria jurídica antes de serem considerados documentos finais.
 
-O WhatsApp não oferece Telegram Stars. O Pro neste canal usa somente o fluxo de trial por e-mail existente; não há processamento Pix implementado.
+Pagamentos não estão disponíveis. Benefícios de teste dependem de uma oferta ativa e informada na conversa.
 
 ## Como funciona
 
 - Processo único: HTTP (`GET /health`, `GET /pair`) + sessão WhatsApp + notificação diária às 10:00 (America/Maceio), só para `users.channel = 'whatsapp'`.
 - Postgres compartilhado (Neon). A migration `0012` cria `channel`, `whatsapp_jid`, a sequence de `chat_id` e `bot_session`.
-- Conta WhatsApp não se vincula à conta Telegram.
+- A identidade da conta é baseada no JID WhatsApp associado a uma chave interna.
 
 ## Configuração
 

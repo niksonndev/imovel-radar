@@ -720,7 +720,7 @@ async fn on_delete_account_confirm(
             Ok(true) => {
                 *session = Session::menu();
                 session.step = Step::Deleted;
-                Ok(vec![text("Seus dados do Imóvel Radar foram excluídos. As mensagens enviadas continuam no histórico do WhatsApp.")])
+                Ok(vec![text("Seus dados do André Assistente Imobiliário foram excluídos. As mensagens enviadas continuam no histórico do WhatsApp.")])
             }
             Ok(false) => {
                 session.step = Step::Deleted;

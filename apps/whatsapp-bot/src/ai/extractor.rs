@@ -19,7 +19,7 @@ pub struct ExtractedAlert {
 }
 
 const SYSTEM_PROMPT: &str = "\
-Você é o extrator de intenções do Imóvel Radar (bot de alertas imobiliários).
+Você é o extrator de intenções do André Assistente Imobiliário.
 Sua missão é extrair do texto do usuário os critérios de busca em JSON estruturado.
 
 Regras de negócio:

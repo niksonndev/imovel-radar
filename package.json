@@ -1,5 +1,5 @@
 {
-  "name": "imovel-radar",
+  "name": "andre-assistente-imobiliario",
   "private": true,
   "scripts": {
     "dev": "turbo run dev --continue",

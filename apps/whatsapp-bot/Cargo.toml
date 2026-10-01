@@ -3,7 +3,7 @@ name = "whatsapp-bot"
 version = "0.1.0"
 edition = "2021"
 publish = false
-description = "Bot WhatsApp do Imóvel Radar (cliente whatsapp-rust, sempre ligado)"
+description = "André Assistente Imobiliário pelo WhatsApp (cliente whatsapp-rust, sempre ligado)"
 
 [[bin]]
 name = "whatsapp-bot"
