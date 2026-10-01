@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 def announcement_message(site_url: str) -> str:
     updates_url = f"{site_url.rstrip('/')}/novidades"
     return (
-        "Olá! O Imóvel Radar está encerrando o atendimento pelo Telegram.\n\n"
+        "Olá! Este canal de atendimento pelo Telegram será encerrado.\n\n"
         "Para continuar sua busca por imóveis, fale com o André Assistente "
         f"Imobiliário pelo WhatsApp: {WHATSAPP_URL}\n\n"
         f"Acompanhe os próximos comunicados: {updates_url}\n\n"
@@ -87,6 +87,8 @@ async def main() -> int:
     if not args.send:
         print("\nPrévia apenas; nenhuma mensagem foi enviada.")
         return 0
+    if not chat_ids:
+        parser.error("nenhum destinatário Telegram encontrado; envio cancelado")
     if args.confirm_count != len(chat_ids):
         parser.error("use --confirm-count com a quantidade exata exibida na prévia")
 
