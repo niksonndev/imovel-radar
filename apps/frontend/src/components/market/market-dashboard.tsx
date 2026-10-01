@@ -3,7 +3,7 @@
 import { HorizontalBars, type BarItem } from "@/components/market/horizontal-bars";
 import { StatFigure } from "@/components/market/stat-figure";
 import { TrackedCta } from "@/components/tracked-cta";
-import { TELEGRAM_BOT_URL } from "@/content/page-content";
+import { WHATSAPP_ASSISTANT_URL } from "@/content/page-content";
 import {
   isFeatureCollection,
   paintNeighbourhoods,
@@ -370,11 +370,11 @@ export function MarketDashboard() {
       <section className="flex flex-col items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-6">
         <h2 className="font-heading text-2xl text-white">Quer o anúncio, não só a média?</h2>
         <p className="max-w-xl text-sm leading-relaxed text-white/65">
-          Estes números são preços pedidos em anúncios ativos. O bot avisa no Telegram quando entra
-          um imóvel no bairro e na faixa que você escolher.
+          Estes números são preços pedidos em anúncios ativos. O André ajuda você a acompanhar
+          opções que combinam com a sua busca.
         </p>
-        <TrackedCta href={TELEGRAM_BOT_URL} ctaId="mercado" className="btn-shine">
-          Começar grátis no Telegram
+        <TrackedCta href={WHATSAPP_ASSISTANT_URL} ctaId="mercado" className="btn-shine">
+          Conversar com André no WhatsApp
         </TrackedCta>
       </section>
     </div>

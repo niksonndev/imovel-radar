@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
-import { TelegramDemo } from "@/components/landing/TelegramDemo";
+import { AssistantDemo } from "@/components/landing/AssistantDemo";
 
 export const metadata: Metadata = {
-  title: "Demo record",
+  title: "André demo record",
   robots: { index: false, follow: false },
 };
 
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 export default function DemoRecordPage() {
   return (
     <main data-demo-record className="m-0 inline-block bg-[#0e1621] p-0">
-      <TelegramDemo
+      <AssistantDemo
         autoPlay
         playOnce
         hideGlow

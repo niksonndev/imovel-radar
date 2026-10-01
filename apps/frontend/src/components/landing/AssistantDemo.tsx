@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import { Radar } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -90,7 +90,7 @@ function showPayoff(root: HTMLElement, stack: HTMLElement, viewport: HTMLElement
   gsap.set(stack, { autoAlpha: 1, y: overflow > 0 ? -overflow : 0 });
 }
 
-type TelegramDemoProps = {
+type AssistantDemoProps = {
   className?: string;
   /** Extra classes for the phone shell (size overrides for recording only). */
   shellClassName?: string;
@@ -102,13 +102,13 @@ type TelegramDemoProps = {
   playOnce?: boolean;
 };
 
-export function TelegramDemo({
+export function AssistantDemo({
   className = "",
   shellClassName = "",
   hideGlow = false,
   autoPlay = false,
   playOnce = false,
-}: TelegramDemoProps) {
+}: AssistantDemoProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const stackRef = useRef<HTMLDivElement>(null);
@@ -218,9 +218,8 @@ export function TelegramDemo({
   return (
     <div className={cn("relative mx-auto w-full max-w-100", className)}>
       <p className="sr-only">
-        Demonstração do bot no Telegram: o alerta Novo apê, para alugar um apartamento em Antares
-        e Serraria entre R$ 2.000 e R$ 2.500 com 3 quartos ou mais, encontra um apartamento em
-        Antares por R$ 2.300.
+        Exemplo de conversa com André: uma busca por apartamento para alugar em Antares ou
+        Serraria encontra uma opção de três quartos por R$ 2.300.
       </p>
 
       <div ref={rootRef} aria-hidden="true" className="relative" data-demo-root>
@@ -235,12 +234,12 @@ export function TelegramDemo({
           )}
         >
           <header className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-[#101014] px-4 py-3">
-            <div className="flex size-10 items-center justify-center rounded-full bg-[#0A84FF]">
-              <Radar className="size-5 text-white" />
+            <div className="flex size-10 items-center justify-center rounded-full bg-[#138a52]">
+              <MessageCircle className="size-5 text-white" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white">Imóvel Radar</p>
-              <p className="text-xs text-[#a9a9b3]">bot</p>
+              <p className="truncate text-sm font-semibold text-white">André</p>
+              <p className="text-xs text-[#a9a9b3]">Assistente imobiliário · WhatsApp</p>
             </div>
           </header>
 

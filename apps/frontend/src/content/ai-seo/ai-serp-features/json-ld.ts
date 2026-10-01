@@ -11,7 +11,6 @@ function organizationSchema(): JsonLd {
     name: PRODUCT_FACTS.name,
     url: PRODUCT_FACTS.url,
     description: PRODUCT_FACTS.description,
-    sameAs: BRAND_ENTITY.sameAs,
     areaServed: {
       "@type": "City",
       name: PRODUCT_FACTS.coverage.city,
@@ -40,13 +39,6 @@ function softwareApplicationSchema(): JsonLd {
         price: "0",
         priceCurrency: "BRL",
         description: PRODUCT_FACTS.pricing.free.features.join("; "),
-      },
-      {
-        "@type": "Offer",
-        name: PRODUCT_FACTS.pricing.pro.name,
-        price: "19.90",
-        priceCurrency: "BRL",
-        description: PRODUCT_FACTS.pricing.pro.features.join("; "),
       },
     ],
     publisher: { "@id": `${PRODUCT_FACTS.url}/#organization` },

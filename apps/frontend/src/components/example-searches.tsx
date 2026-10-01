@@ -4,7 +4,7 @@ import {
   EXAMPLE_SEARCHES_SUBHEADLINE,
   EXAMPLE_SEARCHES,
   EXAMPLE_SEARCHES_CTA,
-  TELEGRAM_BOT_URL,
+  WHATSAPP_ASSISTANT_URL,
 } from "@/content/page-content";
 
 export function ExampleSearches() {
@@ -32,7 +32,7 @@ export function ExampleSearches() {
         </ul>
 
         <TrackedCta
-          href={TELEGRAM_BOT_URL}
+          href={WHATSAPP_ASSISTANT_URL}
           ctaId="example_searches"
           variant="pill"
         >

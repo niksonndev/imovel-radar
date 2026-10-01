@@ -2,7 +2,7 @@ import {
   CTA_HEADLINE,
   CTA_SUBHEADLINE,
   CTA_BUTTON_LABEL,
-  TELEGRAM_BOT_URL,
+  WHATSAPP_ASSISTANT_URL,
 } from "@/content/page-content";
 import { TrackedCta } from "@/components/tracked-cta";
 
@@ -19,7 +19,7 @@ export function CTASection() {
         </p>
 
         <TrackedCta
-          href={TELEGRAM_BOT_URL}
+          href={WHATSAPP_ASSISTANT_URL}
           ctaId="final_cta"
           className="rounded-full border-2 border-white/80 bg-white text-primary hover:bg-white/90"
         >

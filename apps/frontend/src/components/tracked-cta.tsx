@@ -21,7 +21,7 @@ type TrackedCtaProps = {
 } & Omit<ComponentPropsWithoutRef<"a">, "href" | "children" | "className">;
 
 /**
- * Primary CTA to the Telegram bot. Pushes `cta_click` to GTM dataLayer.
+ * Primary assistant CTA. Pushes `cta_click` to GTM dataLayer.
  */
 export function TrackedCta({
   href,
@@ -37,15 +37,15 @@ export function TrackedCta({
   return (
     <a
       href={href}
-      target="_blank"
-      rel="noopener noreferrer"
+      target={href.startsWith("/") ? undefined : "_blank"}
+      rel={href.startsWith("/") ? undefined : "noopener noreferrer"}
       data-cta={ctaId}
       className={cn(buttonVariants({ variant, size }), className)}
       onClick={(event) => {
         sendGTMEvent({
           event: "cta_click",
           cta_id: ctaId,
-          cta_destination: "telegram_bot",
+          cta_destination: "assistant_updates",
         });
         onClick?.(event);
       }}

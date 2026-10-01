@@ -5,16 +5,16 @@ export const SEO_PAGES = [
   {
     slug: "aluguel-maceio",
     path: "/aluguel-maceio",
-    title: `Alertas de aluguel em Maceió no Telegram | ${SITE_NAME}`,
+    title: `Como encontrar aluguel em Maceió | ${SITE_NAME}`,
     description:
-      "Receba no Telegram anúncios novos de aluguel no OLX Maceió. Filtre por bairro e preço — comece grátis; 1 mês de Radar Pro com e-mail no bot.",
+      "Encontre opções de aluguel no OLX Maceió por bairro e faixa de preço com a ajuda do André Assistente Imobiliário.",
     headline: "Alertas de aluguel em Maceió",
-    body: "Monitore o OLX de Maceió e receba no Telegram quando aparecer um aluguel que bata com o seu filtro de bairro e preço. Plano free com 1 alerta; Radar Pro (1 mês grátis com e-mail no bot) para quem precisa de mais.",
+    body: "O André acompanha anúncios públicos de aluguel no OLX de Maceió e ajuda você a comparar opções por bairro e preço. Fale com o assistente pelo WhatsApp para começar.",
     keywords: [
       "aluguel Maceió",
       "apartamento aluguel Maceió",
       "OLX aluguel Maceió",
-      "alerta aluguel Telegram",
+      "assistente imobiliário aluguel Maceió",
     ],
   },
   {
@@ -22,14 +22,14 @@ export const SEO_PAGES = [
     path: "/comprar-imovel-maceio",
     title: `Alertas para comprar imóvel em Maceió | ${SITE_NAME}`,
     description:
-      "Monitore vendas no OLX Maceió e receba alertas no Telegram. Comece grátis; 1 mês de Radar Pro com e-mail no bot.",
+      "Encontre imóveis à venda no OLX Maceió por bairro e faixa de preço com a ajuda do André Assistente Imobiliário.",
     headline: "Alertas para comprar imóvel em Maceió",
-    body: "Acompanhe anúncios de venda no OLX Maceió sem checar o site todo dia. Defina bairros e faixa de preço no bot; no free você tem 1 alerta, no Pro (1 mês grátis com e-mail) até 5 e queda de preço.",
+    body: "O André acompanha anúncios públicos de venda no OLX de Maceió para facilitar sua busca por bairro e faixa de preço. Fale com o assistente pelo WhatsApp para começar.",
     keywords: [
       "comprar imóvel Maceió",
       "apartamento à venda Maceió",
       "OLX venda Maceió",
-      "alerta imóvel Telegram",
+      "assistente imobiliário compra Maceió",
     ],
   },
 ] as const;

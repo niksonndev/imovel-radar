@@ -3,7 +3,7 @@ import { Radar } from "lucide-react";
 import { TrackedCta } from "@/components/tracked-cta";
 import {
   SECTION_CTA_LABEL,
-  TELEGRAM_BOT_URL,
+  WHATSAPP_ASSISTANT_URL,
 } from "@/content/page-content";
 import { SITE_NAME } from "@/lib/site";
 
@@ -47,7 +47,7 @@ export function Header() {
         </nav>
 
         <TrackedCta
-          href={TELEGRAM_BOT_URL}
+          href={WHATSAPP_ASSISTANT_URL}
           ctaId="header"
           variant="pill"
           size="sm"

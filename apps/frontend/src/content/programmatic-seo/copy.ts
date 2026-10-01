@@ -21,7 +21,7 @@ export function hubMetadata(): LocationMetadataCopy {
   return {
     title: `Imóveis no OLX por cidade e bairro | ${SITE_NAME}`,
     description:
-      "Preços pedidos no OLX em Maceió, Recife e Natal: médias por bairro com dados reais do mercado. Configure alertas no Telegram.",
+      "Preços pedidos no OLX em Maceió, Recife e Natal: médias por bairro com dados reais do mercado. Fale com André pelo WhatsApp para acompanhar opções.",
     keywords: [
       "imóveis OLX",
       "apartamento Maceió",
@@ -30,19 +30,19 @@ export function hubMetadata(): LocationMetadataCopy {
     ],
     headline: "Imóveis por cidade",
     intro:
-      "Páginas com estatísticas do OLX (média e amostra) por bairro. Use os números para calibrar sua busca e monte um alerta no Telegram.",
+      "Páginas com estatísticas do OLX (média e amostra) por bairro. Use os números para calibrar sua busca por imóvel.",
     alertSection:
-      "No bot, escolha aluguel ou venda, bairros e faixa de preço — por exemplo, apartamento em Ponta Verde até R$ 400 mil na venda.",
+      "O André ajuda a encontrar opções de aluguel ou venda por bairro e faixa de preço. Converse com o assistente pelo WhatsApp.",
     faq: [
       {
         question: "De onde vêm os preços?",
         answer:
-          "São médias do preço pedido em anúncios ativos do OLX, agregados pelo Imóvel Radar. Não listamos anúncios individuais nestas páginas.",
+          "São médias do preço pedido em anúncios ativos do OLX, agregados pelo André Assistente Imobiliário. Não listamos anúncios individuais nestas páginas.",
       },
       {
         question: "Como recebo imóveis novos?",
         answer:
-          "Abra o bot no Telegram, crie um alerta com bairro e preço e receba matches quando surgir anúncio compatível.",
+          "Converse com André pelo WhatsApp para acompanhar opções compatíveis com sua busca.",
       },
     ],
   };
@@ -55,7 +55,7 @@ export function cityMetadata(city: CityPageData): LocationMetadataCopy {
 
   return {
     title: `Imóveis em ${city.municipality}: preços OLX por bairro | ${SITE_NAME}`,
-    description: `Média de venda ${formatBRL(vendaMean)} e aluguel ${formatBRL(aluguelMean)} em ${city.municipality}. ${nbhdCount} bairros com amostra confiável no OLX. Alertas no Telegram.`,
+    description: `Média de venda ${formatBRL(vendaMean)} e aluguel ${formatBRL(aluguelMean)} em ${city.municipality}. ${nbhdCount} bairros com amostra confiável no OLX.`,
     keywords: [
       `imóvel ${city.municipality}`,
       `apartamento ${city.municipality}`,
@@ -64,7 +64,7 @@ export function cityMetadata(city: CityPageData): LocationMetadataCopy {
     ],
     headline: `Imóveis em ${city.municipality}`,
     intro: `Mercado OLX em ${city.municipality}: ${meanPhrase(vendaMean, "média de venda na cidade")}; ${meanPhrase(aluguelMean, "média de aluguel")}. Abaixo, bairros com amostra suficiente para comparação.`,
-    alertSection: `No Telegram, selecione ${city.municipality}, o tipo (aluguel ou venda), bairros e teto de preço — por exemplo venda até o P75 do bairro que você quer.`,
+    alertSection: `Compare os preços de aluguel e venda em ${city.municipality} e converse com André pelo WhatsApp para acompanhar opções compatíveis.`,
     faq: [
       {
         question: `Quantos bairros aparecem em ${city.municipality}?`,
@@ -90,7 +90,7 @@ export function neighbourhoodMetadata(nbhd: NeighbourhoodPageData): LocationMeta
     `Preços no OLX em ${nbhd.name}, ${nbhd.municipality}.`,
     vendaMean != null ? `Venda: média ${formatBRL(vendaMean)}` : null,
     aluguelMean != null ? `Aluguel: média ${formatBRL(aluguelMean)}` : null,
-    "Alertas por bairro no Telegram.",
+    "Compare anúncios por bairro com a ajuda do André Assistente Imobiliário.",
   ].filter(Boolean);
 
   return {
@@ -156,7 +156,7 @@ function buildAlertSection(
   }
   examples.push(`aluguel em ${nbhd.name} com teto no seu orçamento`);
 
-  return `No bot do Telegram, escolha ${nbhd.municipality}, marque ${nbhd.name} e defina ${examples.join(" ou ")}. Você recebe aviso quando surgir anúncio compatível — sem precisar vasculhar o OLX todo dia.`;
+  return `Ao buscar imóvel em ${nbhd.name}, ${nbhd.municipality}, compare ${examples.join(" ou ")}. Converse com André pelo WhatsApp para acompanhar opções compatíveis sem precisar vasculhar o OLX todo dia.`;
 }
 
 function buildNeighbourhoodFaq(
@@ -171,7 +171,7 @@ function buildNeighbourhoodFaq(
     {
       question: `Posso filtrar só apartamento em ${nbhd.name}?`,
       answer:
-        "Sim. No wizard do bot você escolhe categorias (apartamento, casa, etc.) além de bairro e preço.",
+        "Sim. Você pode incluir categorias (apartamento, casa, etc.) além de bairro e preço na sua busca.",
     },
   ];
 }

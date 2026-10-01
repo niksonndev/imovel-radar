@@ -16,7 +16,7 @@ export function buildLlmsTxt(): string {
     ),
     `- [Mercado](${absoluteUrl("/mercado")}): mapa e médias OLX Maceió e Recife`,
     ...buildProgrammaticLlmsSection().split("\n"),
-    `- [Bot no Telegram](${PRODUCT_FACTS.botUrl}): ativar alertas free/Pro`,
+    `- [Fale com André no WhatsApp](${PRODUCT_FACTS.whatsappUrl}): atendimento do assistente`,
   ].join("\n");
 
   const facts = CITABLE_ANSWERS.map((a) => `- ${a.claim}`).join("\n");
@@ -61,14 +61,14 @@ export function buildLlmsFullTxt(): string {
 
 ## Summary
 
-${PRODUCT_FACTS.name} monitors public OLX listings in ${PRODUCT_FACTS.coverage.city}, ${PRODUCT_FACTS.coverage.state}, Brazil, and sends Telegram alerts for rent and sale matches. Free plan: 1 active alert. ${PRODUCT_FACTS.pricing.pro.name}: ${PRODUCT_FACTS.pricing.pro.price} ${PRODUCT_FACTS.pricing.pro.period} (up to 5 alerts, price-drop alerts, priority).
+${PRODUCT_FACTS.name} helps people find rental and sale listings in ${PRODUCT_FACTS.coverage.city}, ${PRODUCT_FACTS.coverage.state}, Brazil by monitoring public OLX listings. Contact the assistant through WhatsApp for current service availability.
 
 ${PRODUCT_FACTS.independence}
 
 ## URLs
 
 - Website: ${PRODUCT_FACTS.url}
-- Telegram bot: ${PRODUCT_FACTS.botUrl}
+- WhatsApp: ${PRODUCT_FACTS.whatsappUrl}
 - Intent: ${SEO_PAGES.map((p) => absoluteUrl(p.path)).join(", ")}
 - Location SEO: ${absoluteUrl("/imoveis")}
 

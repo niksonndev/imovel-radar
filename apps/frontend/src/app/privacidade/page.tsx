@@ -6,7 +6,7 @@ import { SITE_NAME } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: `Política de Privacidade | ${SITE_NAME}`,
-  description: 'Como o Imóvel Radar usa, armazena e exclui dados da conta.',
+  description: 'Como André Assistente Imobiliário usa, armazena e exclui dados da conta.',
   alternates: { canonical: '/privacidade' },
 };
 
@@ -31,13 +31,12 @@ export default function PrivacidadePage() {
               Dados utilizados
             </h2>
             <p className='mt-2'>
-              O Imóvel Radar usa o identificador da conta do canal usado: o ID
-              numérico no Telegram ou o JID do WhatsApp, associado a uma chave
-              interna. Alertas, anúncios acompanhados e preferências de cada
-              canal ficam em contas separadas, sem vínculo automático. Não
+              André Assistente Imobiliário usa o identificador da sua conta do
+              WhatsApp, associado a uma chave interna. Alertas, anúncios
+              acompanhados e preferências são associados a essa conta. Não
               solicitamos CPF, senha, cartão ou códigos de autenticação. O
-              e-mail é solicitado somente no fluxo oficial de ativação do
-              período de teste do Radar Pro.
+              e-mail pode ser solicitado para ativar benefícios de teste quando
+              essa oferta estiver disponível.
             </p>
           </section>
           <section>
@@ -60,11 +59,9 @@ export default function PrivacidadePage() {
               Finalidade e terceiros
             </h2>
             <p className='mt-2'>
-              Usamos os dados para executar alertas, acompanhar anúncios
-              escolhidos por você, apresentar dados agregados de mercado, operar
-              o plano e prevenir abuso. Dados de alertas não são exibidos a
-              outros usuários. O processamento de pagamento ocorre pelas funções
-              oficiais do Telegram Stars quando disponíveis. O serviço monitora
+              Usamos os dados para acompanhar anúncios escolhidos por você,
+              apresentar dados agregados de mercado e prevenir abuso. Dados de
+              alertas não são exibidos a outros usuários. O serviço monitora
               anúncios públicos do OLX e é independente, não afiliado à OLX.
             </p>
           </section>
@@ -77,12 +74,10 @@ export default function PrivacidadePage() {
               automaticamente em algumas horas; registros de uso diário
               agregados expiram em até dois dias. Para solicitar a exclusão da
               conta, alertas, acompanhamentos, e-mail e estado do assistente,
-              use <code>/excluir_dados</code> no bot e confirme a solicitação.
-              Uma renovação ativa do Telegram Stars será cancelada antes da
-              exclusão. Mensagens já entregues continuam no histórico mantido
-              pelo próprio Telegram. Registros fiscais ou de pagamento que
-              precisem ser mantidos por obrigação legal seguem os prazos
-              aplicáveis.
+              envie <code>excluir dados</code> pelo WhatsApp e confirme a
+              solicitação. Mensagens já entregues continuam no histórico
+              mantido pelo próprio WhatsApp. Registros que precisem ser
+              mantidos por obrigação legal seguem os prazos aplicáveis.
             </p>
           </section>
           <section>
@@ -91,11 +86,10 @@ export default function PrivacidadePage() {
             </h2>
             <p className='mt-2'>
               Você pode pedir confirmação, acesso, correção ou exclusão pelo
-              canal de contato no rodapé do site. Quando o operador configurou
-              um canal externo, o link abre esse destino; caso contrário, abre o
-              bot para suporte automatizado. Não envie documentos ou credenciais
-              pelo chat. Pedidos que dependam de validação exigem um canal de
-              atendimento humano informado pelo operador.
+              canal de atendimento pelo WhatsApp ou use o link de contato no
+              rodapé do site. Não envie documentos ou credenciais pelo chat.
+              Pedidos que dependam de validação exigem um canal de atendimento
+              humano informado pelo operador.
             </p>
           </section>
         </div>

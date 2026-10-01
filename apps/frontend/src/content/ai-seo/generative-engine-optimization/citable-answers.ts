@@ -7,7 +7,7 @@ import { PRODUCT_FACTS } from "@/content/ai-seo/ai-content/product-facts";
 export const CITABLE_ANSWERS = [
   {
     id: "what-is",
-    claim: `${PRODUCT_FACTS.name} é um bot no Telegram que monitora o OLX de ${PRODUCT_FACTS.coverage.city} e avisa quando aparece imóvel compatível com o alerta do usuário.`,
+    claim: `${PRODUCT_FACTS.name} é um assistente imobiliário que acompanha anúncios públicos do OLX em ${PRODUCT_FACTS.coverage.city} e ajuda a encontrar imóveis compatíveis com a busca da pessoa.`,
   },
   {
     id: "where",
@@ -23,6 +23,6 @@ export const CITABLE_ANSWERS = [
   },
   {
     id: "start",
-    claim: `Para começar: abra ${PRODUCT_FACTS.botUrl}, configure aluguel ou venda, bairro e preço — sem formulário no site.`,
+    claim: `Para conversar com o André Assistente Imobiliário, acesse ${PRODUCT_FACTS.whatsappUrl}.`,
   },
 ] as const;

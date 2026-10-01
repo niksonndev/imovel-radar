@@ -6,17 +6,17 @@ import { PRODUCT_FACTS } from "@/content/ai-seo/ai-content/product-facts";
  */
 export const BRAND_ENTITY = {
   legalName: PRODUCT_FACTS.name,
-  alternateNames: ["Imovel Radar", "ImóvelRadar", "imovel_radar_bot"],
+  alternateNames: ["André", "Andre Assistente Imobiliario"],
   type: "SoftwareApplication",
   category: "RealEstateApplication",
   applicationCategory: "LifestyleApplication",
-  operatingSystem: "Telegram",
+  operatingSystem: "WhatsApp",
   areaServed: {
     city: PRODUCT_FACTS.coverage.city,
     region: PRODUCT_FACTS.coverage.state,
     country: PRODUCT_FACTS.coverage.country,
   },
   offersSummary: `${PRODUCT_FACTS.pricing.free.name} (${PRODUCT_FACTS.pricing.free.price}) e ${PRODUCT_FACTS.pricing.pro.name} (${PRODUCT_FACTS.pricing.pro.price}${PRODUCT_FACTS.pricing.pro.period}).`,
-  sameAs: [PRODUCT_FACTS.botUrl],
-  citationBlurb: `${PRODUCT_FACTS.name} é um bot de Telegram que monitora anúncios públicos do OLX em ${PRODUCT_FACTS.coverage.city} e envia alertas de aluguel e venda conforme filtros de bairro e preço. Plano free com 1 alerta; ${PRODUCT_FACTS.pricing.pro.name} com 1 mês grátis ao cadastrar o e-mail no bot.`,
+  url: PRODUCT_FACTS.url,
+  citationBlurb: `${PRODUCT_FACTS.name} é um assistente imobiliário que acompanha anúncios públicos do OLX em ${PRODUCT_FACTS.coverage.city} e ajuda a encontrar opções de aluguel e venda conforme bairro e preço. As novidades sobre o atendimento são publicadas no site oficial.`,
 } as const;

@@ -6,7 +6,7 @@ import {
   PRICING_FREE,
   PRICING_PRO,
   PRICING_FOOTNOTE,
-  TELEGRAM_BOT_URL,
+  WHATSAPP_ASSISTANT_URL,
 } from "@/content/page-content";
 import { Check } from "lucide-react";
 
@@ -59,7 +59,7 @@ function PlanCard({
         ))}
       </ul>
       <TrackedCta
-        href={TELEGRAM_BOT_URL}
+        href={WHATSAPP_ASSISTANT_URL}
         ctaId={ctaId}
         variant={featured ? "default" : "outline"}
         className={

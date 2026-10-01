@@ -4,9 +4,10 @@ import {
   FOOTER_DISCLAIMER,
   FOOTER_LEGAL,
   FOOTER_PRIVACY,
-  FOOTER_TELEGRAM_LABEL,
+  FOOTER_ASSISTANT_LABEL,
+  ASSISTANT_UPDATES_URL,
   SUPPORT_URL,
-  TELEGRAM_BOT_URL,
+  WHATSAPP_ASSISTANT_URL,
 } from '@/content/page-content';
 import { SEO_PAGES } from '@/content/seo-pages';
 import Link from 'next/link';
@@ -19,17 +20,17 @@ export function Footer() {
         className='flex flex-wrap items-center justify-center gap-x-6 gap-y-2'
       >
         <TrackedCta
-          href={SUPPORT_URL || TELEGRAM_BOT_URL}
+          href={WHATSAPP_ASSISTANT_URL}
           ctaId='footer_bot'
           variant='ghost'
           size='sm'
           showIcon={false}
           className='text-white/70 hover:bg-white/10 hover:text-white'
         >
-          {FOOTER_TELEGRAM_LABEL}
+          {FOOTER_ASSISTANT_LABEL}
         </TrackedCta>
         <TrackedCta
-          href={TELEGRAM_BOT_URL}
+          href={SUPPORT_URL || ASSISTANT_UPDATES_URL}
           ctaId='footer_contact'
           variant='ghost'
           size='sm'

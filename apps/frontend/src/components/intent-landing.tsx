@@ -1,6 +1,6 @@
 import { TrackedCta } from "@/components/tracked-cta";
 import { Footer } from "@/components/footer";
-import { TELEGRAM_BOT_URL, SECTION_CTA_LABEL, HERO_CTA_HINT } from "@/content/page-content";
+import { WHATSAPP_ASSISTANT_URL, SECTION_CTA_LABEL, HERO_CTA_HINT } from "@/content/page-content";
 import type { SeoPage } from "@/content/seo-pages";
 import { SITE_NAME } from "@/lib/site";
 import Link from "next/link";
@@ -22,7 +22,7 @@ export function IntentLanding({ page }: { page: SeoPage }) {
           <p className="text-lg leading-relaxed text-white/70">{page.body}</p>
           <div className="flex flex-col items-start gap-2">
             <TrackedCta
-              href={TELEGRAM_BOT_URL}
+              href={WHATSAPP_ASSISTANT_URL}
               ctaId={`seo_${page.slug}`}
               className="btn-shine"
             >

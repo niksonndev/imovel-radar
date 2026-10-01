@@ -52,10 +52,10 @@ if (!envSiteUrl && !vercelProductionUrl && !vercelDeploymentUrl) {
   );
 }
 
-export const SITE_NAME = "Imóvel Radar";
+export const SITE_NAME = "André Assistente Imobiliário";
 
 export const SITE_TITLE =
-  "Pare de procurar imóvel — alertas OLX Maceió no Telegram | Imóvel Radar";
+  "André Assistente Imobiliário | Encontre imóveis que combinam com você";
 
 export const SITE_DESCRIPTION =
-  "Deixe o Imóvel Radar encontrar no OLX de Maceió e avisar no Telegram. Comece grátis com 1 alerta; ganhe 1 mês de Radar Pro cadastrando o e-mail no bot.";
+  "Conheça o André, seu assistente imobiliário. Encontre imóveis que combinam com o que você procura e acompanhe as novidades pelo site.";

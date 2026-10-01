@@ -13,7 +13,7 @@ import { dataFreshnessLabel } from "@/content/programmatic-seo/copy";
 import {
   HERO_CTA_HINT,
   SECTION_CTA_LABEL,
-  TELEGRAM_BOT_URL,
+  WHATSAPP_ASSISTANT_URL,
 } from "@/content/page-content";
 import { formatBRL, formatCount } from "@/lib/market-stats";
 import { SITE_NAME } from "@/lib/site";
@@ -61,7 +61,7 @@ function FaqBlock({ faq }: { faq: LocationMetadataCopy["faq"] }) {
 function CtaBlock({ ctaId }: { ctaId: string }) {
   return (
     <div className="flex flex-col items-start gap-2">
-      <TrackedCta href={TELEGRAM_BOT_URL} ctaId={ctaId} className="btn-shine">
+      <TrackedCta href={WHATSAPP_ASSISTANT_URL} ctaId={ctaId} className="btn-shine">
         {SECTION_CTA_LABEL}
       </TrackedCta>
       <p className="text-sm text-white/50">{HERO_CTA_HINT}</p>

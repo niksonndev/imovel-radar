@@ -6,7 +6,7 @@ import { SITE_NAME } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: `Termos de Uso | ${SITE_NAME}`,
-  description: 'Condições de uso do Imóvel Radar e limites do serviço.',
+  description: 'Condições de uso do André Assistente Imobiliário e limites do serviço.',
   alternates: { canonical: '/termos' },
 };
 
@@ -29,7 +29,7 @@ export default function TermosPage() {
           <section>
             <h2 className='font-heading text-xl text-white'>O serviço</h2>
             <p className='mt-2'>
-              O Imóvel Radar permite configurar alertas e acompanhar anúncios
+              André Assistente Imobiliário ajuda a configurar alertas e acompanhar anúncios
               públicos do OLX em Maceió, Recife e Natal. O serviço avisa quando
               encontra correspondências segundo os filtros informados; não
               garante que um imóvel compatível será anunciado ou permanecerá
@@ -46,7 +46,7 @@ export default function TermosPage() {
               estatísticas de preços pedidos em anúncios ativos da coleta mais
               recente, não preços negociados, avaliação oficial ou recomendação
               de investimento. A negociação ocorre diretamente com o anunciante.
-              O Imóvel Radar é um produto independente e não é afiliado nem
+              André Assistente Imobiliário é um produto independente e não é afiliado nem
               endossado pela OLX.
             </p>
           </section>
@@ -55,20 +55,17 @@ export default function TermosPage() {
               Planos e pagamentos
             </h2>
             <p className='mt-2'>
-              Os limites e recursos de cada plano são os apresentados no bot e
-              no site no momento do uso. O acesso Pro depende de assinatura ou
-              benefício de teste válido. Quando a cobrança recorrente por
-              Telegram Stars estiver habilitada, sua renovação e cancelamento
-              seguem a tela de assinatura do Telegram. O teste por e-mail é uma
-              oferta separada, sujeita às regras mostradas no bot. O assistente
-              não processa pagamento por Pix.
+              Os limites e recursos disponíveis são os informados pelo André no
+              WhatsApp. No momento, o assistente não processa pagamentos. Se
+              uma modalidade paga for oferecida no futuro, seus preços,
+              condições e cancelamento serão informados antes da contratação.
             </p>
           </section>
           <section>
             <h2 className='font-heading text-xl text-white'>Uso responsável</h2>
             <p className='mt-2'>
               Use o serviço apenas para fins lícitos, não tente acessar alertas
-              de outras pessoas e não sobrecarregue os recursos do bot. A
+              de outras pessoas e não sobrecarregue os recursos do serviço. A
               criação, remoção e acompanhamento estão sujeitos a validações e
               limites aplicados pelo serviço.
             </p>

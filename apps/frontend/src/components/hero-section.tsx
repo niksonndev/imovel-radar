@@ -1,4 +1,4 @@
-import { TelegramDemo } from "@/components/landing/TelegramDemo";
+import { AssistantDemo } from "@/components/landing/AssistantDemo";
 import { RadarOrnament } from "@/components/landing/radar-ornament";
 import { TrackedCta } from "@/components/tracked-cta";
 import {
@@ -7,7 +7,7 @@ import {
   HERO_SUBHEADLINE,
   HERO_CTA_LABEL,
   HERO_CTA_HINT,
-  TELEGRAM_BOT_URL,
+  WHATSAPP_ASSISTANT_URL,
 } from "@/content/page-content";
 import { SITE_NAME } from "@/lib/site";
 
@@ -38,7 +38,7 @@ export function HeroSection() {
               </p>
 
               <TrackedCta
-                href={TELEGRAM_BOT_URL}
+                href={WHATSAPP_ASSISTANT_URL}
                 ctaId="hero"
                 variant="pill"
                 size="cta"
@@ -52,7 +52,7 @@ export function HeroSection() {
           <RadarOrnament className="absolute -left-24 top-1/2 hidden w-52 -translate-y-1/2 opacity-60 lg:block lg:-left-40" />
           <RadarOrnament className="absolute -right-24 top-1/2 hidden w-52 -translate-y-1/2 rotate-180 opacity-60 lg:block lg:-right-40" />
           <div className="animate-in fade-in slide-in-from-bottom-4 fill-mode-both duration-700 delay-150">
-            <TelegramDemo />
+            <AssistantDemo />
           </div>
         </div>
       </div>

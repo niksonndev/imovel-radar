@@ -8,7 +8,7 @@ import {
   STEP_3_TITLE,
   STEP_3_DESC,
   SECTION_CTA_LABEL,
-  TELEGRAM_BOT_URL,
+  WHATSAPP_ASSISTANT_URL,
 } from "@/content/page-content";
 import { TrackedCta } from "@/components/tracked-cta";
 
@@ -69,7 +69,7 @@ export function HowItWorks() {
         </div>
 
         <TrackedCta
-          href={TELEGRAM_BOT_URL}
+          href={WHATSAPP_ASSISTANT_URL}
           ctaId="how_it_works"
           variant="pill"
         >
