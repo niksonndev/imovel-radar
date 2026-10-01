@@ -45,9 +45,9 @@ docker compose up whatsapp-bot
 
 ## Render
 
-Blueprint em `render.yaml`: web service Docker, plano starter, disco de 1 GB em `/data` (a sessão SQLite não pode ser efêmera). Disco implica instância única e um curto downtime em cada deploy.
+Blueprint em `render.yaml`: web service Docker no plano **free** (instância única, sem disco persistente — `/data` é efêmero). Como a sessão SQLite não sobrevive a deploy/restart, o bot faz backup consistente (`VACUUM INTO`) no Neon a cada 5 min e restaura no boot (`wa_session_backup`) — é isso que dispensa re-parear por QR.
 
-No primeiro deploy, abra `https://<serviço>/pair?token=<PAIR_SECRET>` e escaneie. Os deploys seguintes reusam `/data/whatsapp.db`.
+No primeiro deploy, abra `https://<serviço>/pair?token=<PAIR_SECRET>` e escaneie. Nos deploys seguintes a sessão é restaurada do Neon (sem novo QR); há apenas uma breve reconexão, não re-pareamento.
 
 Antes de deployar, aplique todas as migrations Alembic, inclusive `0013_assistant_usage`.
 
