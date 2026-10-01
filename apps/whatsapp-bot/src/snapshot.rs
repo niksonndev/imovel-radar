@@ -13,6 +13,7 @@
 //! volta num boot limpo.
 
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use diesel::connection::SimpleConnection;
 use diesel::prelude::*;
@@ -44,9 +45,17 @@ pub fn snapshot_sqlite(src: &str, dst: &str) -> anyhow::Result<Vec<u8>> {
     Ok(bytes)
 }
 
+/// Contador monotônico para o sufixo do snapshot temporário.
+static SNAPSHOT_NONCE: AtomicU64 = AtomicU64::new(0);
+
 /// Caminho do temporário usado por [`snapshot_sqlite`].
+///
+/// O nome é único por chamada (pid + contador): o backup periódico (5 min) e o
+/// snapshot final do shutdown podem rodar juntos e não podem disputar o mesmo
+/// arquivo temporário — `VACUUM INTO` falha quando o destino já existe.
 pub fn snapshot_path(session_path: &str) -> String {
-    format!("{session_path}.snapshot")
+    let nonce = SNAPSHOT_NONCE.fetch_add(1, Ordering::Relaxed);
+    format!("{session_path}.{}.{}.snapshot", std::process::id(), nonce)
 }
 
 #[cfg(test)]
@@ -112,10 +121,11 @@ mod tests {
     }
 
     #[test]
-    fn snapshot_path_fica_ao_lado_da_sessao() {
-        assert_eq!(
-            snapshot_path("/data/whatsapp.db"),
-            "/data/whatsapp.db.snapshot"
-        );
+    fn snapshot_path_fica_ao_lado_da_sessao_e_e_unico_por_chamada() {
+        let first = snapshot_path("/data/whatsapp.db");
+        let second = snapshot_path("/data/whatsapp.db");
+        assert!(first.starts_with("/data/whatsapp.db."));
+        assert!(first.ends_with(".snapshot"));
+        assert_ne!(first, second, "cada chamada precisa de um temporário próprio");
     }
 }
