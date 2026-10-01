@@ -1,0 +1,14 @@
+
+comp.html — 451 samples at 30 fps, 892 tracked elements (auto)
+continuity  score 1.00  — 0 boundaries: 0 carried, 0 anchored, 0 bare; 0 exempt; hard cuts 0, bursts []
+curves      peak 1917 px/frame (draw:shape:rgba(120, 132, 150, 0.16)#10 at 12.50 s) · travel on soft curves 47 % · median t80 0.53 · 4239 moves
+  svg:svg#cursor                             0.17– 5.37 s  path   2597  t80 0.85  peak    44  overshoot 0.27
+  draw:shape:rgba(120, 132, 150, 0.16)#64   12.47–13.80 s  path   2258  t80 0.10  peak  1108  overshoot 0.00
+  draw:shape:rgba(120, 132, 150, 0.16)#64   12.47–13.80 s  path   2254  t80 0.10  peak  1108  overshoot 0.00
+  draw:shape:rgba(120, 132, 150, 0.16)#60   12.47–13.80 s  path   2251  t80 0.10  peak  1104  overshoot 0.05
+  draw:shape:rgba(120, 132, 150, 0.16)#60   12.50–13.80 s  path   2246  t80 0.08  peak  1104  overshoot 0.04
+  draw:shape:rgba(120, 132, 150, 0.16)#56   12.50–13.80 s  path   2243  t80 0.08  peak  1163  overshoot 0.05
+  draw:shape:rgba(120, 132, 150, 0.16)#53   12.50–13.80 s  path   2236  t80 0.08  peak  1222  overshoot 0.04
+  draw:shape:rgba(120, 132, 150, 0.16)#60   12.47–13.20 s  path   2234  t80 0.18  peak  1104  overshoot 0.01
+
+wrote probe//tracks.json and probe//curves.png
