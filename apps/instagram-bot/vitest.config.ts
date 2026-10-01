@@ -5,7 +5,7 @@ export default defineConfig({
     env: {
       INSTAGRAM_MODE: 'MOCK',
       TIKTOK_MODE: 'MOCK',
-      TELEGRAM_BOT_USERNAME: 'imovelradar_bot',
+      WHATSAPP_ASSISTANT_URL: 'https://wa.me/5582993345293',
     },
   },
 });

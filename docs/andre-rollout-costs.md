@@ -1,19 +1,19 @@
-# André: rollout, custos e QA
+# André Assistente Imobiliário — custos e QA
 
-Atualizado em 29/09/2026. O texto legal público é um rascunho de produto, não parecer jurídico. Revisar com assessoria antes de comercializar.
+Atualizado em 01/10/2026. Pagamentos não estão disponíveis. O atendimento ativo é pelo WhatsApp; Telegram está em encerramento. O texto legal público é um rascunho de produto, não parecer jurídico.
 
-## O que existe por canal
+## Recursos do assistente
 
-| Recurso | Telegram (`apps/bot`) | WhatsApp (`apps/whatsapp-bot`) |
-| --- | --- | --- |
-| Conversa por linguagem natural | Function-calling OpenAI; fallback local sem segunda chamada paga | Function-calling OpenAI; fallback determinístico |
-| Memória curta | 6 trocas, TTL padrão 4h, em `user_data` | 6 trocas, TTL padrão 4h, na sessão PostgreSQL |
-| Criação de alerta | Critérios incompletos acumulados; confirmação obrigatória; dedup e cap no servidor | Critérios acumulados na sessão; confirmação numerada; dedup e cap transacional |
-| Remoção | Confirmação inline; propriedade limitada ao Telegram ID | Confirmação numerada em assistente e detalhe; propriedade limitada ao `chat_id` WhatsApp |
-| Mercado | Snapshot recente; média e preço/m²; disclaimer de preço pedido | Snapshot recente; média e preço/m²; disclaimer de preço pedido |
-| Áudio de entrada | Telegram Voice/Audio → Whisper, com limite e quota | Mídia recebida descriptografada pela biblioteca → Whisper, com limite e quota |
-| Privacidade | `/privacidade`, `/excluir_dados`; cancelamento prévio de renovação Stars ativa | `privacidade`, `excluir dados`; exclusão da conta WhatsApp e dados associados |
-| Pagamentos | Stars podem estar pausados por `BILLING_ENABLED`; trial por e-mail | Sem Stars; trial por e-mail existente; sem Pix |
+| Recurso | WhatsApp (`apps/whatsapp-bot`) |
+| --- | --- |
+| Conversa por linguagem natural | Function-calling OpenAI; fallback determinístico |
+| Memória curta | 6 trocas, TTL padrão 4h, na sessão PostgreSQL |
+| Criação de alerta | Critérios acumulados na sessão; confirmação numerada; dedup e cap transacional |
+| Remoção | Confirmação numerada; propriedade limitada ao `chat_id` WhatsApp |
+| Mercado | Snapshot recente; média e preço/m²; disclaimer de preço pedido |
+| Áudio de entrada | Mídia descriptografada pela biblioteca → Whisper, com limite e quota |
+| Privacidade | `privacidade`, `excluir dados`; exclusão da conta WhatsApp e dados associados |
+| Pagamentos | Desativados; benefícios de teste dependem de oferta disponível |
 
 Os limites de criação de alertas e watchlist são validados no banco. Quotas padrão de IA são limites operacionais configuráveis, não benefícios prometidos em plano: Free 50 mensagens/5 áudios por dia; Pro 300 mensagens/30 áudios. Áudio limitado a 120 segundos e 20 MiB. A memória não é uma transcrição completa nem contexto permanente.
 
@@ -29,23 +29,23 @@ Exemplo reproduzível, não previsão: supondo 1.500 tokens de entrada + 100 de 
 
 O exemplo inclui os turnos de áudio também no volume de texto e acrescenta a transcrição. Não inclui falas mais longas, contexto/tokenização real, extrações de outros fluxos, retries, imposto, spread cambial, tráfego WhatsApp, Render, suporte nem margem. A memória de seis trocas e o prompt do sistema podem elevar tokens de entrada; medir p50/p95 real antes de decidir preço/caps. É possível estimar custo por usuário com os contadores `assistant_usage` / itens `usage#YYYY-MM-DD` e tarifas vigentes do modelo.
 
-Neon publica no [preçário oficial](https://neon.com/pricing) Free com 100 CU-h/projeto e 0,5 GB; Launch a US$ 0,106/CU-h e armazenamento a US$ 0,35/GB-mês (valores consultados em 29/09/2026). Como Postgres é compartilhado com scraper e outros bots, não atribuir toda a conta ao André: estime o incremento com CPU/queries/armazenamento medidos e plano real.
+Neon publica no [preçário oficial](https://neon.com/pricing) Free com 100 CU-h/projeto e 0,5 GB; Launch a US$ 0,106/CU-h e armazenamento a US$ 0,35/GB-mês (valores consultados em 29/09/2026). Como Postgres é compartilhado com scraper e outros serviços, não atribuir toda a conta ao André: estime o incremento com CPU/queries/armazenamento medidos e plano real.
 
 Para Lambda, medir duração, memória, arquitetura, região e requests do webhook e aplicar o [calculador/preçário AWS](https://aws.amazon.com/lambda/pricing/). Não foi incluído um valor fixo: deploy atual pode ter tráfego de EventBridge e serviços compartilhados, e o extrato da conta é a fonte para custo marginal.
 
 ## Gates antes de vender
 
-- [ ] Definir preço, margem mínima e cap de consumo após 30 dias de dados reais; cenário acima mostra que uso máximo do Pro pode consumir parcela relevante de uma assinatura de R$ 19,90.
+- [ ] Definir preço, margem mínima e cap de consumo após 30 dias de dados reais; os cenários acima são estimativas, não preços publicados.
 - [ ] Escolher caps diários Free/Pro e limites de tamanho/duração com base em margem e atendimento; publicar somente o que estiver ativo.
-- [ ] Aplicar `apps/scraper/alembic/versions/0013_assistant_usage.py` antes do deploy dos dois bots.
-- [ ] Configurar `OPENAI_API_KEY`, `LLM_PROVIDER=openai`, `PUBLIC_SITE_URL`; conferir `ASSISTANT_*_PER_DAY`, `ASSISTANT_MAX_AUDIO_*` e `ASSISTANT_DAILY_TOKEN_ALERT` nos dois runtimes.
+- [ ] Aplicar `apps/scraper/alembic/versions/0013_assistant_usage.py` antes do deploy do assistente WhatsApp.
+- [ ] Configurar `OPENAI_API_KEY`, `LLM_PROVIDER=openai`, `PUBLIC_SITE_URL`; conferir `ASSISTANT_*_PER_DAY`, `ASSISTANT_MAX_AUDIO_*` e `ASSISTANT_DAILY_TOKEN_ALERT` no runtime.
 - [ ] Configurar teto/alertas de gasto no projeto OpenAI e alertas de gasto Neon/infra. A quota do bot não substitui billing hard-stop do provedor.
-- [ ] Confirmar que o fluxo de cancelamento Stars está habilitado antes de vender assinatura no Telegram; hoje depende de `BILLING_ENABLED`. Não anunciar Pix: não há processamento Pix no código.
+- [ ] Só anunciar planos pagos depois de implementar cobrança e atualizar preço, termos e política de privacidade.
 - [ ] Revisar `/privacidade` e `/termos` com assessoria, confirmar controlador, base legal, contato do titular, prazos e retenções com operação real. As páginas não substituem essa revisão.
 - [ ] Definir `SUPPORT_URL` e `NEXT_PUBLIC_SUPPORT_URL` reais para encaminhamento humano de pagamento/reclamação; se não houver canal, não anunciar suporte humano disponível.
-- [ ] Verificar o destino real do CTA de contato do rodapé; hoje é o bot do Telegram, não necessariamente uma pessoa.
+- [ ] Verificar que CTAs e respostas sociais abrem `https://wa.me/5582993345293`.
 - [ ] Confirmar os dados de preços/m² e cobertura contra snapshot e scraper. Não anunciar cidade/bairro sem coleta confiável.
-- [ ] Rodar migrations, `uv run python -m pytest` em `apps/bot`, `cargo test` em `apps/whatsapp-bot`, `pnpm lint`/testes do frontend.
+- [ ] Rodar migrations, `cargo test` em `apps/whatsapp-bot` e lint/testes do frontend.
 
 ## QA manual pré-release
 
@@ -55,10 +55,10 @@ Para Lambda, medir duração, memória, arquitetura, região e requests do webho
 4. Remover por nome com um e vários candidatos → confirmar sempre; cancelar; botão/estado antigo não pode remover alerta de outro usuário.
 5. Mercado sem snapshot, sem cidade/tipo, bairro não ranqueado, média e m² → sem inventar dados; todo número traz “Preço pedido no OLX; valor pode mudar e a negociação é com o anunciante.”
 6. Áudio curto válido, acima de 120 s, acima de 20 MiB, MIME inválido, download falhando, whisper indisponível, cota esgotada, áudio view-once e voz em wizard.
-7. Free vs Pro, Pro expirado, quotas de áudio/texto, token threshold, downgrade e renovação Stars; confirmar entitlement no servidor.
-8. `/excluir_dados` / `excluir dados` → confirmar, cancelar e falha Postgres; conferir alerts, matches, watches, e-mail, sessão, histórico e contadores. Verificar que nenhum registro do outro canal/usuário foi removido.
+7. Free vs Pro trial, Pro expirado, quotas de áudio/texto, token threshold e downgrade; confirmar entitlement no servidor.
+8. `excluir dados` → confirmar, cancelar e falha Postgres; conferir alerts, matches, watches, e-mail, sessão, histórico e contadores.
 9. Instruções maliciosas no texto/áudio, pedido de dados de terceiros, pagamento e assunto não imobiliário → recusa/redirecionamento sem vazamento.
-10. Usar mensagens reais do Telegram e WhatsApp em staging, revisar legibilidade Markdown, latência, fallback de texto e consistência da ajuda.
+10. Usar mensagens reais do WhatsApp em staging, revisar legibilidade, latência, fallback de texto e consistência da ajuda.
 
 ## Rollback
 

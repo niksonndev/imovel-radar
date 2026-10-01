@@ -75,7 +75,7 @@ export class MockTikTokClient implements TikTokClient {
         {
           id: 'mock_tiktok_101',
           caption:
-            'Descubra o valor do m² em Maceió! Ponta Verde e Jatiúca em destaque. Comente ALERTA para receber imóveis selecionados no Telegram! #maceio #imoveis #aluguel',
+            'Descubra o valor do m² em Maceió! Ponta Verde e Jatiúca em destaque. Comente ALERTA e fale com André pelo WhatsApp! #maceio #imoveis #aluguel',
           mediaType: 'CAROUSEL_ALBUM',
           mediaUrls: ['https://imovelradar.com.br/assets/mock-card-1.png'],
           permalink: 'https://www.tiktok.com/@imovelradar/photo/mock_tiktok_101',

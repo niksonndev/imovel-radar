@@ -51,7 +51,7 @@ describe('MockInstagramClient', () => {
 
     const reply = await client.replyComment(
       comment.id,
-      'Olá! Veja no Telegram: @imovelradar_bot'
+      'Olá! Fale com André pelo WhatsApp: https://wa.me/5582993345293'
     );
 
     expect(reply.replyId).toBeDefined();
@@ -60,7 +60,7 @@ describe('MockInstagramClient', () => {
     const comments = await client.getComments(targetMedia.id);
     const found = comments.find((c) => c.id === comment.id);
     expect(found?.replies?.length).toBe(1);
-    expect(found?.replies?.[0]?.text).toContain('@imovelradar_bot');
+    expect(found?.replies?.[0]?.text).toContain('https://wa.me/5582993345293');
   });
 
   it('deve ocultar comentário de spam', async () => {

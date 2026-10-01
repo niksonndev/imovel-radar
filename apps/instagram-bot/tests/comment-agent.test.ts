@@ -24,7 +24,7 @@ describe('CommentAgent', () => {
     });
   });
 
-  it('deve responder automaticamente pedidos de alerta com link do Telegram', async () => {
+  it('deve responder automaticamente pedidos de alerta com link do WhatsApp', async () => {
     const mediaList = await instagramClient.getRecentMedia(1);
     const mediaId = mediaList[0].id;
 
@@ -38,13 +38,13 @@ describe('CommentAgent', () => {
 
     expect(result.actionTaken).toBe('REPLIED');
     expect(result.analysis.intent).toBe('ALERT_REQUEST');
-    expect(result.replyText).toContain('@imovelradar_bot');
+    expect(result.replyText).toContain('https://wa.me/5582993345293');
 
     // Confirma que a resposta foi registrada no cliente do Instagram
     const comments = await instagramClient.getComments(mediaId);
     const updated = comments.find((c) => c.id === comment.id);
     expect(updated?.replies?.length).toBe(1);
-    expect(updated?.replies?.[0]?.text).toContain('@imovelradar_bot');
+    expect(updated?.replies?.[0]?.text).toContain('https://wa.me/5582993345293');
 
     // Confirma auditoria no banco
     const logs = await agent.getLogs();
@@ -115,7 +115,7 @@ describe('CommentAgent', () => {
 
     const result = await tiktokAgent.processComment(comment, mediaId);
     expect(result.actionTaken).toBe('REPLIED');
-    expect(result.replyText).toContain('@imovelradar_bot');
+    expect(result.replyText).toContain('https://wa.me/5582993345293');
 
     const logs = await tiktokAgent.getLogs();
     const logged = logs.find((l) => l.commentId === comment.id);

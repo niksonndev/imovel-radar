@@ -23,10 +23,11 @@ export interface PerformanceAnalysis {
 }
 
 export class LLMService {
-  private telegramBotUser: string;
+  private whatsappAssistantUrl: string;
 
   constructor() {
-    this.telegramBotUser = process.env.TELEGRAM_BOT_USERNAME || 'imovelradar_bot';
+    this.whatsappAssistantUrl =
+      process.env.WHATSAPP_ASSISTANT_URL?.trim() || 'https://wa.me/5582993345293';
   }
 
   async classifyComment(commentText: string): Promise<CommentAnalysis> {
@@ -65,12 +66,13 @@ export class LLMService {
       textLower.includes('avisa') ||
       textLower.includes('manda') ||
       textLower.includes('bot') ||
-      textLower.includes('telegram')
+      textLower.includes('telegram') ||
+      textLower.includes('whatsapp')
     ) {
       return {
         intent: 'ALERT_REQUEST',
         confidence: 0.95,
-        suggestedReply: `Oi! Te enviei detalhes no direct, mas você também pode abrir o Telegram e buscar por @${this.telegramBotUser} para criar alertas gratuitos em 30 segundos! 🏠🔔`,
+        suggestedReply: `Oi! Te enviei detalhes no direct. Se preferir, fale com o André Assistente Imobiliário pelo WhatsApp: ${this.whatsappAssistantUrl}`,
         shouldHide: false,
         reason: 'Usuário demonstrou interesse em receber alertas ou acessar o serviço.',
       };
@@ -90,7 +92,7 @@ export class LLMService {
       return {
         intent: 'PRICE_QUERY',
         confidence: 0.88,
-        suggestedReply: `Boa pergunta! Os valores variam muito por metragem e condomínio. No bot do Telegram (@${this.telegramBotUser}) você filtra por preço máximo e bairro para ver a média exata. Dá uma conferida!`,
+        suggestedReply: `Boa pergunta! Os valores variam muito por metragem e condomínio. Fale com o André pelo WhatsApp para encontrar opções por bairro e faixa de preço: ${this.whatsappAssistantUrl}`,
         shouldHide: false,
         reason: 'Pergunta sobre preço, localização ou condomínio.',
       };

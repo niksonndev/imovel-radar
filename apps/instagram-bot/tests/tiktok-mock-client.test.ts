@@ -75,14 +75,14 @@ describe('MockTikTokClient', () => {
     // Resposta
     const reply = await client.replyComment(
       comment.id,
-      'Ponta Verde lidera o ranking! Veja no bot @imovelradar_bot'
+      'Ponta Verde lidera o ranking! Fale com André: https://wa.me/5582993345293'
     );
     expect(reply.replyId).toBeDefined();
 
     const comments = await client.getComments(targetMedia.id);
     const found = comments.find((c) => c.id === comment.id);
     expect(found?.replies?.length).toBe(1);
-    expect(found?.replies?.[0]?.text).toContain('@imovelradar_bot');
+    expect(found?.replies?.[0]?.text).toContain('https://wa.me/5582993345293');
 
     // Moderação (ocultar)
     const spamComment = client.addMockComment(

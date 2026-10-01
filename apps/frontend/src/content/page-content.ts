@@ -102,7 +102,7 @@ export const FAQ_ITEMS = [
   },
   {
     question: 'Só funciona em Maceió?',
-    answer: 'Hoje o Radar monitora anúncios do OLX em Maceió e em Recife.',
+    answer: 'Hoje o André acompanha anúncios do OLX em Maceió e em Recife.',
   },
   {
     question: 'De onde vêm os anúncios?',
