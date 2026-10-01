@@ -6,13 +6,14 @@ import argparse
 import asyncio
 import logging
 
+from sqlmodel import Session
 from telegram import Bot
 from telegram.error import RetryAfter, TelegramError
-from sqlmodel import Session
 
 import config
 from database.db import get_engine
 from database.queries import get_users_chat_ids
+from shutdown_safety import require_remote_database
 
 WHATSAPP_URL = "https://wa.me/5582993345293"
 
@@ -77,6 +78,12 @@ async def main() -> int:
         help="Confirma a quantidade exata de destinatários mostrada na prévia.",
     )
     args = parser.parse_args()
+
+    if args.send:
+        try:
+            require_remote_database(config.DATABASE_URL)
+        except ValueError as error:
+            parser.error(str(error))
 
     chat_ids = recipient_chat_ids()
     message = announcement_message(config.PUBLIC_SITE_URL)
