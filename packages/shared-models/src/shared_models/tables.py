@@ -112,16 +112,19 @@ class MarketSnapshot(SQLModel, table=True):
 class User(SQLModel, table=True):
     """User identified by ``chat_id`` (dona: bot).
 
-    ``chat_id`` is BIGINT — Telegram user ids can exceed PostgreSQL INTEGER
-    (2^31-1). WhatsApp users get a synthetic ``chat_id`` from
-    ``whatsapp_user_id_seq`` (starts at 10^15) and are keyed by
-    ``whatsapp_jid``. Telegram rows keep ``channel='telegram'`` and a null JID.
+    Único canal ativo é o WhatsApp: ``chat_id`` sintético vindo de
+    ``whatsapp_user_id_seq`` (a partir de 10^15) e JID em ``whatsapp_jid``.
+    ``chat_id`` continua BIGINT por causa do histórico (ids do Telegram
+    passavam de INTEGER 2^31-1).
 
-    Billing (Radar Pro via Telegram Stars): ``plan`` + ``pro_until`` drive
-    entitlement; Stars charge/subscription fields mirror Telegram state.
-    Email trial: ``email`` + ``email_pro_trial_claimed_at`` for one-time
-    free Pro month while Stars checkout is paused. The trial is global per
-    email, so a WhatsApp signup cannot reuse an email already claimed.
+    Billing: ``plan`` + ``pro_until`` controlam o entitlement.
+    Email trial: ``email`` + ``email_pro_trial_claimed_at`` para um mês Pro
+    grátis. O trial é global por email, então um cadastro no WhatsApp não
+    reaproveita um email já usado.
+
+    Colunas/constraint legadas do Telegram (``channel='telegram'``,
+    ``stars_telegram_payment_charge_id``, ``stars_subscription_active``)
+    seguem no schema até uma migration de limpeza.
     """
 
     __tablename__ = "users"  # type: ignore
@@ -315,7 +318,6 @@ class BotSession(SQLModel, table=True):
     """Estado da conversa do bot WhatsApp (dona: bot WhatsApp).
 
     TTL é aplicado na leitura (sessões paradas há horas são descartadas).
-    O bot Telegram continua com DynamoDB/pickle e não usa esta tabela.
     """
 
     __tablename__ = "bot_session"  # type: ignore

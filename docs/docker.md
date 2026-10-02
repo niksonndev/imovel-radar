@@ -1,8 +1,7 @@
 # Docker — André Assistente Imobiliário (dev local)
 
 O Compose inicia scraper e André no WhatsApp para desenvolvimento. A produção
-usa scraper Lambda e assistente WhatsApp no Render. O runtime Telegram legado
-fica fora do fluxo padrão e só existe para o encerramento comunicado aos usuários.
+usa scraper Lambda e assistente WhatsApp no Render (único canal do produto).
 
 ## Pré-requisitos
 
@@ -26,12 +25,10 @@ docker compose ps
 
 - Scraper: `http://localhost:8000/health`
 - André WhatsApp: `http://localhost:10000/health`; QR protegido em `/pair`
-- Telegram legado: profile opcional `telegram-shutdown`, não é iniciado por padrão
 
 ## Produção
 
-Deploy do scraper: `.github/workflows/infra-deploy.yml`. O mesmo workflow ainda
-contém a Lambda Telegram até o aviso final ser entregue e a infraestrutura retirada.
+Deploy do scraper: `.github/workflows/infra-deploy.yml`.
 
 Não há host Compose em produção. O workflow `docker-images.yml` (GHCR) é opcional
 (rollback/dev) e **não** alimenta o runtime produtivo.

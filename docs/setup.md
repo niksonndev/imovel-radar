@@ -17,8 +17,7 @@ This runs:
 
 1. `setup:shared-models` — syncs `shared-models` package dependencies
 2. `setup:scraper` — creates `.venv` in scraper, installs `shared-models` as editable, syncs deps
-3. `setup:bot` — same for the legacy Telegram runtime, retained only for shutdown communication
-4. `pnpm install` — installs Node.js dependencies (frontend, Turborepo, etc.)
+3. `pnpm install` — installs Node.js dependencies (frontend, Turborepo, etc.)
 
 ## Environment variables
 
@@ -28,9 +27,6 @@ cp apps/scraper/.env.example apps/scraper/.env
 
 cp apps/whatsapp-bot/.env.example apps/whatsapp-bot/.env
 # edit apps/whatsapp-bot/.env with DATABASE_URL and WhatsApp settings
-
-# Legacy Telegram shutdown notice only; configure DATABASE_URL and AWS access for its token
-cp apps/bot/.env.example apps/bot/.env
 ```
 
 ## Running the services
@@ -48,16 +44,6 @@ pnpm run dev:scraper   # FastAPI on port 8000
 pnpm run dev:whatsapp  # André Assistente Imobiliário
 pnpm run dev:frontend  # Next.js (optional)
 ```
-
-The Telegram runtime is excluded from the default local workflow. To preview
-the final notice without sending it, run from `apps/bot`:
-
-```bash
-uv run --project . --group dev python send_final_notice.py
-```
-
-The production send requires AWS/database access and an explicit recipient
-count confirmation; do not use a local database for the announcement.
 
 ## Lint and type checking
 
@@ -117,4 +103,3 @@ The `.vscode/settings.json` file at the root disables Pylance (VS Code language 
 To re-enable Pylance, remove or edit `.vscode/settings.json`. Make sure to select the correct `.venv` interpreter:
 
 - For scraper files: `apps/scraper/.venv/Scripts/python.exe`
-- For the legacy notice utility: `apps/bot/.venv/bin/python`

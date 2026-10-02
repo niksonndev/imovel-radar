@@ -1,6 +1,6 @@
 # André Assistente Imobiliário — custos e QA
 
-Atualizado em 01/10/2026. Pagamentos não estão disponíveis. O atendimento ativo é pelo WhatsApp; Telegram está em encerramento. O texto legal público é um rascunho de produto, não parecer jurídico.
+Atualizado em 01/10/2026. Pagamentos não estão disponíveis. O atendimento é pelo WhatsApp; o Telegram foi encerrado em 01/10/2026 e os dados do canal foram removidos. O texto legal público é um rascunho de produto, não parecer jurídico.
 
 ## Recursos do assistente
 

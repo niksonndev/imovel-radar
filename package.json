@@ -4,15 +4,13 @@
   "scripts": {
     "dev": "turbo run dev --continue",
     "dev:scraper": "cd apps/scraper && uv run uvicorn main:app --reload --port 8000",
-    "dev:bot": "cd apps/bot && uv run python main.py",
     "dev:whatsapp": "cargo run --manifest-path apps/whatsapp-bot/Cargo.toml",
     "dev:frontend": "turbo run dev --filter=frontend",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "setup": "pnpm run setup:shared-models && pnpm run setup:scraper && pnpm run setup:bot && pnpm install",
+    "setup": "pnpm run setup:shared-models && pnpm run setup:scraper && pnpm install",
     "setup:shared-models": "cd packages/shared-models && uv sync",
     "setup:scraper": "cd apps/scraper && uv venv && uv pip install -e ../../packages/shared-models && uv sync",
-    "setup:bot": "cd apps/bot && uv venv && uv pip install -e ../../packages/shared-models && uv sync",
     "test": "turbo run test"
   },
   "packageManager": "pnpm@10.33.2",

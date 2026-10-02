@@ -30,26 +30,6 @@ services:
       start_period: 15s
     restart: unless-stopped
 
-  bot:
-    profiles:
-      - telegram-shutdown
-    build:
-      context: .
-      dockerfile: apps/bot/Dockerfile
-    image: imovel-radar-bot:latest
-    env_file:
-      - path: apps/bot/.env
-        required: false
-    environment:
-      DATABASE_URL: postgresql+psycopg://postgres:teste123@host.docker.internal:5432/imovel_radar
-      PERSISTENCE_FILE: /data/carousel_state.pickle
-    volumes:
-      - bot_state:/data
-    depends_on:
-      scraper:
-        condition: service_healthy
-    restart: unless-stopped
-
   whatsapp-bot:
     build:
       context: .
@@ -74,5 +54,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  bot_state:
   whatsapp_session:

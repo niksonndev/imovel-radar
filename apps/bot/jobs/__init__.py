@@ -1,1 +1,0 @@
-"""Job de notificação de matches novos (EventBridge diário em prod; JobQueue local)."""

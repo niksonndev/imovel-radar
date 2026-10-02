@@ -11,10 +11,8 @@ As CTAs do site abrem o WhatsApp. `/novidades` concentra comunicados oficiais.
 - **Monorepo**: Turborepo + pnpm (Node.js workspaces for the frontend)
 - **Scraper** (Lambda + FastAPI local): coleta OLX → `listing` no Postgres (Neon)
 - **André no WhatsApp** (`apps/whatsapp-bot`, Rust, processo sempre ligado): assistente imobiliário, deploy Render com disco para a sessão
-- **Telegram legado** (`apps/bot`): mantido temporariamente para comunicar o encerramento e limpar dados; não é o canal principal do produto
 - **Shared package**: `shared-models` — table models SQLModel + utils; `api_schemas` está deprecated
 - **Database**: Postgres via SQLModel + Alembic (dev: local; prod: Neon pooled)
-- **Estado de conversa (prod)**: DynamoDB
 
 ## Structure
 
@@ -29,8 +27,7 @@ imovel-radar/
 │           └── utils.py
 ├── apps/
 │   ├── scraper/              ← dono de `listing`; coleta OLX (Lambda em prod)
-│   ├── bot/                  ← legado temporário para o aviso de encerramento Telegram
-│   ├── whatsapp-bot/         ← André Assistente Imobiliário (Rust, Render, disco /data)
+│   │   ├── whatsapp-bot/         ← André Assistente Imobiliário (Rust, Render, disco /data)
 │   └── frontend/             ← Next.js 16 (App Router, SSG → out/)
 ├── docs/
 │   └── adr/
@@ -100,7 +97,6 @@ pnpm run setup
 Configure os arquivos `.env` dos serviços que for executar:
 
 - `apps/scraper/.env` — copy from `apps/scraper/.env.example`
-- `apps/bot/.env` — necessário somente para o aviso final Telegram durante a desativação
 
 ### Run everything
 
@@ -125,8 +121,6 @@ VS Code Pylance is disabled; the actual validation is done through the commands 
 # Scraper
 cd apps/scraper && uv run ruff check . && uv run pyright
 
-# Bot
-cd apps/bot && uv run ruff check . && uv run pyright
 ```
 
 ## Tests
