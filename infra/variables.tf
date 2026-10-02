@@ -29,7 +29,7 @@ variable "artifact_bucket" {
   default = "imovel-radar-lambda-artifacts"
 }
 
-# ── Artefatos (scraper e bot separados — evita re-deploy cruzado) ──────────
+# ── Artefatos do scraper (zip único; evita re-deploy cruzado) ───────────────
 variable "scraper_artifact_key" {
   default = "scraper/lambda.zip"
 }
@@ -37,15 +37,6 @@ variable "scraper_artifact_key" {
 variable "scraper_zip_path" {
   description = "Caminho local do zip da Lambda de coleta (passado pelo CI; necessário p/ apply)"
   default     = "../apps/scraper/dist/lambda.zip"
-}
-
-variable "bot_artifact_key" {
-  default = "bot/lambda.zip"
-}
-
-variable "bot_zip_path" {
-  description = "Caminho local do zip da Bot Lambda (passado pelo CI; necessário p/ apply)"
-  default     = "../apps/bot/dist/lambda.zip"
 }
 
 variable "database_url" {
@@ -77,37 +68,6 @@ variable "alarm_email" {
   default     = "niksonndev@gmail.com"
 }
 
-# ── Bot (webhook + notificação) ─────────────────────────────────────────────
-variable "bot_ssm_token_name" {
-  description = "Caminho do parâmetro SSM com o token do bot (criado no bootstrap, fora do Terraform)"
-  default     = "/imovel-radar/prod/telegram_bot_token"
-}
-
-variable "bot_ssm_openai_param" {
-  description = "Caminho do parâmetro SSM com a OpenAI API Key (criado no bootstrap, fora do Terraform)"
-  default     = "/imovel-radar/prod/openai_api_key"
-}
-
-variable "conversation_ttl_hours" {
-  description = "TTL (horas) dos drafts de conversa no DynamoDB (ADR 0006)"
-  default     = 4
-}
-
-variable "carousel_ttl_hours" {
-  description = "TTL (horas) do snapshot do carrossel em chat_data"
-  default     = 168
-}
-
-variable "bot_notify_cron" {
-  description = "Cron do EventBridge para o job de notificação do bot (UTC) — 10:00 America/Maceio = 2h após scraper_cron"
-  default     = "cron(0 13 * * ? *)"
-}
-
-variable "bot_memory" {
-  description = "Memória da Bot Lambda (MB)"
-  default     = 512
-}
-
 variable "market_stats_cors_origins" {
   description = "Origens com CORS no GET /market-stats (domínio do site)"
   type        = list(string)
@@ -117,7 +77,4 @@ variable "market_stats_cors_origins" {
   ]
 }
 
-variable "bot_timeout" {
-  description = "Timeout da Bot Lambda (s). Webhook still capped at ≤ 29s by API Gateway; EventBridge daily notify needs headroom (~2s sleep/chat × users + carousel sends)."
-  default     = 600
-}
+

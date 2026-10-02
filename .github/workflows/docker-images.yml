@@ -1,6 +1,6 @@
 name: Docker images (GHCR)
 
-# Builda e publica imagens do scraper e do bot no GHCR (opcional / rollback).
+# Builda e publica a imagem do scraper no GHCR (opcional / rollback).
 # Produção canônica é Lambda (.github/workflows/infra-deploy.yml).
 
 on:
@@ -9,13 +9,11 @@ on:
     tags: ['v*']
     paths:
       - 'apps/scraper/**'
-      - 'apps/bot/**'
       - 'packages/shared-models/**'
       - '.github/workflows/docker-images.yml'
   pull_request:
     paths:
       - 'apps/scraper/**'
-      - 'apps/bot/**'
       - 'packages/shared-models/**'
       - '.github/workflows/docker-images.yml'
   workflow_dispatch:
@@ -42,7 +40,6 @@ jobs:
       matrix:
         include:
           - name: scraper
-          - name: bot
     steps:
       - name: Checkout
         uses: actions/checkout@v4

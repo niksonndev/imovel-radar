@@ -17,7 +17,7 @@ SSM Parameter Store).
   (08:00 America/Maceio em UTC).
 - **CloudWatch**: log group (retention 14d) + alarme de erros da Lambda.
 - **SNS `imovel-radar-prod-alarms`** — email (`alarm_email`, default
-  `niksonndev@gmail.com`) nos alarmes de scraper e bot. Após o apply, confirme
+  `niksonndev@gmail.com`) nos alarmes do scraper. Após o apply, confirme
   a inscrição no link que o SNS envia ao inbox (PendingConfirmation até lá).
 
 ## Bootstrap (uma vez)
@@ -55,65 +55,7 @@ ou thumbprint de GitHub é rotacionado — crie seguindo a doc oficial do GitHub
 `.github/workflows/infra-deploy.yml`: testes → migrations (gate bloqueante) →
 build do zip → `terraform plan`/`apply` → smoke pós-deploy (5 páginas;
 `SCRAPER_MAX_PAGES=5` **não** marca a coleta como completed — evita
-`deactivate_missing_listings` no smoke; o CI restaura `500` depois; bot
-smoke usa EventBridge com `detail.dry_run` — valida o path sem Telegram).
+`deactivate_missing_listings` no smoke; o CI restaura `500` depois).
 
 > ATENÇÃO: `database_url` aparece no state (projeto pessoal); o CI o passa por
 > `-var`, então não fica hardcoded nos arquivos.
-
-## Bot infra (webhook + notificação)
-
-**Corte 1** (aplicado): DynamoDB de estado de conversa (ADR 0006), SSM do token,
-IAM role `imovel-radar-prod-bot-webhook` e expansão da política de deploy.
-
-**Corte 2** (este): cria a função Lambda do bot, API Gateway, EventBridge e
-smoke/setWebhook no CI.
-
-Recursos (o `terraform apply` cria/provisiona):
-
-- **DynamoDB `imovel-radar-prod-conversation-state`** — estado de conversa do
-  PTB (ADR 0006): PK `chat_id` (Number) + SK `store` (String), TTL nativo no
-  atributo `ttl`, billing on-demand (free tier permanente). O atributo
-  `version` é gravado pelo código (optimistic concurrency no `put_item`).
-- **SSM `/imovel-radar/prod/telegram_bot_token`** — SecureString **fora do
-  Terraform** (bootstrap), para o token nunca entrar no state.
-- **IAM role `imovel-radar-prod-bot-webhook`** — execução da Bot Lambda:
-  `AWSLambdaBasicExecutionRole` + leitura de secrets no SSM (token +
-  `database_url`) + acesso à tabela de conversação (incl. `Scan`).
-- **Bot Lambda `imovel-radar-prod-bot-webhook`** — python3.13, 512MB,
-  timeout 600s (notify headroom; webhook still ≤ 29s via API Gateway),
-  handler `lambda_handler.lambda_handler`, env `DATABASE_URL` (Neon
-  **pooled**), `DYNAMODB_TABLE`, `DYNAMODB_TTL_HOURS`, `CAROUSEL_TTL_HOURS`, `SSM_TOKEN_PARAM`,
-  `TELEGRAM_WEBHOOK_SECRET`, `LOG_LEVEL`.
-- **API Gateway** `imovel-radar-prod-bot-webhook-api` — HTTP API com rota
-  `POST /webhook`, integração AWS_PROXY (timeout 29 s). URL no output.
-- **EventBridge** `imovel-radar-prod-bot-notify` — `cron(0 13 * * ? *)` (10:00 Maceió, 2h após o scrape) → Lambda.
-- **Logs + alarme CloudWatch** do webhook/notificação.
-
-### Zip separados (scraper vs bot)
-
-- `scraper_zip_path` → `dist/lambda.zip` do scraper (chave `scraper/lambda.zip`).
-- `bot_zip_path` → `dist/lambda.zip` do bot (chave `bot/lambda.zip`).
-
-Separar zips evita re-deploy cruzado (o acoplamento de `zip_path` reportado no
-corte 1).
-
-### Set webhook
-
-`.github/workflows/infra-deploy.yml` chama `setWebhook` após o apply com
-`bot_webhook_url` (`terraform output -raw`) e `secret_token`
-(`bot_webhook_secret`). A Lambda valida o header
-`X-Telegram-Bot-Api-Secret-Token`.
-
-`database_url` **deve** ser a connection string pooled do Neon (host com
-`-pooler`); o CI recusa o apply se o host for `neon.tech` sem `-pooler`.
-
-### Bootstrap do token (uma vez)
-
-```bash
-aws ssm put-parameter --name /imovel-radar/prod/telegram_bot_token \
-  --type SecureString --value 'SEU_TOKEN_DO_BOTFATHER'
-```
-
-O `./infra/bootstrap-state.sh` verifica a existência desse parâmetro de forma
-idempotente.

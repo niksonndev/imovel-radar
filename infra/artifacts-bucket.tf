@@ -26,10 +26,3 @@ resource "aws_s3_object" "scraper_artifact" {
   source = var.scraper_zip_path
   etag   = filemd5(var.scraper_zip_path)
 }
-
-resource "aws_s3_object" "bot_artifact" {
-  bucket = aws_s3_bucket.artifacts.id
-  key    = var.bot_artifact_key
-  source = var.bot_zip_path
-  etag   = filemd5(var.bot_zip_path)
-}

@@ -10,7 +10,7 @@ services:
     healthCheckPath: /health
     autoDeployTrigger: commit
     # Só builda quando algo do próprio bot muda. Sem filtro, qualquer push em
-    # `main` (frontend, scraper, bot do Telegram) reiniciava este container — e um
+    # `main` (frontend, scraper) reiniciava este container — e um
     # reinício derruba a conexão do WhatsApp e invalida o QR aberto no /pair.
     # O Dockerfile só copia apps/whatsapp-bot/{Cargo.*,src,entrypoint.sh}, então
     # nada fora dessa pasta pode mudar a imagem. `render.yaml` entra na lista
