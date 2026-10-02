@@ -12,8 +12,6 @@ importers:
         specifier: ^2.10.6
         version: 2.10.7
 
-  apps/bot: {}
-
   apps/frontend:
     dependencies:
       '@base-ui/react':
