@@ -42,7 +42,12 @@ async def send_notice(chat_ids: list[int], message: str) -> tuple[int, int]:
     bot = Bot(token=config.get_bot_token())
     sent = 0
     failed = 0
-    await bot.initialize()
+    try:
+        await bot.initialize()
+    except TelegramError:
+        raise RuntimeError(
+            "Telegram Bot API authentication failed; verify the SSM token."
+        ) from None
     try:
         for chat_id in chat_ids:
             try:
@@ -108,4 +113,10 @@ async def main() -> int:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    raise SystemExit(asyncio.run(main()))
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    try:
+        raise SystemExit(asyncio.run(main()))
+    except RuntimeError:
+        logger.error("Telegram Bot API authentication failed; verify the SSM token.")
+        raise SystemExit(1) from None
