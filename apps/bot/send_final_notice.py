@@ -26,6 +26,8 @@ def announcement_message(site_url: str) -> str:
         "Olá! Este canal de atendimento pelo Telegram será encerrado.\n\n"
         "Para continuar sua busca por imóveis, fale com o André Assistente "
         f"Imobiliário pelo WhatsApp: {WHATSAPP_URL}\n\n"
+        "Alertas e preferências salvos no Telegram não serão transferidos. "
+        "Ao iniciar a conversa, conte novamente ao André o que você procura.\n\n"
         f"Acompanhe os próximos comunicados: {updates_url}\n\n"
         "Obrigado por acompanhar o projeto."
     )
