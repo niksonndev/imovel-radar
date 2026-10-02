@@ -36,3 +36,8 @@ services:
         value: "true"
       - key: LOG_LEVEL
         value: INFO
+      # Links de /privacidade e /termos enviados pelo bot. O fallback no código
+      # (imovel-radar.vercel.app) devolvia 404; trocar aqui quando o domínio
+      # próprio do André estiver no ar.
+      - key: PUBLIC_SITE_URL
+        value: https://imovel-radar-frontend.vercel.app

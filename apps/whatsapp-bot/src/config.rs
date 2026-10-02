@@ -94,8 +94,11 @@ impl Config {
             assistant_max_audio_bytes: env_i64("ASSISTANT_MAX_AUDIO_BYTES", 20 * 1024 * 1024)
                 .clamp(1_024, 100 * 1024 * 1024) as usize,
             assistant_daily_token_alert: env_i64("ASSISTANT_DAILY_TOKEN_ALERT", 100_000).max(1),
+            // Fallback de dev: o domínio antigo (imovel-radar.vercel.app) não existe
+            // mais e devolvia 404 nos links de /privacidade e /termos. Em produção
+            // o valor vem de PUBLIC_SITE_URL (render.yaml).
             public_site_url: std::env::var("PUBLIC_SITE_URL")
-                .unwrap_or_else(|_| "https://imovel-radar.vercel.app".to_string())
+                .unwrap_or_else(|_| "https://imovel-radar-frontend.vercel.app".to_string())
                 .trim_end_matches('/')
                 .to_string(),
             support_url: std::env::var("SUPPORT_URL")
