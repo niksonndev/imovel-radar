@@ -1,5 +1,5 @@
 /**
- * Records the landing TelegramDemo (same chrome as the site) via Playwright,
+ * Records the landing AssistantDemo (same chrome as the site) via Playwright,
  * tight-cropped with no letterboxing, then encodes site-resolution MP4 + GIF
  * to assets/ (GIF for README; MP4 optional for local/social use).
  *
@@ -19,8 +19,8 @@ const FRONTEND_ROOT = path.resolve(__dirname, "..");
 const REPO_ROOT = path.resolve(FRONTEND_ROOT, "../..");
 const TMP_DIR = path.join(FRONTEND_ROOT, ".tmp-demo-record");
 const ASSETS_DIR = path.join(REPO_ROOT, "assets");
-const MP4_PATH = path.join(ASSETS_DIR, "imovel-radar-demo.mp4");
-const GIF_PATH = path.join(ASSETS_DIR, "imovel-radar-demo.gif");
+const MP4_PATH = path.join(ASSETS_DIR, "andre-demo.mp4");
+const GIF_PATH = path.join(ASSETS_DIR, "andre-demo.gif");
 
 /** Keep 1:1 with the site phone shell (no upscale — quality for GIF). */
 const OUTPUT_SCALE = 1;
