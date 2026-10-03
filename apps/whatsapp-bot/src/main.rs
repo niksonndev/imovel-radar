@@ -11,7 +11,7 @@ use whatsapp_bot::http;
 use whatsapp_bot::jobs::{due, now_maceio, read_stamp, run_daily, write_stamp, Sender};
 use whatsapp_bot::ops;
 use whatsapp_bot::snapshot::{snapshot_path, snapshot_sqlite};
-use whatsapp_bot::wa::{button_reply, qr_ascii, Pairing, WaSender};
+use whatsapp_bot::wa::{button_reply, qr_ascii, shape, Pairing, WaSender};
 use whatsapp_rust::bot::{Bot, EventDelivery};
 use whatsapp_rust::prelude::*;
 use whatsapp_rust::store::SqliteStore;
@@ -205,6 +205,12 @@ async fn main() -> anyhow::Result<()> {
                 );
                 let body = texto.or(toque);
                 if body.is_none() && audio.is_none() {
+                    // Um toque que não soubemos ler cai aqui: sem este log ele é
+                    // descartado em silêncio e o sintoma é "o botão não funciona".
+                    tracing::warn!(
+                        campos = %shape(&ctx.message),
+                        "mensagem sem texto, áudio ou botão reconhecido"
+                    );
                     return;
                 }
                 let chat_id = match db.ensure_whatsapp_user(&jid).await {
