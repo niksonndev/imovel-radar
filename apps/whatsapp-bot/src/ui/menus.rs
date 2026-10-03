@@ -57,14 +57,14 @@ pub fn category_options(listing_kind: &str) -> Vec<(&'static str, &'static str)>
 
 pub fn main_menu() -> String {
     "\
-👋 *Olá!* Sou o bot de alertas OLX — *Maceió, Recife e Natal*.
+👋 *Oi!* Eu sou o André, seu assistente imobiliário em *Maceió, Recife e Natal*.
 
 🏠 *Menu*
 1. Novo alerta
 2. Meus alertas
 3. Ajuda
 
-Responda com o número ou toque no botão."
+Toque num botão ou responda com o número."
         .to_string()
 }
 
@@ -329,7 +329,7 @@ pub fn alerts_list(alerts: &[Alert]) -> String {
         ));
     }
     lines.push(String::new());
-    lines.push("Responda com o número para ver o alerta, ou *menu*.".to_string());
+    lines.push("Toque num alerta ou responda com o número; *menu* volta ao início.".to_string());
     lines.join("\n")
 }
 
@@ -379,7 +379,7 @@ pub fn alert_detail(alert: &Alert) -> String {
 
 pub fn edit_stub(name: &str) -> String {
     format!(
-        "✏️ *Editar alerta*\n\n*{name}*\n\nEditar ainda não está disponível. Apague e crie de novo.\n\n1. Voltar"
+        "✏️ *Editar alerta*\n\n*{name}*\n\nEditar ainda não está disponível. Apague e crie de novo.\n\nResponda *3* para voltar."
     )
 }
 
@@ -590,5 +590,24 @@ mod tests {
         let caption = watch_card_caption(&listing, 0, 1);
         assert!(caption.contains("✅ No ar"));
         assert!(caption.contains("3 parar"));
+    }
+
+    #[test]
+    fn menu_principal_tem_tres_opcoes_e_se_apresenta_como_andre() {
+        let menu = main_menu();
+        assert!(menu.contains("1. Novo alerta"));
+        assert!(menu.contains("2. Meus alertas"));
+        assert!(menu.contains("3. Ajuda"));
+        assert!(!menu.contains("4."));
+        assert!(menu.contains("André"));
+        assert!(!menu.contains("bot de alertas"));
+    }
+
+    #[test]
+    fn edit_stub_volta_com_o_numero_que_o_passo_le() {
+        // O passo AlertDetail lê "1" como *apagar*: o stub não pode mandar "1".
+        let stub = edit_stub("Apartamento Maceió");
+        assert!(stub.contains("Responda *3* para voltar."));
+        assert!(!stub.contains("1. Voltar"));
     }
 }

@@ -110,6 +110,23 @@ fn confirm_removal_message(alert: &Alert) -> OutMsg {
     )
 }
 
+/// Detalhe do alerta com as três ações como botões.
+fn alert_detail_message(alert: &Alert) -> OutMsg {
+    buttons(
+        alert_detail(alert),
+        vec![
+            button("1", "Apagar"),
+            button("2", "Editar"),
+            button("3", "Voltar"),
+        ],
+    )
+}
+
+/// Editar ainda é stub; o botão é só a volta (id 3, que é o que o passo lê).
+fn edit_stub_message(name: &str) -> OutMsg {
+    buttons(edit_stub(name), vec![button("3", "Voltar")])
+}
+
 fn down() -> OutMsg {
     text("Não consegui acessar o radar agora. Tenta de novo em instantes.")
 }
@@ -200,7 +217,7 @@ async fn handle_inbound(
         Step::Alerts { ids: _ } if raw.trim().parse::<usize>().is_err() => {
             assistant_turn(db, cfg, http, chat_id, &mut session, raw, audio_seconds, quota_preconsumed).await?
         }
-        Step::Alerts { ids } => on_alerts(db, chat_id, &mut session, raw, &ids).await?,
+        Step::Alerts { ids } => on_alerts(db, cfg, chat_id, &mut session, raw, &ids).await?,
         Step::AlertDetail { id: _ } if !matches!(raw.trim(), "1" | "2" | "3") => {
             assistant_turn(db, cfg, http, chat_id, &mut session, raw, audio_seconds, quota_preconsumed).await?
         }
@@ -1396,18 +1413,40 @@ async fn list_alerts(db: &Db, chat_id: i64, session: &mut Session) -> anyhow::Re
     session.step = Step::Alerts {
         ids: alerts.iter().map(|alert| alert.id).collect(),
     };
+    if alerts.is_empty() {
+        return Ok(vec![buttons(
+            alerts_list(&alerts),
+            vec![button("1", "Novo alerta"), button("2", "Menu")],
+        )]);
+    }
+    // Só cabem três botões: com mais alertas na lista, o número digitado segue
+    // sendo o único jeito de escolher (os rótulos seriam ambíguos).
+    if alerts.len() <= interactive::MAX_BUTTONS {
+        let choices = alerts
+            .iter()
+            .enumerate()
+            .map(|(index, alert)| {
+                button(
+                    &(index + 1).to_string(),
+                    &button_label(alert.alert_name.as_deref().unwrap_or("Sem nome")),
+                )
+            })
+            .collect();
+        return Ok(vec![buttons(alerts_list(&alerts), choices)]);
+    }
     Ok(vec![text(alerts_list(&alerts))])
 }
 
 async fn on_alerts(
     db: &Db,
+    cfg: &Config,
     chat_id: i64,
     session: &mut Session,
     raw: &str,
     ids: &[i32],
 ) -> anyhow::Result<Vec<OutMsg>> {
     if ids.is_empty() && raw.trim() == "1" {
-        return Ok(start_alert_from_empty(session));
+        return Ok(start_alert(cfg, session));
     }
     if ids.is_empty() {
         *session = Session::menu();
@@ -1423,12 +1462,7 @@ async fn on_alerts(
         return list_alerts(db, chat_id, session).await;
     };
     session.step = Step::AlertDetail { id };
-    Ok(vec![text(alert_detail(&alert))])
-}
-
-fn start_alert_from_empty(session: &mut Session) -> Vec<OutMsg> {
-    session.step = Step::Menu;
-    vec![text("Digite *novo alerta* para criar o primeiro.")]
+    Ok(vec![alert_detail_message(&alert)])
 }
 
 async fn on_alert_detail(
@@ -1444,10 +1478,7 @@ async fn on_alert_detail(
                 return list_alerts(db, chat_id, session).await;
             };
             session.step = Step::AssistantDeleteConfirm { id };
-            Ok(vec![text(format!(
-                "Confirma a remoção deste alerta?\n\n{}\n1. Confirmar remoção\n2. Cancelar",
-                alert_detail(&alert)
-            ))])
+            Ok(vec![confirm_removal_message(&alert)])
         }
         "2" => {
             let name = db
@@ -1455,7 +1486,7 @@ async fn on_alert_detail(
                 .await?
                 .and_then(|alert| alert.alert_name)
                 .unwrap_or_else(|| "Sem nome".into());
-            Ok(vec![text(edit_stub(&name))])
+            Ok(vec![edit_stub_message(&name)])
         }
         "3" => list_alerts(db, chat_id, session).await,
         _ => Ok(vec![text("1 apagar · 2 editar · 3 voltar")]),
