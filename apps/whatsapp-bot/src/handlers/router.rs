@@ -12,6 +12,7 @@ use crate::db::Db;
 use crate::intelligence::prepare_match_carousel;
 use crate::models::{Alert, ClaimStatus, CreateAlertStatus, Listing, WatchStatus};
 use crate::money::{effective_listing_price, format_brl, json_fee};
+use crate::pagamentos;
 use crate::session::{
     global_command, normalize_text, parse_index_list, parse_money, parse_number_words, Draft,
     GlobalCommand, Session, Step,
@@ -23,7 +24,6 @@ use crate::ui::{
     planos_prompt, price_max_prompt, price_min_prompt, price_presets, price_prompt, pro_activated,
     pro_pitch, rooms_prompt, watch_card_caption,
 };
-use crate::pagamentos;
 use crate::wa::interactive;
 
 /// Botão de resposta rápida. O `id` é exatamente a opção que o roteador já
@@ -50,6 +50,9 @@ pub enum OutMsg {
     },
 }
 
+/// Legenda da navegação do carrossel (o número digitado sempre funciona).
+const NAV_HINT: &str = "1 próximo · 2 anterior · 3 acompanhar · 4 menu";
+
 fn text(body: impl Into<String>) -> OutMsg {
     OutMsg::Text(body.into())
 }
@@ -62,7 +65,10 @@ fn button(id: &str, label: &str) -> Button {
 }
 
 fn buttons(body: String, items: Vec<Button>) -> OutMsg {
-    OutMsg::Buttons { body, buttons: items }
+    OutMsg::Buttons {
+        body,
+        buttons: items,
+    }
 }
 
 /// Rótulo de botão: o WhatsApp recomenda até 20 caracteres.
@@ -183,7 +189,10 @@ async fn handle_inbound(
 
     let step = session.step.clone();
     if raw.chars().count() > cfg.assistant_max_message_chars
-        && matches!(step, Step::Menu | Step::Intent | Step::AssistantConversation)
+        && matches!(
+            step,
+            Step::Menu | Step::Intent | Step::AssistantConversation
+        )
     {
         return store(
             db,
@@ -197,13 +206,45 @@ async fn handle_inbound(
         .await;
     }
     let messages = match step {
-        Step::Menu => on_menu(db, cfg, http, chat_id, &mut session, raw, audio_seconds, quota_preconsumed).await?,
+        Step::Menu => {
+            on_menu(
+                db,
+                cfg,
+                http,
+                chat_id,
+                &mut session,
+                raw,
+                audio_seconds,
+                quota_preconsumed,
+            )
+            .await?
+        }
         Step::Intent if cfg.llm_provider == "openai" && normalize_text(raw) != "1" => {
-            assistant_turn(db, cfg, http, chat_id, &mut session, raw, audio_seconds, quota_preconsumed).await?
+            assistant_turn(
+                db,
+                cfg,
+                http,
+                chat_id,
+                &mut session,
+                raw,
+                audio_seconds,
+                quota_preconsumed,
+            )
+            .await?
         }
         Step::Intent => on_intent(db, cfg, http, chat_id, &mut session, raw).await?,
         Step::AssistantConversation => {
-            assistant_turn(db, cfg, http, chat_id, &mut session, raw, audio_seconds, quota_preconsumed).await?
+            assistant_turn(
+                db,
+                cfg,
+                http,
+                chat_id,
+                &mut session,
+                raw,
+                audio_seconds,
+                quota_preconsumed,
+            )
+            .await?
         }
         Step::City => on_city(db, &mut session, raw).await?,
         Step::Kind => on_kind(&mut session, raw),
@@ -216,16 +257,42 @@ async fn handle_inbound(
         Step::Name => on_name(&mut session, raw),
         Step::Confirm => finish_alert(db, cfg, chat_id, &mut session, raw).await?,
         Step::Alerts { ids: _ } if raw.trim().parse::<usize>().is_err() => {
-            assistant_turn(db, cfg, http, chat_id, &mut session, raw, audio_seconds, quota_preconsumed).await?
+            assistant_turn(
+                db,
+                cfg,
+                http,
+                chat_id,
+                &mut session,
+                raw,
+                audio_seconds,
+                quota_preconsumed,
+            )
+            .await?
         }
         Step::Alerts { ids } => on_alerts(db, cfg, chat_id, &mut session, raw, &ids).await?,
         Step::AlertDetail { id: _ } if !matches!(raw.trim(), "1" | "2" | "3") => {
-            assistant_turn(db, cfg, http, chat_id, &mut session, raw, audio_seconds, quota_preconsumed).await?
+            assistant_turn(
+                db,
+                cfg,
+                http,
+                chat_id,
+                &mut session,
+                raw,
+                audio_seconds,
+                quota_preconsumed,
+            )
+            .await?
         }
         Step::AlertDetail { id } => on_alert_detail(db, chat_id, &mut session, raw, id).await?,
-        Step::AssistantRemoveChoice { ids } => on_assistant_remove_choice(db, chat_id, &mut session, raw, &ids).await?,
-        Step::AssistantDeleteConfirm { id } => on_assistant_delete_confirm(db, chat_id, &mut session, raw, id).await?,
-        Step::DeleteAccountConfirm => on_delete_account_confirm(db, chat_id, &mut session, raw).await?,
+        Step::AssistantRemoveChoice { ids } => {
+            on_assistant_remove_choice(db, chat_id, &mut session, raw, &ids).await?
+        }
+        Step::AssistantDeleteConfirm { id } => {
+            on_assistant_delete_confirm(db, chat_id, &mut session, raw, id).await?
+        }
+        Step::DeleteAccountConfirm => {
+            on_delete_account_confirm(db, chat_id, &mut session, raw).await?
+        }
         Step::Deleted => vec![text("Seus dados foram excluídos.")],
         Step::Email => on_email(db, cfg, chat_id, &mut session, raw).await?,
         Step::Assinar => on_assinar_plano(db, cfg, http, chat_id, &mut session, raw).await?,
@@ -340,7 +407,19 @@ async fn on_menu(
         // quem já conhece o fluxo (ou estava no meio dele).
         "4" => list_watches(db, chat_id, session).await,
         "5" => start_email(db, cfg, chat_id, session).await,
-        _ => assistant_turn(db, cfg, http, chat_id, session, raw, audio_seconds, quota_preconsumed).await,
+        _ => {
+            assistant_turn(
+                db,
+                cfg,
+                http,
+                chat_id,
+                session,
+                raw,
+                audio_seconds,
+                quota_preconsumed,
+            )
+            .await
+        }
     }
 }
 
@@ -365,19 +444,28 @@ async fn assistant_turn(
         let allowed = if quota_preconsumed {
             true
         } else {
-            db.consume_assistant_usage(chat_id, audio_seconds, cfg).await?
+            db.consume_assistant_usage(chat_id, audio_seconds, cfg)
+                .await?
         };
         if !allowed {
             let user = db.get_user(chat_id).await?;
             let pro = Db::is_pro(user.as_ref(), Utc::now());
             let limit = if audio_seconds.is_some() {
-                if pro { cfg.assistant_pro_audio_per_day } else { cfg.assistant_free_audio_per_day }
+                if pro {
+                    cfg.assistant_pro_audio_per_day
+                } else {
+                    cfg.assistant_free_audio_per_day
+                }
             } else if pro {
                 cfg.assistant_pro_messages_per_day
             } else {
                 cfg.assistant_free_messages_per_day
             };
-            let item = if audio_seconds.is_some() { "áudios" } else { "mensagens do assistente" };
+            let item = if audio_seconds.is_some() {
+                "áudios"
+            } else {
+                "mensagens do assistente"
+            };
             vec![text(format!(
                 "Você atingiu o limite diário de {limit} {item} do {}. Tente novamente amanhã.",
                 if pro { "Radar Pro" } else { "plano grátis" }
@@ -394,12 +482,20 @@ async fn assistant_turn(
                     if call.total_tokens.is_some() {
                         let input_tokens = call.input_tokens.unwrap_or_default();
                         let output_tokens = call.output_tokens.unwrap_or_default();
-                        match db.record_assistant_tokens(chat_id, input_tokens, output_tokens).await {
+                        match db
+                            .record_assistant_tokens(chat_id, input_tokens, output_tokens)
+                            .await
+                        {
                             Ok(total) if total >= cfg.assistant_daily_token_alert as u64 => {
-                                tracing::warn!(daily_tokens = total, "limite de custo de modelo atingido");
+                                tracing::warn!(
+                                    daily_tokens = total,
+                                    "limite de custo de modelo atingido"
+                                );
                             }
                             Ok(_) => {}
-                            Err(error) => tracing::error!(%error, "telemetria de tokens indisponível"),
+                            Err(error) => {
+                                tracing::error!(%error, "telemetria de tokens indisponível")
+                            }
                         }
                     }
                     execute_assistant_call(db, chat_id, session, raw, &call).await?
@@ -442,12 +538,17 @@ async fn execute_assistant_call(
         "consult_market" => assistant_market(db, args).await,
         "help" => Ok(vec![text(help_text())]),
         "respond" => {
-            let answer = args["text"].as_str().unwrap_or("Posso ajudar com alertas e dados do mercado imobiliário.");
+            let answer = args["text"]
+                .as_str()
+                .unwrap_or("Posso ajudar com alertas e dados do mercado imobiliário.");
             Ok(vec![text(answer.chars().take(800).collect::<String>())])
         }
         _ => {
             session.step = Step::Menu;
-            Ok(vec![text("Posso ajudar com alertas imobiliários nas cidades cobertas."), menu_message()])
+            Ok(vec![
+                text("Posso ajudar com alertas imobiliários nas cidades cobertas."),
+                menu_message(),
+            ])
         }
     }
 }
@@ -459,9 +560,14 @@ async fn deterministic_assistant(
     raw: &str,
 ) -> anyhow::Result<Vec<OutMsg>> {
     let norm = normalize_text(raw);
-    if ["meus alertas", "quais sao meus alertas", "listar alertas", "alertas"]
-        .iter()
-        .any(|pattern| norm.contains(pattern))
+    if [
+        "meus alertas",
+        "quais sao meus alertas",
+        "listar alertas",
+        "alertas",
+    ]
+    .iter()
+    .any(|pattern| norm.contains(pattern))
     {
         return list_alerts(db, chat_id, session).await;
     }
@@ -471,13 +577,23 @@ async fn deterministic_assistant(
     {
         let reference = raw
             .split_once("alerta")
-            .map(|(_, rest)| rest.trim_matches(|ch: char| ch.is_ascii_punctuation() || ch.is_whitespace()))
+            .map(|(_, rest)| {
+                rest.trim_matches(|ch: char| ch.is_ascii_punctuation() || ch.is_whitespace())
+            })
             .unwrap_or("");
         return start_assistant_remove(db, chat_id, session, reference).await;
     }
-    if ["media", "média", "preco", "preço", "mercado", "por m2", "por metro quadrado"]
-        .iter()
-        .any(|pattern| norm.contains(pattern))
+    if [
+        "media",
+        "média",
+        "preco",
+        "preço",
+        "mercado",
+        "por m2",
+        "por metro quadrado",
+    ]
+    .iter()
+    .any(|pattern| norm.contains(pattern))
     {
         let extracted = mock_extract_alert(raw);
         let args = json!({
@@ -488,16 +604,31 @@ async fn deterministic_assistant(
         });
         return assistant_market(db, &args).await;
     }
-    if ["ajuda", "help", "o que voce faz", "comandos", "como funciona"]
-        .iter()
-        .any(|pattern| norm.contains(pattern))
+    if [
+        "ajuda",
+        "help",
+        "o que voce faz",
+        "comandos",
+        "como funciona",
+    ]
+    .iter()
+    .any(|pattern| norm.contains(pattern))
     {
         session.step = Step::Menu;
         return Ok(vec![text(help_text())]);
     }
-    if ["quero", "procuro", "criar alerta", "novo alerta", "apartamento", "apto", "alugar", "comprar"]
-        .iter()
-        .any(|pattern| norm.contains(pattern))
+    if [
+        "quero",
+        "procuro",
+        "criar alerta",
+        "novo alerta",
+        "apartamento",
+        "apto",
+        "alugar",
+        "comprar",
+    ]
+    .iter()
+    .any(|pattern| norm.contains(pattern))
     {
         let extracted = mock_extract_alert(raw);
         let args = json!({
@@ -523,14 +654,22 @@ async fn apply_assistant_create(
     raw: &str,
 ) -> anyhow::Result<Vec<OutMsg>> {
     let extracted = mock_extract_alert(raw);
-    if let Some(city) = args["municipality"].as_str().or(extracted.municipality.as_deref()) {
+    if let Some(city) = args["municipality"]
+        .as_str()
+        .or(extracted.municipality.as_deref())
+    {
         if !matches!(city, "Maceió" | "Recife" | "Natal") {
             session.step = Step::AssistantConversation;
-            return Ok(vec![text("Ainda não cobrimos essa cidade. Hoje atendemos Maceió, Recife e Natal.")]);
+            return Ok(vec![text(
+                "Ainda não cobrimos essa cidade. Hoje atendemos Maceió, Recife e Natal.",
+            )]);
         }
         session.draft.municipality = Some(city.to_string());
     }
-    if let Some(kind) = args["listing_kind"].as_str().or(extracted.listing_kind.as_deref()) {
+    if let Some(kind) = args["listing_kind"]
+        .as_str()
+        .or(extracted.listing_kind.as_deref())
+    {
         if matches!(kind, "aluguel" | "venda") {
             session.draft.listing_kind = Some(kind.to_string());
         }
@@ -539,11 +678,15 @@ async fn apply_assistant_create(
     let maximum = args["max_price"].as_i64().or(extracted.max_price);
     if minimum.is_some_and(|value| value <= 0) || maximum.is_some_and(|value| value <= 0) {
         session.step = Step::AssistantConversation;
-        return Ok(vec![text("O preço precisa ser maior que zero. Qual faixa você procura?")]);
+        return Ok(vec![text(
+            "O preço precisa ser maior que zero. Qual faixa você procura?",
+        )]);
     }
     if minimum.zip(maximum).is_some_and(|(min, max)| min > max) {
         session.step = Step::AssistantConversation;
-        return Ok(vec![text("O preço mínimo ficou acima do máximo. Qual faixa devo usar?")]);
+        return Ok(vec![text(
+            "O preço mínimo ficou acima do máximo. Qual faixa devo usar?",
+        )]);
     }
     if minimum.is_some() {
         session.draft.min_price = minimum;
@@ -551,7 +694,10 @@ async fn apply_assistant_create(
     if maximum.is_some() {
         session.draft.max_price = maximum;
     }
-    if let Some(rooms) = args["min_rooms"].as_i64().or(extracted.min_rooms.map(i64::from)) {
+    if let Some(rooms) = args["min_rooms"]
+        .as_i64()
+        .or(extracted.min_rooms.map(i64::from))
+    {
         if (1..=20).contains(&rooms) {
             session.draft.min_rooms = Some(rooms as i32);
         }
@@ -588,7 +734,9 @@ async fn apply_assistant_create(
         let Some(city) = session.draft.municipality.clone() else {
             session.draft.pending_raw_neighbourhoods = raw_neighbourhoods;
             session.step = Step::AssistantConversation;
-            return Ok(vec![text("Qual cidade? Hoje atendemos Maceió, Recife e Natal.")]);
+            return Ok(vec![text(
+                "Qual cidade? Hoje atendemos Maceió, Recife e Natal.",
+            )]);
         };
         apply_neighbourhoods(db, session, &raw_neighbourhoods).await?;
         if session.draft.neighbourhoods.is_empty() {
@@ -644,7 +792,10 @@ async fn apply_assistant_create(
     }
     if !missing.is_empty() {
         session.step = Step::AssistantConversation;
-        return Ok(vec![text(format!("Para montar seu alerta, me diga {}.", missing.join(" e ")))]);
+        return Ok(vec![text(format!(
+            "Para montar seu alerta, me diga {}.",
+            missing.join(" e ")
+        ))]);
     }
     let suggested_name = auto_alert_name(&session.draft);
     let name = args["alert_name"]
@@ -685,7 +836,9 @@ async fn start_assistant_remove(
         .collect();
     if candidates.is_empty() {
         session.step = Step::Menu;
-        return Ok(vec![text("Não encontrei esse alerta. Digite *meus alertas* para ver os seus.")]);
+        return Ok(vec![text(
+            "Não encontrei esse alerta. Digite *meus alertas* para ver os seus.",
+        )]);
     }
     if candidates.len() == 1 {
         let alert = candidates[0];
@@ -721,10 +874,14 @@ async fn start_assistant_remove(
 
 async fn assistant_market(db: &Db, args: &Value) -> anyhow::Result<Vec<OutMsg>> {
     let Some(municipality) = args["municipality"].as_str() else {
-        return Ok(vec![text("De qual cidade você quer consultar: Maceió, Recife ou Natal?")]);
+        return Ok(vec![text(
+            "De qual cidade você quer consultar: Maceió, Recife ou Natal?",
+        )]);
     };
     if !matches!(municipality, "Maceió" | "Recife" | "Natal") {
-        return Ok(vec![text("Ainda não cobrimos essa cidade. Hoje atendemos Maceió, Recife e Natal.")]);
+        return Ok(vec![text(
+            "Ainda não cobrimos essa cidade. Hoje atendemos Maceió, Recife e Natal.",
+        )]);
     }
     let Some(kind) = args["listing_kind"].as_str() else {
         return Ok(vec![text("Você quer consultar aluguel ou venda?")]);
@@ -733,19 +890,30 @@ async fn assistant_market(db: &Db, args: &Value) -> anyhow::Result<Vec<OutMsg>> 
         return Ok(vec![text("Você quer consultar aluguel ou venda?")]);
     }
     let Some(snapshot) = db.snapshot().await? else {
-        return Ok(vec![text("A coleta de mercado ainda não está disponível. Tente novamente mais tarde.")]);
+        return Ok(vec![text(
+            "A coleta de mercado ainda não está disponível. Tente novamente mais tarde.",
+        )]);
     };
-    let Some(city) = snapshot["cities"]
-        .as_array()
-        .and_then(|cities| cities.iter().find(|city| city["municipality"] == municipality))
-    else {
-        return Ok(vec![text(format!("Ainda não há dados de mercado de {municipality}."))]);
+    let Some(city) = snapshot["cities"].as_array().and_then(|cities| {
+        cities
+            .iter()
+            .find(|city| city["municipality"] == municipality)
+    }) else {
+        return Ok(vec![text(format!(
+            "Ainda não há dados de mercado de {municipality}."
+        ))]);
     };
     let Some(stats) = city["kinds"].get(kind) else {
-        return Ok(vec![text(format!("Ainda não há amostra de {kind} em {municipality}."))]);
+        return Ok(vec![text(format!(
+            "Ainda não há amostra de {kind} em {municipality}."
+        ))]);
     };
     let metric = args["metric"].as_str().unwrap_or("mean_price");
-    let field = if metric == "mean_price_m2" { "mean_price_m2" } else { "mean_price" };
+    let field = if metric == "mean_price_m2" {
+        "mean_price_m2"
+    } else {
+        "mean_price"
+    };
     let raw_neighbourhoods: Vec<String> = args["neighbourhoods"]
         .as_array()
         .into_iter()
@@ -756,7 +924,10 @@ async fn assistant_market(db: &Db, args: &Value) -> anyhow::Result<Vec<OutMsg>> 
     let row: Option<Value> = if raw_neighbourhoods.is_empty() {
         None
     } else {
-        let rows = stats["neighbourhoods"].as_array().cloned().unwrap_or_default();
+        let rows = stats["neighbourhoods"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
         let available: Vec<String> = rows
             .iter()
             .filter_map(|row| row["name"].as_str().map(str::to_string))
@@ -774,7 +945,9 @@ async fn assistant_market(db: &Db, args: &Value) -> anyhow::Result<Vec<OutMsg>> 
         return Ok(vec![text("Ainda não há amostra confiável desse bairro.")]);
     }
     let Some(value) = source[field].as_i64() else {
-        return Ok(vec![text("Ainda não há essa métrica na coleta mais recente.")]);
+        return Ok(vec![text(
+            "Ainda não há essa métrica na coleta mais recente.",
+        )]);
     };
     let label = if field == "mean_price_m2" {
         "Preço médio pedido por m²"
@@ -786,7 +959,10 @@ async fn assistant_market(db: &Db, args: &Value) -> anyhow::Result<Vec<OutMsg>> 
         .and_then(|row| row["name"].as_str())
         .map(|name| format!("em {name}, {municipality}"))
         .unwrap_or_else(|| format!("em {municipality}"));
-    let sample = source["sample"].as_i64().map(|count| format!(" · {count} anúncios na amostra")).unwrap_or_default();
+    let sample = source["sample"]
+        .as_i64()
+        .map(|count| format!(" · {count} anúncios na amostra"))
+        .unwrap_or_default();
     let per_m2 = if field == "mean_price_m2" { "/m²" } else { "" };
     Ok(vec![text(format!(
         "{label} de {kind} {location}: *{}*{per_m2}{sample}.\n\nPreço pedido no OLX; valor pode mudar e a negociação é com o anunciante.",
@@ -929,14 +1105,20 @@ async fn on_assistant_remove_choice(
     ids: &[i32],
 ) -> anyhow::Result<Vec<OutMsg>> {
     let Ok(index) = raw.trim().parse::<usize>() else {
-        return Ok(vec![text("Responda com o número do alerta que deseja remover.")]);
+        return Ok(vec![text(
+            "Responda com o número do alerta que deseja remover.",
+        )]);
     };
     let Some(id) = ids.get(index.saturating_sub(1)).copied() else {
-        return Ok(vec![text("Esse número não está na lista. Escolha um alerta da lista.")]);
+        return Ok(vec![text(
+            "Esse número não está na lista. Escolha um alerta da lista.",
+        )]);
     };
     let Some(alert) = db.alert_for_user(chat_id, id).await? else {
         session.step = Step::Menu;
-        return Ok(vec![text("Não encontrei esse alerta. Digite *meus alertas* para atualizar a lista.")]);
+        return Ok(vec![text(
+            "Não encontrei esse alerta. Digite *meus alertas* para atualizar a lista.",
+        )]);
     };
     session.step = Step::AssistantDeleteConfirm { id };
     Ok(vec![confirm_removal_message(&alert)])
@@ -953,14 +1135,20 @@ async fn on_assistant_delete_confirm(
         "1" | "sim" | "confirmar" | "confirmar remocao" | "remover" => {
             let deleted = db.delete_alert(chat_id, id).await?;
             session.step = Step::Menu;
-            let result = if deleted { "Alerta removido." } else { "Não encontrei esse alerta." };
+            let result = if deleted {
+                "Alerta removido."
+            } else {
+                "Não encontrei esse alerta."
+            };
             Ok(vec![text(result), menu_message()])
         }
         "2" | "nao" | "cancelar" | "cancela" => {
             session.step = Step::Menu;
             Ok(vec![text("Tudo bem, não removi o alerta."), menu_message()])
         }
-        _ => Ok(vec![text("Responda *1* para confirmar a remoção ou *2* para cancelar.")]),
+        _ => Ok(vec![text(
+            "Responda *1* para confirmar a remoção ou *2* para cancelar.",
+        )]),
     }
 }
 
@@ -989,9 +1177,14 @@ async fn on_delete_account_confirm(
         }
     } else if matches!(normalize_text(raw).as_str(), "cancelar" | "nao" | "não") {
         *session = Session::menu();
-        Ok(vec![text("Solicitação cancelada; seus dados foram mantidos."), menu_message()])
+        Ok(vec![
+            text("Solicitação cancelada; seus dados foram mantidos."),
+            menu_message(),
+        ])
     } else {
-        Ok(vec![text("Para confirmar a exclusão, responda *EXCLUIR*. Para cancelar, digite *cancelar*.")])
+        Ok(vec![text(
+            "Para confirmar a exclusão, responda *EXCLUIR*. Para cancelar, digite *cancelar*.",
+        )])
     }
 }
 
@@ -1007,8 +1200,12 @@ fn remember_exchange(cfg: &Config, session: &mut Session, user: &str, assistant:
             .take(1600)
             .collect()
     };
-    session.assistant_history.push(json!({"role":"user","content":clean(user)}));
-    session.assistant_history.push(json!({"role":"assistant","content":clean(assistant)}));
+    session
+        .assistant_history
+        .push(json!({"role":"user","content":clean(user)}));
+    session
+        .assistant_history
+        .push(json!({"role":"assistant","content":clean(assistant)}));
     let max_entries = cfg.assistant_memory_turns.saturating_mul(2);
     if session.assistant_history.len() > max_entries {
         let remove = session.assistant_history.len() - max_entries;
@@ -1032,10 +1229,15 @@ async fn on_intent(
         return Ok(vec![text(city_prompt())]);
     }
     let Some(extracted) = extract_alert_intent(http, cfg, raw).await else {
-        return Ok(vec![text("Manda uma frase sobre o imóvel, ou *1* para o passo a passo.")]);
+        return Ok(vec![text(
+            "Manda uma frase sobre o imóvel, ou *1* para o passo a passo.",
+        )]);
     };
     session.draft.nl_mode = true;
-    if matches!(extracted.municipality.as_deref(), Some("Maceió" | "Recife" | "Natal")) {
+    if matches!(
+        extracted.municipality.as_deref(),
+        Some("Maceió" | "Recife" | "Natal")
+    ) {
         session.draft.municipality = extracted.municipality;
     }
     if matches!(extracted.listing_kind.as_deref(), Some("aluguel" | "venda")) {
@@ -1077,7 +1279,9 @@ async fn on_intent(
 fn advance_nl(session: &mut Session) -> Vec<OutMsg> {
     if session.draft.municipality.is_none() {
         session.step = Step::City;
-        return vec![text("📍 *Em qual cidade você procura?*\n1. Maceió\n2. Recife\n3. Natal")];
+        return vec![text(
+            "📍 *Em qual cidade você procura?*\n1. Maceió\n2. Recife\n3. Natal",
+        )];
     }
     if session.draft.listing_kind.is_none() {
         session.step = Step::Kind;
@@ -1102,7 +1306,11 @@ async fn apply_neighbourhoods(
     session: &mut Session,
     raw: &[String],
 ) -> anyhow::Result<()> {
-    let city = session.draft.municipality.clone().unwrap_or_else(|| "Maceió".into());
+    let city = session
+        .draft
+        .municipality
+        .clone()
+        .unwrap_or_else(|| "Maceió".into());
     let available = db
         .neighbourhoods(&city, session.draft.listing_kind.as_deref())
         .await
@@ -1133,7 +1341,10 @@ async fn on_city(db: &Db, session: &mut Session, raw: &str) -> anyhow::Result<Ve
         return Ok(advance_nl(session));
     }
     session.step = Step::Kind;
-    Ok(vec![text(format!("📍 *Cidade:* {city}")), text(kind_prompt())])
+    Ok(vec![
+        text(format!("📍 *Cidade:* {city}")),
+        text(kind_prompt()),
+    ])
 }
 
 fn on_kind(session: &mut Session, raw: &str) -> Vec<OutMsg> {
@@ -1144,8 +1355,15 @@ fn on_kind(session: &mut Session, raw: &str) -> Vec<OutMsg> {
         _ if norm.contains("aluga") || norm.contains("aluguel") || norm.contains("mensal") => {
             "aluguel"
         }
-        _ if norm.contains("vend") || norm.contains("compr") || norm.contains("propriet") => "venda",
-        _ => return vec![text("Responda 1 para alugar ou 2 para comprar."), text(kind_prompt())],
+        _ if norm.contains("vend") || norm.contains("compr") || norm.contains("propriet") => {
+            "venda"
+        }
+        _ => {
+            return vec![
+                text("Responda 1 para alugar ou 2 para comprar."),
+                text(kind_prompt()),
+            ]
+        }
     };
     session.draft.listing_kind = Some(kind.to_string());
     session.draft.categories.retain(|category| {
@@ -1179,9 +1397,17 @@ fn on_categories(session: &mut Session, raw: &str) -> Vec<OutMsg> {
     };
     for index in indexes {
         let Some((value, _)) = options.get(index - 1) else {
-            return vec![text("Número fora da lista."), text(categories_prompt(kind, &session.draft.categories))];
+            return vec![
+                text("Número fora da lista."),
+                text(categories_prompt(kind, &session.draft.categories)),
+            ];
         };
-        if let Some(pos) = session.draft.categories.iter().position(|item| item == value) {
+        if let Some(pos) = session
+            .draft
+            .categories
+            .iter()
+            .position(|item| item == value)
+        {
             session.draft.categories.remove(pos);
         } else {
             session.draft.categories.push((*value).to_string());
@@ -1191,8 +1417,16 @@ fn on_categories(session: &mut Session, raw: &str) -> Vec<OutMsg> {
 }
 
 fn on_price(session: &mut Session, raw: &str) -> Vec<OutMsg> {
-    let kind = session.draft.listing_kind.clone().unwrap_or_else(|| "aluguel".into());
-    let city = session.draft.municipality.clone().unwrap_or_else(|| "Maceió".into());
+    let kind = session
+        .draft
+        .listing_kind
+        .clone()
+        .unwrap_or_else(|| "aluguel".into());
+    let city = session
+        .draft
+        .municipality
+        .clone()
+        .unwrap_or_else(|| "Maceió".into());
     if raw.trim() == "5" || normalize_text(raw) == "personalizado" {
         session.step = Step::PriceMin;
         return vec![text(price_min_prompt())];
@@ -1204,10 +1438,16 @@ fn on_price(session: &mut Session, raw: &str) -> Vec<OutMsg> {
             session.draft.max_price = Some(value);
             return after_price(session);
         }
-        return vec![text("Escolha um número da lista."), text(price_prompt(&kind, &city))];
+        return vec![
+            text("Escolha um número da lista."),
+            text(price_prompt(&kind, &city)),
+        ];
     };
     let Some(preset) = presets.get(index - 1) else {
-        return vec![text("Escolha um número da lista."), text(price_prompt(&kind, &city))];
+        return vec![
+            text("Escolha um número da lista."),
+            text(price_prompt(&kind, &city)),
+        ];
     };
     session.draft.min_price = Some(preset.min);
     session.draft.max_price = Some(preset.max);
@@ -1216,7 +1456,10 @@ fn on_price(session: &mut Session, raw: &str) -> Vec<OutMsg> {
 
 fn on_price_min(session: &mut Session, raw: &str) -> Vec<OutMsg> {
     let Some(min_price) = parse_money(raw) else {
-        return vec![text("Número inválido. Ex.: 150000"), text(price_min_prompt())];
+        return vec![
+            text("Número inválido. Ex.: 150000"),
+            text(price_min_prompt()),
+        ];
     };
     session.draft.min_price = Some(min_price);
     session.step = Step::PriceMax;
@@ -1228,7 +1471,10 @@ fn on_price_max(session: &mut Session, raw: &str) -> Vec<OutMsg> {
         return vec![text("Número inválido."), text(price_max_prompt())];
     };
     if session.draft.min_price.unwrap_or(0) > max_price {
-        return vec![text("O preço máximo deve ser maior ou igual ao mínimo."), text(price_max_prompt())];
+        return vec![
+            text("O preço máximo deve ser maior ou igual ao mínimo."),
+            text(price_max_prompt()),
+        ];
     }
     session.draft.max_price = Some(max_price);
     after_price(session)
@@ -1250,18 +1496,32 @@ async fn on_rooms(db: &Db, session: &mut Session, raw: &str) -> anyhow::Result<V
         "3" => Some(2),
         "4" => Some(3),
         "5" => Some(4),
-        _ if matches!(norm.as_str(), "qualquer" | "nenhum" | "indiferente" | "tanto faz") => None,
+        _ if matches!(
+            norm.as_str(),
+            "qualquer" | "nenhum" | "indiferente" | "tanto faz"
+        ) =>
+        {
+            None
+        }
         _ if parse_number_words(raw).is_some() => parse_number_words(raw).map(|value| value as i32),
         _ => return Ok(vec![text("Responda de 1 a 5."), text(rooms_prompt())]),
     };
     session.draft.min_rooms = rooms;
-    let city = session.draft.municipality.clone().unwrap_or_else(|| "Maceió".into());
+    let city = session
+        .draft
+        .municipality
+        .clone()
+        .unwrap_or_else(|| "Maceió".into());
     let all = db
         .neighbourhoods(&city, session.draft.listing_kind.as_deref())
         .await
         .unwrap_or_default();
     session.step = Step::Neighbourhoods { page: 0 };
-    Ok(vec![text(neighbourhoods_prompt(&all, 0, &session.draft.neighbourhoods))])
+    Ok(vec![text(neighbourhoods_prompt(
+        &all,
+        0,
+        &session.draft.neighbourhoods,
+    ))])
 }
 
 async fn on_neighbourhoods(
@@ -1270,7 +1530,11 @@ async fn on_neighbourhoods(
     raw: &str,
     page: usize,
 ) -> anyhow::Result<Vec<OutMsg>> {
-    let city = session.draft.municipality.clone().unwrap_or_else(|| "Maceió".into());
+    let city = session
+        .draft
+        .municipality
+        .clone()
+        .unwrap_or_else(|| "Maceió".into());
     let all = db
         .neighbourhoods(&city, session.draft.listing_kind.as_deref())
         .await
@@ -1282,28 +1546,49 @@ async fn on_neighbourhoods(
     if norm == "mais" || norm == "proxima" || norm == "proximo" {
         page = (page + 1).min(pages - 1);
         session.step = Step::Neighbourhoods { page };
-        return Ok(vec![text(neighbourhoods_prompt(&all, page, &session.draft.neighbourhoods))]);
+        return Ok(vec![text(neighbourhoods_prompt(
+            &all,
+            page,
+            &session.draft.neighbourhoods,
+        ))]);
     }
     if norm == "voltar" || norm == "anterior" {
         page = page.saturating_sub(1);
         session.step = Step::Neighbourhoods { page };
-        return Ok(vec![text(neighbourhoods_prompt(&all, page, &session.draft.neighbourhoods))]);
+        return Ok(vec![text(neighbourhoods_prompt(
+            &all,
+            page,
+            &session.draft.neighbourhoods,
+        ))]);
     }
     if raw.trim() == "0" || norm == "ok" || norm == "concluir" || norm == "todos" {
         session.draft.alert_name = Some(auto_alert_name(&session.draft));
         session.step = Step::Name;
-        return Ok(vec![text(name_prompt(session.draft.alert_name.as_deref().unwrap_or("Alerta")))]);
+        return Ok(vec![text(name_prompt(
+            session.draft.alert_name.as_deref().unwrap_or("Alerta"),
+        ))]);
     }
     if all.is_empty() {
-        return Ok(vec![text(neighbourhoods_prompt(&all, page, &session.draft.neighbourhoods))]);
+        return Ok(vec![text(neighbourhoods_prompt(
+            &all,
+            page,
+            &session.draft.neighbourhoods,
+        ))]);
     }
     let Some(indexes) = parse_index_list(raw) else {
         // Áudio/fala: buscar bairros pelo nome (pode vir mais de um).
         let norm = normalize_text(raw);
-        if norm.is_empty() || matches!(norm.as_str(), "qualquer" | "todas" | "todos" | "nenhum" | "indiferente" | "tanto faz") {
+        if norm.is_empty()
+            || matches!(
+                norm.as_str(),
+                "qualquer" | "todas" | "todos" | "nenhum" | "indiferente" | "tanto faz"
+            )
+        {
             session.draft.alert_name = Some(auto_alert_name(&session.draft));
             session.step = Step::Name;
-            return Ok(vec![text(name_prompt(session.draft.alert_name.as_deref().unwrap_or("Alerta")))]);
+            return Ok(vec![text(name_prompt(
+                session.draft.alert_name.as_deref().unwrap_or("Alerta"),
+            ))]);
         }
         let chunks: Vec<String> = raw
             .split(|ch: char| matches!(ch, ',' | ';' | '(' | ')'))
@@ -1314,50 +1599,87 @@ async fn on_neighbourhoods(
             .map(str::to_string)
             .collect();
         let matched = match_neighbourhoods(
-            if chunks.is_empty() { None } else { Some(&chunks) },
+            if chunks.is_empty() {
+                None
+            } else {
+                Some(&chunks)
+            },
             &all,
         );
         if matched.is_empty() {
             return Ok(vec![
                 text("Não reconheci esse bairro. Escolha um número da lista ou fale o nome."),
-                text(neighbourhoods_prompt(&all, page, &session.draft.neighbourhoods)),
+                text(neighbourhoods_prompt(
+                    &all,
+                    page,
+                    &session.draft.neighbourhoods,
+                )),
             ]);
         }
         for name in matched {
-            if let Some(pos) = session.draft.neighbourhoods.iter().position(|item| item == &name) {
+            if let Some(pos) = session
+                .draft
+                .neighbourhoods
+                .iter()
+                .position(|item| item == &name)
+            {
                 session.draft.neighbourhoods.remove(pos);
             } else {
                 session.draft.neighbourhoods.push(name);
             }
         }
         session.step = Step::Neighbourhoods { page };
-        return Ok(vec![text(neighbourhoods_prompt(&all, page, &session.draft.neighbourhoods))]);
+        return Ok(vec![text(neighbourhoods_prompt(
+            &all,
+            page,
+            &session.draft.neighbourhoods,
+        ))]);
     };
     let start = page * PAGE;
     for index in indexes {
         let Some(name) = all.get(start + index - 1) else {
             return Ok(vec![
                 text("Número fora desta página."),
-                text(neighbourhoods_prompt(&all, page, &session.draft.neighbourhoods)),
+                text(neighbourhoods_prompt(
+                    &all,
+                    page,
+                    &session.draft.neighbourhoods,
+                )),
             ]);
         };
-        if let Some(pos) = session.draft.neighbourhoods.iter().position(|item| item == name) {
+        if let Some(pos) = session
+            .draft
+            .neighbourhoods
+            .iter()
+            .position(|item| item == name)
+        {
             session.draft.neighbourhoods.remove(pos);
         } else {
             session.draft.neighbourhoods.push(name.clone());
         }
     }
     session.step = Step::Neighbourhoods { page };
-    Ok(vec![text(neighbourhoods_prompt(&all, page, &session.draft.neighbourhoods))])
+    Ok(vec![text(neighbourhoods_prompt(
+        &all,
+        page,
+        &session.draft.neighbourhoods,
+    ))])
 }
 
 fn on_name(session: &mut Session, raw: &str) -> Vec<OutMsg> {
     let name = if raw.trim() == "1" || normalize_text(raw) == "um" {
-        session.draft.alert_name.clone().unwrap_or_else(|| auto_alert_name(&session.draft))
+        session
+            .draft
+            .alert_name
+            .clone()
+            .unwrap_or_else(|| auto_alert_name(&session.draft))
     } else {
         let cleaned = raw.trim();
         if cleaned.chars().count() < 2 {
-            return vec![text("Nome inválido. Tente de novo."), text(name_prompt(&auto_alert_name(&session.draft)))];
+            return vec![
+                text("Nome inválido. Tente de novo."),
+                text(name_prompt(&auto_alert_name(&session.draft))),
+            ];
         }
         cleaned.chars().take(120).collect()
     };
@@ -1379,20 +1701,29 @@ async fn finish_alert(
             return Ok(vec![text("Ok! O alerta não foi salvo."), menu_message()]);
         }
         "1" => {}
-        _ => return Ok(vec![text("Responda *1* para confirmar ou *2* para cancelar.")]),
+        _ => {
+            return Ok(vec![text(
+                "Responda *1* para confirmar ou *2* para cancelar.",
+            )])
+        }
     }
     if session.draft.min_price.is_none() && session.draft.max_price.is_none() {
         session.step = Step::Price;
-        return Ok(vec![text("Falta a faixa de preço."), text(price_prompt(
-            session.draft.listing_kind.as_deref().unwrap_or("aluguel"),
-            session.draft.municipality.as_deref().unwrap_or("Maceió"),
-        ))]);
+        return Ok(vec![
+            text("Falta a faixa de preço."),
+            text(price_prompt(
+                session.draft.listing_kind.as_deref().unwrap_or("aluguel"),
+                session.draft.municipality.as_deref().unwrap_or("Maceió"),
+            )),
+        ]);
     }
     let status = match db.create_alert(chat_id, &session.draft, cfg).await {
         Ok(status) => status,
         Err(error) => {
             tracing::error!(%error, "criar alerta");
-            return Ok(vec![text("Não consegui salvar seu alerta agora. Tente novamente em instantes.")]);
+            return Ok(vec![text(
+                "Não consegui salvar seu alerta agora. Tente novamente em instantes.",
+            )]);
         }
     };
     match status {
@@ -1448,12 +1779,22 @@ async fn show_matches(
     };
     let mut messages = vec![text(intro)];
     if let Some(first) = ranked.first() {
-        messages.push(listing_message(&first.listing, 0, ranked.len(), Some(&first.headline)));
+        messages.extend(card_messages(
+            &first.listing,
+            0,
+            ranked.len(),
+            Some(&first.headline),
+        ));
     }
     Ok(messages)
 }
 
-fn listing_message(listing: &Listing, index: usize, total: usize, headline: Option<&str>) -> OutMsg {
+fn listing_message(
+    listing: &Listing,
+    index: usize,
+    total: usize,
+    headline: Option<&str>,
+) -> OutMsg {
     let caption = card_caption(listing, index, total, headline);
     if let Some(url) = listing.images.iter().find(|url| url.starts_with("http")) {
         OutMsg::Image {
@@ -1463,6 +1804,36 @@ fn listing_message(listing: &Listing, index: usize, total: usize, headline: Opti
     } else {
         text(caption)
     }
+}
+
+/// Botões do card do carrossel.
+///
+/// O WhatsApp aceita no máximo três respostas rápidas, então as três do toque
+/// são as que mais se usa (avançar, acompanhar, menu); "anterior" continua no
+/// texto e vira botão quando é o único caminho que resta (último card).
+fn card_buttons(index: usize, total: usize) -> Vec<Button> {
+    let mut items = Vec::new();
+    if index + 1 < total {
+        items.push(button("1", "Próximo"));
+    } else if index > 0 {
+        items.push(button("2", "Anterior"));
+    }
+    items.push(button("3", "Acompanhar"));
+    items.push(button("4", "Menu"));
+    items
+}
+
+/// Foto do imóvel + os botões de navegação do card.
+fn card_messages(
+    listing: &Listing,
+    index: usize,
+    total: usize,
+    headline: Option<&str>,
+) -> Vec<OutMsg> {
+    vec![
+        listing_message(listing, index, total, headline),
+        buttons(NAV_HINT.to_string(), card_buttons(index, total)),
+    ]
 }
 
 async fn on_match_carousel(
@@ -1500,11 +1871,7 @@ async fn on_match_carousel(
             *session = Session::menu();
             return Ok(vec![menu_message()]);
         }
-        Nav::Unknown => {
-            return Ok(vec![text(
-                "1 próximo · 2 anterior · 3 acompanhar · 4 menu",
-            )])
-        }
+        Nav::Unknown => return Ok(vec![text(NAV_HINT)]),
     }
     session.step = Step::MatchCarousel {
         index,
@@ -1513,12 +1880,14 @@ async fn on_match_carousel(
     let Some(listing) = db.listing(listing_ids[index]).await? else {
         return Ok(vec![text("Não achei esse anúncio.")]);
     };
-    Ok(vec![listing_message(&listing, index, listing_ids.len(), None)])
+    Ok(card_messages(&listing, index, listing_ids.len(), None))
 }
 
 async fn watch_reply(db: &Db, cfg: &Config, chat_id: i64, listing_id: i32) -> Vec<OutMsg> {
     match db.create_watch(chat_id, listing_id, cfg).await {
-        Ok(WatchStatus::Created(_)) => vec![text("Anúncio adicionado. Aviso se o preço mudar ou se sair do ar.")],
+        Ok(WatchStatus::Created(_)) => vec![text(
+            "Anúncio adicionado. Aviso se o preço mudar ou se sair do ar.",
+        )],
         Ok(WatchStatus::Duplicate(_)) => vec![text("Você já acompanha esse anúncio.")],
         Ok(WatchStatus::CapReached) => {
             let user = db.get_user(chat_id).await.ok().flatten();
@@ -1687,7 +2056,10 @@ async fn on_watch_carousel(
             index -= 1;
         }
         Nav::Third => {
-            let removed = db.delete_watch(chat_id, watch_ids[index]).await.unwrap_or(false);
+            let removed = db
+                .delete_watch(chat_id, watch_ids[index])
+                .await
+                .unwrap_or(false);
             let note = if removed {
                 "Parei de acompanhar esse anúncio."
             } else {
@@ -1710,7 +2082,10 @@ async fn on_watch_carousel(
         watch_ids: watch_ids.to_vec(),
     };
     let watches = db.watches(chat_id).await?;
-    let Some(watch) = watches.into_iter().find(|watch| watch.id == watch_ids[index]) else {
+    let Some(watch) = watches
+        .into_iter()
+        .find(|watch| watch.id == watch_ids[index])
+    else {
         return list_watches(db, chat_id, session).await;
     };
     Ok(vec![watch_message(&watch.listing, index, watch_ids.len())])
@@ -1746,20 +2121,31 @@ async fn on_email(
         Err(error) => {
             tracing::error!(%error, "trial de e-mail");
             *session = Session::menu();
-            return Ok(vec![text("Não consegui ativar o trial agora."), menu_message()]);
+            return Ok(vec![
+                text("Não consegui ativar o trial agora."),
+                menu_message(),
+            ]);
         }
     };
     let messages = match status {
         ClaimStatus::InvalidEmail => {
-            return Ok(vec![text("E-mail inválido. Envie de novo, ou *menu* para voltar.")]);
+            return Ok(vec![text(
+                "E-mail inválido. Envie de novo, ou *menu* para voltar.",
+            )]);
         }
         ClaimStatus::EmailTaken => {
             *session = Session::menu();
-            vec![text("Esse e-mail já foi usado em outra conta."), menu_message()]
+            vec![
+                text("Esse e-mail já foi usado em outra conta."),
+                menu_message(),
+            ]
         }
         ClaimStatus::AlreadyClaimed => {
             *session = Session::menu();
-            vec![text("Você já usou o trial de e-mail nesta conta."), menu_message()]
+            vec![
+                text("Você já usou o trial de e-mail nesta conta."),
+                menu_message(),
+            ]
         }
         ClaimStatus::AlreadyPro => {
             *session = Session::menu();
@@ -1813,4 +2199,32 @@ pub fn baseline_price(listing: &Listing) -> Option<i64> {
         json_fee(&listing.properties, "condominio"),
         json_fee(&listing.properties, "iptu"),
     )
+}
+
+#[cfg(test)]
+mod card_botoes {
+    use super::{card_buttons, interactive};
+
+    #[test]
+    fn nunca_passa_do_limite_da_whatsapp() {
+        for (index, total) in [(0usize, 5usize), (2, 5), (4, 5), (0, 1)] {
+            let itens = card_buttons(index, total);
+            assert!(
+                itens.len() <= interactive::MAX_BUTTONS,
+                "{index}/{total} pediu {} botões",
+                itens.len()
+            );
+            // O que não vira botão continua alcançável pelo número digitado.
+            assert!(itens.iter().any(|item| item.label == "Menu"));
+            assert!(itens.iter().any(|item| item.label == "Acompanhar"));
+        }
+    }
+
+    #[test]
+    fn primeiro_card_oferece_proximo_e_ultimo_oferece_anterior() {
+        assert_eq!(card_buttons(0, 5)[0].id, "1");
+        assert_eq!(card_buttons(4, 5)[0].id, "2");
+        // Card único: navegar não faz sentido, sobram acompanhar e menu.
+        assert_eq!(card_buttons(0, 1).len(), 2);
+    }
 }
