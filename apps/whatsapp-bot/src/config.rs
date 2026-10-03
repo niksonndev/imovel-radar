@@ -74,7 +74,7 @@ impl Config {
                 .unwrap_or_else(|_| "mock".to_string())
                 .trim()
                 .to_lowercase(),
-            llm_model: std::env::var("LLM_MODEL").unwrap_or_else(|_| "gpt-4o-mini".to_string()),
+            llm_model: std::env::var("LLM_MODEL").unwrap_or_else(|_| "gpt-5.4-mini".to_string()),
             openai_api_key: std::env::var("OPENAI_API_KEY").unwrap_or_default(),
             llm_timeout: Duration::from_secs_f64(timeout_secs.max(1.0)),
             assistant_memory_turns: env_i64("ASSISTANT_MEMORY_TURNS", 6).clamp(1, 20) as usize,

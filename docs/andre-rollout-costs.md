@@ -19,15 +19,15 @@ Os limites de criação de alertas e watchlist são validados no banco. Quotas p
 
 ## Custo variável: estimativa
 
-A tabela oficial consultada do [OpenAI API Pricing](https://developers.openai.com/api/docs/pricing/) informa para `gpt-4o-mini` Standard $0,15/1M tokens de entrada e $0,60/1M tokens de saída; Whisper $0,006/minuto. Os valores são USD e podem mudar; verificar novamente no dia do lançamento. A instrumentação grava tokens totais/entrada/saída e minutos/segundos de áudio agregados por usuário/dia, com alerta operacional configurável. Não registra conteúdo em telemetria.
+A tabela oficial consultada do [OpenAI API Pricing](https://developers.openai.com/api/docs/pricing/) informa para `gpt-5.4-mini` Standard $0,75/1M tokens de entrada ($0,075/1M em cache automático de prefixo) e $4,50/1M tokens de saída; Whisper $0,006/minuto. O modelo substituiu o `gpt-4o-mini` (US$ 0,15/1M entrada, US$ 0,60/1M saída) em outubro de 2026 por confiabilidade de function calling: o antigo deixava de emitir `create_alert` em pedidos de confirmação e confundia bairro com município na extração. Os valores são USD e podem mudar; verificar novamente no dia do lançamento. A instrumentação grava tokens totais/entrada/saída e minutos/segundos de áudio agregados por usuário/dia, com alerta operacional configurável. Não registra conteúdo em telemetria.
 
-Exemplo reproduzível, não previsão: supondo 1.500 tokens de entrada + 100 de saída por turno, cada turno custa aproximadamente `1500 × 0,15/1.000.000 + 100 × 0,60/1.000.000 = US$ 0,000285`.
+Exemplo reproduzível, não previsão: supondo 1.500 tokens de entrada + 100 de saída por turno, cada turno custa aproximadamente `1500 × 0,75/1.000.000 + 100 × 4,50/1.000.000 = US$ 0,001575`.
 
-- Free no teto diário: 50 turnos × 30 dias = 1.500 turnos, cerca de US$ 0,43/mês em texto.
-- Se todos os 5 áudios/dia durarem 2 minutos: 300 minutos/mês × US$ 0,006 = US$ 1,80; total ilustrativo de IA até US$ 2,23 por usuário/mês.
-- Pro no teto diário: 300 turnos × 30 dias = 9.000 turnos, cerca de US$ 2,57/mês em texto; 30 áudios/dia × 2 minutos × 30 dias = 1.800 minutos, US$ 10,80; total ilustrativo de IA até US$ 13,37 por usuário/mês.
+- Free no teto diário: 50 turnos × 30 dias = 1.500 turnos, cerca de US$ 2,36/mês em texto.
+- Se todos os 5 áudios/dia durarem 2 minutos: 300 minutos/mês × US$ 0,006 = US$ 1,80; total ilustrativo de IA até US$ 4,16 por usuário/mês.
+- Pro no teto diário: 300 turnos × 30 dias = 9.000 turnos, cerca de US$ 14,18/mês em texto; 30 áudios/dia × 2 minutos × 30 dias = 1.800 minutos, US$ 10,80; total ilustrativo de IA até US$ 24,98 por usuário/mês.
 
-O exemplo inclui os turnos de áudio também no volume de texto e acrescenta a transcrição. Não inclui falas mais longas, contexto/tokenização real, extrações de outros fluxos, retries, imposto, spread cambial, tráfego WhatsApp, Render, suporte nem margem. A memória de seis trocas e o prompt do sistema podem elevar tokens de entrada; medir p50/p95 real antes de decidir preço/caps. É possível estimar custo por usuário com os contadores `assistant_usage` / itens `usage#YYYY-MM-DD` e tarifas vigentes do modelo.
+O exemplo inclui os turnos de áudio também no volume de texto e acrescenta a transcrição. Não inclui falas mais longas, contexto/tokenização real, extrações de outros fluxos, retries, imposto, spread cambial, tráfego WhatsApp, Render, suporte nem margem. A memória de seis trocas e o prompt do sistema podem elevar tokens de entrada; medir p50/p95 real antes de decidir preço/caps. Medição em 03/10/2026 com o prompt de sistema e as tools de produção, turno isolado e histórico vazio: 1.094–1.178 tokens de entrada e 14–135 de saída, média de US$ 0,001058 por turno — US$ 1,59 (1.500 turnos) e US$ 9,52 (9.000 turnos) por mês, abaixo do exemplo porque a entrada medida ficou perto de 1.170 tokens, não 1.500. É possível estimar custo por usuário com os contadores `assistant_usage` / itens `usage#YYYY-MM-DD` e tarifas vigentes do modelo.
 
 Neon publica no [preçário oficial](https://neon.com/pricing) Free com 100 CU-h/projeto e 0,5 GB; Launch a US$ 0,106/CU-h e armazenamento a US$ 0,35/GB-mês (valores consultados em 29/09/2026). Como Postgres é compartilhado com scraper e outros serviços, não atribuir toda a conta ao André: estime o incremento com CPU/queries/armazenamento medidos e plano real.
 
