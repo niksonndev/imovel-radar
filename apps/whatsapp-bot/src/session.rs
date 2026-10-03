@@ -60,6 +60,8 @@ pub enum Step {
     Alerts { ids: Vec<i32> },
     AlertDetail { id: i32 },
     Email,
+    /// Escolhendo plano pago (o texto lê "1"/"2").
+    Assinar,
     MatchCarousel { index: usize, listing_ids: Vec<i32> },
     WatchCarousel { index: usize, watch_ids: Vec<i32> },
 }
@@ -95,6 +97,7 @@ pub enum GlobalCommand {
     Help,
     Cancel,
     Pro,
+    Paguei,
     Privacy,
     DeleteData,
     Support,
@@ -120,7 +123,10 @@ pub fn global_command(text: &str) -> Option<GlobalCommand> {
         "acompanhando" | "watchlist" => Some(GlobalCommand::Watching),
         "ajuda" | "help" => Some(GlobalCommand::Help),
         "cancelar" | "cancela" | "sair" => Some(GlobalCommand::Cancel),
-        "pro" | "radar pro" => Some(GlobalCommand::Pro),
+        "pro" | "radar pro" | "assinar" | "assinatura" | "assinar pro" | "pagar" => {
+            Some(GlobalCommand::Pro)
+        }
+        "ja paguei" | "paguei" | "paguei pro" | "pagamento feito" => Some(GlobalCommand::Paguei),
         "privacidade" | "politica de privacidade" | "termos" => Some(GlobalCommand::Privacy),
         "excluir dados" | "excluir_dados" | "apagar meus dados" => Some(GlobalCommand::DeleteData),
         "suporte" | "atendimento" => Some(GlobalCommand::Support),

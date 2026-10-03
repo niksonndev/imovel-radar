@@ -31,6 +31,18 @@ pub struct Config {
     pub alert_free_cap: i64,
     pub alert_pro_cap: i64,
     pub email_trial_days: i64,
+    /// Mercado Pago: sem `MP_ACCESS_TOKEN` o fluxo de assinatura avisa que o
+    /// pagamento ainda não está disponível em vez de gerar link quebrado.
+    pub mp_access_token: String,
+    /// Segredo do webhook (assinatura `x-signature`). Sem ele, toda notificação
+    /// é recusada — nunca aceitar sem provar origem.
+    pub mp_webhook_secret: String,
+    /// Preço em centavos e duração de cada plano pago (decisão do dono:
+    /// R$ 19,90/mês e R$ 99,99/6 meses).
+    pub pro_mensal_cents: i64,
+    pub pro_mensal_days: i64,
+    pub pro_semestral_cents: i64,
+    pub pro_semestral_days: i64,
     pub session_ttl_hours: i64,
     pub notify_stamp_path: String,
     /// Segundos que o boot espera pelo lock consultivo da sessão do WhatsApp
@@ -115,6 +127,18 @@ impl Config {
             alert_free_cap: env_i64("ALERT_FREE_CAP", 1),
             alert_pro_cap: env_i64("ALERT_PRO_CAP", 5),
             email_trial_days: env_i64("EMAIL_PRO_TRIAL_DAYS", 30),
+            mp_access_token: std::env::var("MP_ACCESS_TOKEN")
+                .unwrap_or_default()
+                .trim()
+                .to_string(),
+            mp_webhook_secret: std::env::var("MP_WEBHOOK_SECRET")
+                .unwrap_or_default()
+                .trim()
+                .to_string(),
+            pro_mensal_cents: env_i64("PRO_MENSAL_CENTS", 1990).max(100),
+            pro_mensal_days: env_i64("PRO_MENSAL_DAYS", 30).clamp(1, 3650),
+            pro_semestral_cents: env_i64("PRO_SEMESTRAL_CENTS", 9999).max(100),
+            pro_semestral_days: env_i64("PRO_SEMESTRAL_DAYS", 180).clamp(1, 3650),
             session_ttl_hours: env_i64("SESSION_TTL_HOURS", 4),
             notify_stamp_path,
             session_lock_wait_seconds: env_i64("WA_SESSION_LOCK_WAIT_SECONDS", 300).clamp(0, 3_600)

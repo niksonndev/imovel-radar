@@ -14,7 +14,7 @@ Atualizado em 01/10/2026. Pagamentos não estão disponíveis. O atendimento é 
 | Mercado | Snapshot recente; média e preço/m²; disclaimer de preço pedido |
 | Áudio de entrada | Mídia descriptografada pela biblioteca → Whisper, com limite e quota |
 | Privacidade | `privacidade`, `excluir dados`; exclusão da conta WhatsApp e dados associados |
-| Pagamentos | Desativados; benefícios de teste dependem de oferta disponível |
+| Pagamentos | Pix e cartão via Mercado Pago Checkout Pro (R$ 19,90/1 mês e R$ 99,99/6 meses). Inativo enquanto `MP_ACCESS_TOKEN` não existir; trial por e-mail continua |
 
 Os limites de criação de alertas e watchlist são validados no banco. Quotas padrão de IA são limites operacionais configuráveis, não benefícios prometidos em plano: Free 50 mensagens/5 áudios por dia; Pro 300 mensagens/30 áudios. Áudio limitado a 120 segundos e 20 MiB. A memória não é uma transcrição completa nem contexto permanente.
 
@@ -33,6 +33,18 @@ O exemplo inclui os turnos de áudio também no volume de texto e acrescenta a t
 Neon publica no [preçário oficial](https://neon.com/pricing) Free com 100 CU-h/projeto e 0,5 GB; Launch a US$ 0,106/CU-h e armazenamento a US$ 0,35/GB-mês (valores consultados em 29/09/2026). Como Postgres é compartilhado com scraper e outros serviços, não atribuir toda a conta ao André: estime o incremento com CPU/queries/armazenamento medidos e plano real.
 
 Para Lambda, medir duração, memória, arquitetura, região e requests do webhook e aplicar o [calculador/preçário AWS](https://aws.amazon.com/lambda/pricing/). Não foi incluído um valor fixo: deploy atual pode ter tráfego de EventBridge e serviços compartilhados, e o extrato da conta é a fonte para custo marginal.
+
+## Cobrança do Radar Pro (Mercado Pago)
+
+Não existe checkout dentro do WhatsApp para empresa no Brasil: a Meta encerrou o pagamento por cartão para PJ em 15/01/2026 e o caminho é Pix/link. O desenho implementado:
+
+1. `pro` (ou `assinar`) mostra os dois planos; a escolha cria a linha em `pagamento` e uma preferência no Mercado Pago (`/checkout/preferences`), devolvendo o link do checkout hospedado — Pix e cartão na mesma página.
+2. O link vai no **corpo** da mensagem (botão `cta_url` é recusado pelo servidor), e o bot nunca pede dado de cartão no chat.
+3. O webhook `POST /webhook/mercadopago` valida a assinatura `x-signature` (HMAC-SHA256 com `MP_WEBHOOK_SECRET`) e **confirma o pagamento em `GET /v1/payments/{id}`** — a notificação sozinha não é prova de pagamento, então sem essa segunda chamada um POST inventado viraria assinatura grátis.
+4. A ativação é um `UPDATE pagamento ... WHERE status = 'pendente' RETURNING` na mesma transação que estende `users.pro_until` (somando ao que resta). Webhook repetido não estende duas vezes.
+5. `já paguei` reconfere pela API (`/v1/payments/search?external_reference=...`): cobre webhook perdido durante um deploy.
+
+Para ligar a cobrança: [ ] migration `0014_pagamentos` aplicada; [ ] conta PJ no Mercado Pago e credenciais no painel (produção ≠ teste); [ ] `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET` no serviço; [ ] `/termos` e `/privacidade` atualizados com cobrança, reembolso e cancelamento; [ ] preço/limite conferidos contra o custo real do assistente.
 
 ## Gates antes de vender
 

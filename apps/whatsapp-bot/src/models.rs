@@ -51,6 +51,20 @@ pub struct ListingMatch {
     pub alert_id: i32,
 }
 
+/// Cobrança criada para uma pessoa. `referencia` é o `external_reference` do
+/// PSP e carrega o `chat_id`; `provider_payment_id` é único para a ativação
+/// repetida não estender o Pro duas vezes.
+#[derive(Debug, Clone)]
+pub struct Pagamento {
+    pub id: i64,
+    pub chat_id: i64,
+    pub referencia: String,
+    pub valor_centavos: i64,
+    pub dias: i64,
+    pub status: String,
+    pub provider_payment_id: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Watch {
     pub id: i32,

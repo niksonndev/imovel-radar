@@ -34,6 +34,20 @@ services:
         value: gpt-5.4-mini
       - key: ALERT_NL_ENABLED
         value: "true"
+      # Cobrança do Radar Pro. Os segredos ficam só no painel (sync: false); os
+      # preços ficam aqui para o valor anunciado no chat ser o mesmo cobrado.
+      - key: MP_ACCESS_TOKEN
+        sync: false
+      - key: MP_WEBHOOK_SECRET
+        sync: false
+      - key: PRO_MENSAL_CENTS
+        value: "1990"
+      - key: PRO_MENSAL_DAYS
+        value: "30"
+      - key: PRO_SEMESTRAL_CENTS
+        value: "9999"
+      - key: PRO_SEMESTRAL_DAYS
+        value: "180"
       - key: LOG_LEVEL
         value: INFO
       # Links de /privacidade e /termos enviados pelo bot. O fallback no código

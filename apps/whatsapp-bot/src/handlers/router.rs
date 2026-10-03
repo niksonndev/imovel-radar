@@ -19,10 +19,11 @@ use crate::session::{
 use crate::ui::{
     alert_detail, alerts_list, auto_alert_name, cap_alerts, cap_watches, card_caption,
     categories_prompt, category_options, city_prompt, confirm_prompt, edit_stub, help_text,
-    intent_prompt, kind_prompt, main_menu, name_prompt, neighbourhoods_prompt, price_max_prompt,
-    price_min_prompt, price_presets, price_prompt, pro_activated, pro_pitch, rooms_prompt,
-    watch_card_caption,
+    intent_prompt, kind_prompt, main_menu, name_prompt, neighbourhoods_prompt, pagamento_link,
+    planos_prompt, price_max_prompt, price_min_prompt, price_presets, price_prompt, pro_activated,
+    pro_pitch, rooms_prompt, watch_card_caption,
 };
+use crate::pagamentos;
 use crate::wa::interactive;
 
 /// Botão de resposta rápida. O `id` é exatamente a opção que o roteador já
@@ -177,7 +178,7 @@ async fn handle_inbound(
     }
 
     if let Some(command) = global_command(raw) {
-        return on_global(db, cfg, chat_id, &mut session, command).await;
+        return on_global(db, cfg, http, chat_id, &mut session, command).await;
     }
 
     let step = session.step.clone();
@@ -227,6 +228,7 @@ async fn handle_inbound(
         Step::DeleteAccountConfirm => on_delete_account_confirm(db, chat_id, &mut session, raw).await?,
         Step::Deleted => vec![text("Seus dados foram excluídos.")],
         Step::Email => on_email(db, cfg, chat_id, &mut session, raw).await?,
+        Step::Assinar => on_assinar_plano(db, cfg, http, chat_id, &mut session, raw).await?,
         Step::MatchCarousel { index, listing_ids } => {
             on_match_carousel(db, cfg, chat_id, &mut session, raw, index, &listing_ids).await?
         }
@@ -258,6 +260,7 @@ async fn store(
 async fn on_global(
     db: &Db,
     cfg: &Config,
+    http: &reqwest::Client,
     chat_id: i64,
     session: &mut Session,
     command: GlobalCommand,
@@ -283,7 +286,8 @@ async fn on_global(
         GlobalCommand::NewAlert => start_alert(cfg, session),
         GlobalCommand::MyAlerts => list_alerts(db, chat_id, session).await?,
         GlobalCommand::Watching => list_watches(db, chat_id, session).await?,
-        GlobalCommand::Pro => start_email(db, cfg, chat_id, session).await?,
+        GlobalCommand::Pro => on_assinatura(db, cfg, http, chat_id, session).await?,
+        GlobalCommand::Paguei => on_ja_paguei(db, cfg, http, chat_id, session).await?,
         GlobalCommand::Privacy => vec![text(format!(
             "Privacidade e uso dos dados: {}/privacidade\nTermos: {}/termos\n\nPara solicitar a exclusão dos dados, digite *excluir dados*.",
             cfg.public_site_url, cfg.public_site_url
@@ -788,6 +792,133 @@ async fn assistant_market(db: &Db, args: &Value) -> anyhow::Result<Vec<OutMsg>> 
         "{label} de {kind} {location}: *{}*{per_m2}{sample}.\n\nPreço pedido no OLX; valor pode mudar e a negociação é com o anunciante.",
         format_brl(Some(value))
     ))])
+}
+
+/// Oferta do Pro pago: dois planos, Pix ou cartão.
+///
+/// Sem `MP_ACCESS_TOKEN` cai no texto antigo (trial por e-mail), então ligar a
+/// cobrança é só configurar as credenciais — o comportamento de hoje não muda
+/// enquanto isso.
+async fn on_assinatura(
+    db: &Db,
+    cfg: &Config,
+    http: &reqwest::Client,
+    chat_id: i64,
+    session: &mut Session,
+) -> anyhow::Result<Vec<OutMsg>> {
+    let user = db.get_user(chat_id).await.ok().flatten();
+    if Db::is_pro(user.as_ref(), Utc::now()) {
+        session.step = Step::Menu;
+        let until = user
+            .as_ref()
+            .and_then(|user| user.pro_until)
+            .map(|until| until.format("%d/%m/%Y").to_string())
+            .unwrap_or_else(|| "—".to_string());
+        return Ok(vec![
+            text(format!("✅ *Radar Pro ativo* até {until}.")),
+            menu_message(),
+        ]);
+    }
+    let mp = pagamentos::MercadoPago::from_config(cfg, http.clone());
+    if !mp.habilitado() {
+        session.step = Step::Menu;
+        return Ok(vec![text(pro_pitch(cfg)), menu_message()]);
+    }
+    session.step = Step::Assinar;
+    let precos = pagamentos::PrecosPlanos::da_config(cfg);
+    let choices = pagamentos::planos(precos)
+        .iter()
+        .map(|plano| button(plano.id, &button_label(plano.titulo)))
+        .collect();
+    Ok(vec![buttons(planos_prompt(cfg), choices)])
+}
+
+/// Depois de escolhido o plano: cria a cobrança, gera o link e manda.
+async fn on_assinar_plano(
+    db: &Db,
+    cfg: &Config,
+    http: &reqwest::Client,
+    chat_id: i64,
+    session: &mut Session,
+    raw: &str,
+) -> anyhow::Result<Vec<OutMsg>> {
+    let precos = pagamentos::PrecosPlanos::da_config(cfg);
+    let Some(plano) = pagamentos::plano_por_id(precos, raw) else {
+        session.step = Step::Assinar;
+        return Ok(vec![text(
+            "Responda *1* para o plano de 1 mês ou *2* para o de 6 meses.",
+        )]);
+    };
+    let mp = pagamentos::MercadoPago::from_config(cfg, http.clone());
+    if !mp.habilitado() {
+        session.step = Step::Menu;
+        return Ok(vec![text(pro_pitch(cfg)), menu_message()]);
+    }
+    let referencia = pagamentos::nova_referencia(chat_id, &pagamentos::token_aleatorio());
+    db.criar_pagamento(chat_id, &referencia, plano.valor_centavos, plano.dias)
+        .await?;
+    match mp
+        .criar_preferencia(&referencia, plano.valor_centavos, plano.dias, plano.titulo)
+        .await
+    {
+        Ok(link) => {
+            session.step = Step::Menu;
+            Ok(vec![
+                text(pagamento_link(&link, plano.titulo, plano.valor_centavos)),
+                text("Assim que o pagamento entrar, o Pro liga sozinho e eu te aviso. Se liberar e nada acontecer, responda *já paguei*."),
+            ])
+        }
+        Err(error) => {
+            tracing::error!(%error, "criar preferência de pagamento");
+            session.step = Step::Menu;
+            Ok(vec![
+                text("Não consegui gerar o link de pagamento agora. Tente novamente em instantes."),
+                menu_message(),
+            ])
+        }
+    }
+}
+
+/// "Já paguei": reconfere na API em vez de mandar pagar de novo.
+async fn on_ja_paguei(
+    db: &Db,
+    cfg: &Config,
+    http: &reqwest::Client,
+    chat_id: i64,
+    session: &mut Session,
+) -> anyhow::Result<Vec<OutMsg>> {
+    let mp = pagamentos::MercadoPago::from_config(cfg, http.clone());
+    if !mp.habilitado() {
+        session.step = Step::Menu;
+        return Ok(vec![text(pro_pitch(cfg)), menu_message()]);
+    }
+    let Some(pendente) = db.pagamento_pendente(chat_id).await? else {
+        session.step = Step::Menu;
+        return Ok(vec![
+            text("Não encontrei uma cobrança em aberto nesta conversa. Responda *pro* para ver os planos."),
+            menu_message(),
+        ]);
+    };
+    session.step = Step::Menu;
+    let mensagem = match pagamentos::processar_referencia(db, &mp, &pendente.referencia).await {
+        Ok(pagamentos::ResultadoPagamento::Ativado { dias }) => {
+            format!("✅ Pagamento confirmado! *Radar Pro* ativo por {dias} dias.")
+        }
+        Ok(pagamentos::ResultadoPagamento::JaContabilizado) => {
+            "✅ Esse pagamento já estava contabilizado; seu Pro segue ativo.".to_string()
+        }
+        Ok(pagamentos::ResultadoPagamento::Recusado) => {
+            "O pagamento encontrado não confere com a cobrança desta conversa. Vou encaminhar ao suporte humano.".to_string()
+        }
+        Ok(_) => {
+            "Ainda não vejo o pagamento confirmado. Pix e boleto podem levar alguns minutos; se você pagou agora, tente de novo em instantes.".to_string()
+        }
+        Err(error) => {
+            tracing::error!(%error, "reconferir pagamento");
+            "Não consegui consultar o pagamento agora. Tente novamente em instantes.".to_string()
+        }
+    };
+    Ok(vec![text(mensagem), menu_message()])
 }
 
 async fn on_assistant_remove_choice(

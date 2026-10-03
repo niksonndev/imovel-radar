@@ -7,8 +7,8 @@ use sqlx::{PgPool, Postgres, QueryBuilder, Row};
 
 use crate::config::Config;
 use crate::models::{
-    json_strings, Alert, ClaimStatus, CreateAlertStatus, Listing, ListingMatch, User, Watch,
-    WatchStatus,
+    json_strings, Alert, ClaimStatus, CreateAlertStatus, Listing, ListingMatch, Pagamento, User,
+    Watch, WatchStatus,
 };
 use crate::money::{effective_listing_price, json_fee};
 use crate::session::{Draft, Session};
@@ -936,5 +936,133 @@ trait PipeOk<T> {
 impl<T> PipeOk<T> for T {
     fn pipe_ok(self) -> anyhow::Result<T> {
         Ok(self)
+    }
+}
+
+fn pagamento_from_row(row: sqlx::postgres::PgRow) -> anyhow::Result<Pagamento> {
+    use sqlx::Row;
+    Ok(Pagamento {
+        id: row.try_get("id")?,
+        chat_id: row.try_get("chat_id")?,
+        referencia: row.try_get("referencia")?,
+        valor_centavos: row.try_get("valor_centavos")?,
+        dias: row.try_get("dias")?,
+        status: row.try_get("status")?,
+        provider_payment_id: row.try_get("provider_payment_id")?,
+    })
+}
+
+/// Cobrança: criar a linha antes de gerar o link e confirmar depois que o PSP
+/// diz que foi pago. A confirmação é o único caminho que liga o Pro.
+impl Db {
+    pub async fn criar_pagamento(
+        &self,
+        chat_id: i64,
+        referencia: &str,
+        valor_centavos: i64,
+        dias: i64,
+    ) -> anyhow::Result<()> {
+        sqlx::query(
+            "INSERT INTO pagamento (chat_id, referencia, valor_centavos, dias)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (referencia) DO NOTHING",
+        )
+        .bind(chat_id)
+        .bind(referencia)
+        .bind(valor_centavos as i32)
+        .bind(dias as i32)
+        .execute(&self.pool)
+        .await
+        .context("criar pagamento")?;
+        Ok(())
+    }
+
+    pub async fn pagamento_por_referencia(
+        &self,
+        referencia: &str,
+    ) -> anyhow::Result<Option<Pagamento>> {
+        let row = sqlx::query(
+            "SELECT id, chat_id, referencia, valor_centavos, dias, status, provider_payment_id
+               FROM pagamento WHERE referencia = $1",
+        )
+        .bind(referencia)
+        .fetch_optional(&self.pool)
+        .await
+        .context("ler pagamento")?;
+        row.map(pagamento_from_row).transpose()
+    }
+
+    /// Última cobrança ainda pendente da pessoa (para reconferir na API).
+    pub async fn pagamento_pendente(&self, chat_id: i64) -> anyhow::Result<Option<Pagamento>> {
+        let row = sqlx::query(
+            "SELECT id, chat_id, referencia, valor_centavos, dias, status, provider_payment_id
+               FROM pagamento
+              WHERE chat_id = $1 AND status = 'pendente'
+              ORDER BY criado_em DESC LIMIT 1",
+        )
+        .bind(chat_id)
+        .fetch_optional(&self.pool)
+        .await
+        .context("ler pagamento pendente")?;
+        row.map(pagamento_from_row).transpose()
+    }
+
+    /// Marca como pago e estende o Pro — na primeira vez.
+    ///
+    /// O `WHERE status = 'pendente'` é o que garante idempotência: webhook
+    /// repetido (ou reconferência manual) não devolve linha e não estende de
+    /// novo. Tudo na mesma transação para não existir pagamento pago sem Pro.
+    pub async fn confirmar_pagamento(
+        &self,
+        referencia: &str,
+        provider_payment_id: &str,
+    ) -> anyhow::Result<Option<(i64, i64)>> {
+        let mut tx = self.pool.begin().await.context("abrir transação")?;
+        let row = sqlx::query(
+            "UPDATE pagamento
+                SET status = 'pago', pago_em = now(), provider_payment_id = $2
+              WHERE referencia = $1 AND status = 'pendente'
+              RETURNING chat_id, dias",
+        )
+        .bind(referencia)
+        .bind(provider_payment_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .context("marcar pagamento pago")?;
+        let Some(row) = row else {
+            tx.rollback().await.ok();
+            return Ok(None);
+        };
+        let chat_id: i64 = row.try_get("chat_id")?;
+        let dias: i64 = row.try_get("dias")?;
+        // Renova somando ao que ainda resta, em vez de zerar o prazo.
+        sqlx::query(
+            "UPDATE users
+                SET plan = 'pro',
+                    pro_until = GREATEST(COALESCE(pro_until, now()), now())
+                                + make_interval(days => $2::int)
+              WHERE chat_id = $1",
+        )
+        .bind(chat_id)
+        .bind(dias as i32)
+        .execute(&mut *tx)
+        .await
+        .context("estender pro")?;
+        tx.commit().await.context("confirmar pagamento")?;
+        Ok(Some((chat_id, dias)))
+    }
+
+    /// Pagamento pago que não confere com a cobrança: fica registrado e não
+    /// ativa, para não ser reconferido para sempre.
+    pub async fn marcar_pagamento_recusado(&self, referencia: &str) -> anyhow::Result<()> {
+        sqlx::query(
+            "UPDATE pagamento SET status = 'recusado'
+              WHERE referencia = $1 AND status = 'pendente'",
+        )
+        .bind(referencia)
+        .execute(&self.pool)
+        .await
+        .context("marcar pagamento recusado")?;
+        Ok(())
     }
 }

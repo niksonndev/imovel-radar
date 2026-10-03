@@ -35,8 +35,13 @@ async fn main() -> anyhow::Result<()> {
     let port = cfg.port;
     let secret = cfg.pair_secret.clone();
     let pairing_http = pairing.clone();
+    let cfg_http = cfg.clone();
+    let db_http = db.clone();
+    let http_for_webhook = http_client.clone();
     let http_task = tokio::spawn(async move {
-        if let Err(error) = http::serve(port, pairing_http, secret).await {
+        if let Err(error) =
+            http::serve(port, pairing_http, secret, db_http, cfg_http, http_for_webhook).await
+        {
             tracing::error!(%error, "http encerrou");
         }
     });

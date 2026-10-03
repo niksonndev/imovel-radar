@@ -68,6 +68,34 @@ Toque num botão ou responda com o número."
         .to_string()
 }
 
+/// Oferta dos planos pagos. Preço vem da configuração — nunca escreva valor
+/// fixo no texto, senão o preço anunciado e o cobrado divergem.
+pub fn planos_prompt(cfg: &Config) -> String {
+    let precos = crate::pagamentos::PrecosPlanos::da_config(cfg);
+    let mut linhas = vec!["🚀 *Radar Pro*".to_string(), String::new()];
+    for plano in crate::pagamentos::planos(precos) {
+        linhas.push(format!(
+            "{}. {} — {}",
+            plano.id,
+            plano.titulo,
+            crate::pagamentos::format_centavos(plano.valor_centavos)
+        ));
+    }
+    linhas.push(String::new());
+    linhas.push("Mais alertas, mais anúncios acompanhados e cotas maiores de mensagens e áudio.".to_string());
+    linhas.push("Pagamento por *Pix* ou *cartão*, na página do Mercado Pago. Sem renovação automática: você decide se renova.".to_string());
+    linhas.push(String::new());
+    linhas.push("Responda com o número do plano ou toque no botão.".to_string());
+    linhas.join("\n")
+}
+
+pub fn pagamento_link(link: &str, titulo: &str, valor_centavos: i64) -> String {
+    format!(
+        "💳 *{titulo}*\n\nValor: *{}*\n\nPague no link abaixo (Pix ou cartão):\n{link}",
+        crate::pagamentos::format_centavos(valor_centavos)
+    )
+}
+
 pub fn help_text() -> String {
     "\
 *Comandos*
@@ -77,6 +105,8 @@ meus alertas — listar e apagar
 acompanhando — anúncios que você segue
 áudio — envie mensagem de voz de até 120 segundos quando a transcrição estiver habilitada
 pro — trial Radar Pro por e-mail
+assinar — Radar Pro pago (Pix ou cartão)
+já paguei — conferir um pagamento que não liberou
 privacidade — política, termos e uso dos dados
 excluir dados — solicita exclusão da conta e dos dados
 suporte — canal de atendimento do operador, quando configurado
