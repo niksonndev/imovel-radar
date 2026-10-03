@@ -160,6 +160,8 @@ def _cursor(
     run_started_at: str | None,
     skip_deactivate: bool,
     fanned_out: bool = False,
+    price_min: int | None = None,
+    price_max: int | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "market": market,
@@ -169,6 +171,12 @@ def _cursor(
         "attempt": attempt,
         "run_started_at": run_started_at,
     }
+    # Faixa explícita = fatia filha (nascida de uma fatia que clampou). A faixa
+    # viaja no payload porque a filha não existe no config.
+    if price_min is not None:
+        payload["price_min"] = price_min
+    if price_max is not None:
+        payload["price_max"] = price_max
     if skip_deactivate:
         payload["skip_deactivate"] = True
     if fanned_out:
@@ -375,6 +383,11 @@ async def run(
     skip_deactivate = bool(payload.get("skip_deactivate")) or smoke
     run_started_at = parse_run_started_at(payload.get("run_started_at"))
     fanned_out = bool(payload.get("fanned_out"))
+    # Faixa explícita: fatia filha de uma faixa que a OLX clampou.
+    faixa_min = payload.get("price_min")
+    faixa_max = payload.get("price_max")
+    price_min = int(faixa_min) if faixa_min is not None else None
+    price_max = int(faixa_max) if faixa_max is not None else None
     # Smoke CI: 2 páginas. Não mutar SCRAPER_MAX_PAGES na Lambda (isso
     # derruba a cadeia diária e o self-invoke seguinte vira full scrape).
     max_pages = 2 if smoke else None
@@ -395,6 +408,8 @@ async def run(
         run_started_at=run_started_at,
         get_remaining_ms=get_remaining_ms,
         max_pages=max_pages,
+        price_min=price_min,
+        price_max=price_max,
     )
 
     # Propaga fanned_out do payload para o result, para que a cadeia saiba
@@ -418,6 +433,28 @@ async def run(
         # auto-invocações parem ao final da fatia 0 (as demais fatias já
         # foram disparadas em paralelo e seguem suas próprias cadeias).
         result["fanned_out"] = True
+
+    # Fatia clampada: a OLX não passa da página 100, então a faixa foi repartida
+    # em duas filhas (`dividir_em`). Cada filha roda a própria cadeia, com o
+    # mesmo watermark do run — é assim que a cobertura deixa de depender de
+    # página funda: quando a faixa é grande demais, ela vira duas menores.
+    filhas = result.get("dividir_em") or []
+    if filhas and not smoke:
+        rs_at = run_started_at.isoformat() if run_started_at is not None else None
+        for filha in filhas:
+            _self_invoke(
+                _cursor(
+                    market=market,
+                    listing_kind=listing_kind,
+                    slice_index=int(filha["slice_index"]),
+                    start_page=1,
+                    attempt=0,
+                    run_started_at=rs_at,
+                    skip_deactivate=False,
+                    price_min=filha.get("price_min"),
+                    price_max=filha.get("price_max"),
+                )
+            )
 
     snapshot = 0
     if smoke:

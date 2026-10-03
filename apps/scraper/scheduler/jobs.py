@@ -15,9 +15,10 @@ import time
 from datetime import UTC, datetime
 from typing import Any, Callable
 
-from shared_models.tables import ListingKind
+from shared_models.tables import Listing, ListingKind
+from sqlalchemy import func as sql_func
 from sqlalchemy.exc import DBAPIError
-from sqlmodel import Session
+from sqlmodel import Session, col, select
 
 import config
 from collector import base_url_for_kind, search_listings
@@ -26,6 +27,7 @@ from database.queries import (
     deactivate_missing_listings,
     fatias_pendentes,
     marcar_fatia,
+    semear_fatias,
     upsert_listing,
 )
 
@@ -52,6 +54,20 @@ def _is_retryable_db_error(error: Exception) -> bool:
     return "deadlock detected" in texto or "could not serialize" in texto
 
 
+def _semear_com_retry(**kwargs: Any) -> None:
+    """``semear_fatias`` com o mesmo retry de deadlock da gravação."""
+    for tentativa in range(MAX_PERSIST_ATTEMPTS):
+        try:
+            with Session(engine) as session:
+                semear_fatias(session, **kwargs)
+                session.commit()
+            return
+        except DBAPIError as error:
+            if not _is_retryable_db_error(error) or tentativa == MAX_PERSIST_ATTEMPTS - 1:
+                raise
+            time.sleep(0.5 * (2**tentativa) + random.uniform(0, 0.3))
+
+
 def _persist_chunk(
     *,
     listings: list[Any],
@@ -61,6 +77,7 @@ def _persist_chunk(
     deactivate: bool,
     slice_index: int | None = None,
     slice_status: str | None = None,
+    filhas: list[tuple[int, int | None, int | None]] | None = None,
 ) -> int:
     """Grava um chunk (e inativa, quando é a última fatia) numa transação.
 
@@ -79,13 +96,35 @@ def _persist_chunk(
                 slice_index=slice_index,
                 status=slice_status,
             )
+        # As filhas nascem AGENDADAS na mesma transação: se a cadeia delas morrer
+        # sem rodar, elas ficam 'pending' e o portão de inativação continua
+        # fechado (era o furo de confiar que "a última fatia inativa o resto").
+        for indice_filha, lo, hi in filhas or []:
+            marcar_fatia(
+                session,
+                run_started_at=run_started_at,
+                market=source_market,
+                listing_kind=listing_kind,
+                slice_index=indice_filha,
+                status="pending",
+            )
+            logger.info(
+                "Fatia repartida: faixa [%s, %s) vira a filha %s [%s, %s)",
+                None,
+                None,
+                indice_filha,
+                lo,
+                hi,
+            )
         deactivated = 0
         if deactivate:
+            raizes = len(slices_for_kind(listing_kind, source_market))
             pendentes = fatias_pendentes(
                 session,
                 run_started_at=run_started_at,
                 market=source_market,
                 listing_kind=listing_kind,
+                raizes=raizes,
             )
             if pendentes:
                 # Alguma fatia clampou (a OLX para na página 100) ou morreu:
@@ -145,11 +184,73 @@ def should_deactivate_after_slice(
     market: str | None = None,
     skip_deactivate: bool = False,
 ) -> bool:
-    """Desativa só quando a última fatia do kind terminou de verdade."""
-    if skip_deactivate or not completed:
-        return False
-    slices = slices_for_kind(listing_kind, market)
-    return slice_index == len(slices) - 1
+    """Toda fatia tenta inativar; quem decide é o placar (`fatias_pendentes`).
+
+    Antes esta função dizia "só a última fatia inativa", o que supunha que todas
+    as outras tinham passado — e elas clampam (a OLX para na página 100). Agora a
+    tentativa é livre e o portão exige que TODAS tenham fechado a própria faixa
+    (``ok``) ou sido repartidas em filhas que fecharam (``split``).
+    """
+    del listing_kind, slice_index, market
+    return completed and not skip_deactivate
+
+
+def banda_filha(slice_index: int, primeiro: bool) -> int:
+    """Índice da filha de uma fatia repartida.
+
+    Raízes ficam em ``0..N-1`` (índices das fatias do config, que a cadeia usa
+    para avançar de tipo/cidade) e as filhas vivem em ``100+``: ``2*i + 100`` e
+    ``2*i + 101``. A numeração não colide com as raízes nem entre gerações.
+    """
+    return 100 + 2 * slice_index + (0 if primeiro else 1)
+
+
+def repartir_faixa(
+    price_min: int | None, price_max: int | None
+) -> list[tuple[int | None, int | None]]:
+    """Divide uma faixa ao meio para as filhas.
+
+    Sem teto superior não há meio geométrico: corta-se na mediana observada do
+    banco (`mediana_de_preco`), que é o que faz a faixa de cima parar de clamp.
+    """
+    if price_max is None:
+        corte = mediana_de_preco(price_min) if price_min is not None else None
+        if corte is None:
+            return []
+        return [(price_min, corte), (corte, None)]
+    if price_min is None:
+        return [(None, max(1, price_max // 2)), (max(1, price_max // 2), price_max)]
+    meio = price_min + (price_max - price_min) // 2
+    if meio <= price_min:
+        return []
+    return [(price_min, meio), (meio, price_max)]
+
+
+def mediana_de_preco(piso: int | None) -> int | None:
+    """Mediana dos preços acima de ``piso`` em qualquer mercado/cidade.
+
+    A OLX devolve o preço do anúncio, então a mediana do que já está no banco é
+    uma estimativa boa do meio da faixa — é medida, não chute.
+    """
+    try:
+        with Session(engine) as session:
+            consulta = (
+                select(
+                    sql_func.percentile_cont(0.5).within_group(col(Listing.price_value).asc())
+                )
+                .select_from(Listing)
+                .where(
+                    col(Listing.active).is_(True),
+                    col(Listing.price_value).is_not(None),
+                )
+            )
+            if piso is not None:
+                consulta = consulta.where(col(Listing.price_value) >= piso)
+            valor = session.exec(consulta).one()
+    except Exception:
+        logger.exception("Não consegui medir a mediana de preço (piso=%s)", piso)
+        return None
+    return int(valor) if valor else None
 
 
 def parse_run_started_at(raw: str | None) -> datetime:
@@ -181,17 +282,24 @@ async def job_collect_chunk(
     run_started_at: datetime | None = None,
     get_remaining_ms: RemainingTimeFn | None = None,
     max_pages: int | None = None,
+    price_min: int | None = None,
+    price_max: int | None = None,
 ) -> dict[str, Any]:
     """Coleta uma janela de páginas de uma fatia e persiste.
 
+    ``price_min``/``price_max`` explícitos identificam uma fatia FILHA (nascida
+    da repartição de uma fatia que clampou) — nesse caso a faixa vem do payload,
+    não do config.
+
     Returns:
       success, count, market, listing_kind, slice_index, completed, clamped,
-      next_page, attempt, run_started_at (iso), deactivated (int, só na última
-      fatia concluída), skip_deactivate.
+      next_page, attempt, run_started_at (iso), deactivated, dividir_em (faixas
+      filhas quando a OLX clampou).
     """
     chosen = config.market_by_key(market)
     started = run_started_at or datetime.now(UTC)
     slices = slices_for_kind(listing_kind, chosen.key)
+    filha = price_min is not None or price_max is not None
     result: dict[str, Any] = {
         "success": 0,
         "count": 0,
@@ -206,8 +314,9 @@ async def job_collect_chunk(
         "run_started_at": started.isoformat(),
         "deactivated": 0,
         "start_page": start_page,
+        "dividir_em": [],
     }
-    if slice_index < 0 or slice_index >= len(slices):
+    if not filha and (slice_index < 0 or slice_index >= len(slices)):
         logger.error(
             "slice_index inválido: %s (kind=%s, fatias=%s)",
             slice_index,
@@ -216,7 +325,17 @@ async def job_collect_chunk(
         )
         return result
 
-    price_min, price_max = slices[slice_index]
+    if not filha:
+        price_min, price_max = slices[slice_index]
+    if slice_index == 0 and not filha:
+        # Marca o tipo inteiro como pendente antes de qualquer fatia rodar: o
+        # portão de inativação precisa saber que existem faixas ainda não vistas.
+        _semear_com_retry(
+            run_started_at=started,
+            market=chosen.key,
+            listing_kind=listing_kind,
+            quantidade=len(slices),
+        )
     try:
         logger.info(
             "Collect chunk: start market=%s kind=%s slice=%s/%s page=%s attempt=%s "
@@ -249,12 +368,24 @@ async def job_collect_chunk(
             skip_deactivate=skip_deactivate or chunk.clamped,
         )
         # A fatia só "termina" quando não há próxima página: aí dá para dizer se
-        # ela viu o mercado inteiro (ok), se a OLX clampou ou se morreu no meio.
+        # ela viu o mercado inteiro (ok), se a OLX clampou (aí a faixa é
+        # repartida em duas filhas) ou se morreu no meio.
         fim_da_fatia = chunk.next_page is None
+        filhas: list[tuple[int, int | None, int | None]] = []
         if not fim_da_fatia:
             status_da_fatia = None
         elif chunk.clamped:
-            status_da_fatia = "clamped"
+            faixas = repartir_faixa(price_min, price_max)
+            if faixas:
+                filhas = [
+                    (banda_filha(slice_index, indice == 0), lo, hi)
+                    for indice, (lo, hi) in enumerate(faixas)
+                ]
+                status_da_fatia = "split"
+            else:
+                # Sem mediana não dá para cortar a faixa: fica bloqueando a
+                # inativação (melhor não inativar do que inativar às cegas).
+                status_da_fatia = "clamped"
         elif chunk.completed:
             status_da_fatia = "ok"
         else:
@@ -267,7 +398,22 @@ async def job_collect_chunk(
             deactivate=deactivate,
             slice_index=slice_index,
             slice_status=status_da_fatia,
+            filhas=filhas,
         )
+        result["dividir_em"] = [
+            {"slice_index": indice, "price_min": lo, "price_max": hi}
+            for indice, lo, hi in filhas
+        ]
+        if filhas:
+            logger.warning(
+                "Fatia %s (kind=%s market=%s) clampou na faixa [%s, %s): repartida em %s",
+                slice_index,
+                listing_kind,
+                chosen.key,
+                price_min,
+                price_max,
+                [ficha["slice_index"] for ficha in result["dividir_em"]],
+            )
         if deactivate:
             logger.info(
                 "Deactivated %s missing listings (kind=%s slice=%s market=%s)",

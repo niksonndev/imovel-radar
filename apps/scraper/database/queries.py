@@ -72,7 +72,12 @@ def marcar_fatia(
     slice_index: int,
     status: str,
 ) -> None:
-    """Registra como terminou uma fatia: ``ok``, ``clamped`` ou ``failed``."""
+    """Registra como terminou uma fatia desta varredura.
+
+    Vocabulário: ``ok`` (viu a faixa inteira), ``split`` (a OLX clampou e a
+    faixa foi repartida em duas filhas), ``pending`` (agendada ou filha
+    aguardando), ``failed``/``clamped`` (herança: bloqueiam a inativação).
+    """
     values = {
         "run_started_at": run_started_at,
         "market": market,
@@ -90,18 +95,64 @@ def marcar_fatia(
     )
 
 
+def semear_fatias(
+    session: Session,
+    *,
+    run_started_at: datetime,
+    market: str,
+    listing_kind: ListingKind,
+    quantidade: int,
+) -> None:
+    """Marca as fatias do run como ``pending`` antes de qualquer uma rodar.
+
+    Sem isto o portão de inativação não sabe a diferença entre "fatia boa" e
+    "fatia que ninguém visitou": uma fatia que nunca começou não tem linha, e o
+    placar pareceria completo. ``DO NOTHING`` para não sobrescrever o que já
+    terminou quando a cadeia é retomada.
+    """
+    if quantidade <= 0:
+        return
+    stmt = postgres_insert(CollectSlice).values(
+        [
+            {
+                "run_started_at": run_started_at,
+                "market": market,
+                "listing_kind": listing_kind,
+                "slice_index": indice,
+                "status": "pending",
+                "updated_at": func.now(),
+            }
+            for indice in range(quantidade)
+        ]
+    )
+    session.exec(stmt.on_conflict_do_nothing(index_elements=[
+        "run_started_at",
+        "market",
+        "listing_kind",
+        "slice_index",
+    ]))
+
+
 def fatias_pendentes(
     session: Session,
     *,
     run_started_at: datetime,
     market: str,
     listing_kind: ListingKind,
+    raizes: int = 0,
 ) -> int:
-    """Quantas fatias marcadas neste run NÃO terminaram ``ok``.
+    """Quantas fatias deste run ainda não fecharam a faixa.
 
-    Zero significa que o walk viu o mercado/tipo inteiro e pode inativar o que
-    não encontrou. Nenhuma fatia marcada (cadeia morta antes de terminar, erro
-    no banco) também bloqueia: não viu nada, não inativa.
+    Fecha a faixa quem terminou ``ok`` (viu tudo) ou ``split`` (a OLX clampou e
+    as filhas passaram a cobrir o pedaço). Zero significa que o walk viu o
+    mercado/tipo inteiro e pode inativar o que não encontrou. Nenhuma fatia
+    marcada (cadeia morta antes de terminar, erro no banco) também bloqueia: não
+    viu nada, não inativa.
+
+    ``raizes`` é o número de fatias do config para aquele mercado/tipo: uma raiz
+    sem linha (ou pendente) conta como não fechada. Sem isso, invocar uma fatia
+    do meio da varredura na mão faria o placar parecer completo e a inativação
+    rodaria sobre cobertura parcial — tirando do ar anúncio que ninguém olhou.
     """
     base = (
         select(func.count())
@@ -115,8 +166,20 @@ def fatias_pendentes(
     total = session.exec(base).one()
     if int(total) == 0:
         return 1
-    problemas = session.exec(base.where(col(CollectSlice.status) != "ok")).one()
-    return int(problemas)
+    problemas = int(
+        session.exec(base.where(col(CollectSlice.status).notin_(("ok", "split")))).one()
+    )
+    if raizes > 0:
+        fechadas = int(
+            session.exec(
+                base.where(
+                    col(CollectSlice.slice_index) < raizes,
+                    col(CollectSlice.status).in_(("ok", "split")),
+                )
+            ).one()
+        )
+        problemas += max(0, raizes - fechadas)
+    return problemas
 
 
 def deactivate_missing_listings(

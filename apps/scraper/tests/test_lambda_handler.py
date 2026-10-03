@@ -418,6 +418,98 @@ def test_run_after_fan_out_marks_main_chain_fanned_out(
     assert invoked[0].get("fanned_out") is True
 
 
+def test_run_reparte_faixa_clampada_em_duas_filhas(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fatia clampada dispara as filhas com a faixa no payload."""
+    invoked: list[dict[str, Any]] = []
+
+    async def _chunk_clampado(**kwargs: Any) -> dict[str, Any]:
+        assert kwargs["price_min"] is None  # raiz: faixa vem do config
+        return {
+            "success": 1,
+            "count": 4000,
+            "market": "recife",
+            "listing_kind": "venda",
+            "slice_index": 3,
+            "completed": False,
+            "clamped": True,
+            "next_page": None,
+            "attempt": 0,
+            "run_started_at": "2026-01-01T00:00:00+00:00",
+            "deactivated": 0,
+            "dividir_em": [
+                {"slice_index": 106, "price_min": 400_000, "price_max": 425_000},
+                {"slice_index": 107, "price_min": 425_000, "price_max": 450_000},
+            ],
+        }
+
+    monkeypatch.setattr(lambda_handler, "job_collect_chunk", _chunk_clampado)
+    monkeypatch.setattr(lambda_handler, "_self_invoke", invoked.append)
+    monkeypatch.setattr(lambda_handler, "_fan_out_slices", lambda **_k: None)
+
+    asyncio.run(
+        lambda_handler.run(
+            {
+                "listing_kind": "venda",
+                "market": "recife",
+                "slice_index": 3,
+                "attempt": 0,
+                "run_started_at": "2026-01-01T00:00:00+00:00",
+            }
+        )
+    )
+
+    filhas = [p for p in invoked if p.get("slice_index") in (106, 107)]
+    assert len(filhas) == 2
+    primeira = next(p for p in filhas if p["slice_index"] == 106)
+    assert primeira["price_min"] == 400_000
+    assert primeira["price_max"] == 425_000
+    assert primeira["attempt"] == 0
+    assert primeira["run_started_at"] == "2026-01-01T00:00:00+00:00"
+    assert primeira["market"] == "recife"
+
+
+def test_run_repassa_a_faixa_do_payload_para_o_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    visto: dict[str, Any] = {}
+
+    async def _chunk_filha(**kwargs: Any) -> dict[str, Any]:
+        visto.update(kwargs)
+        return {
+            "success": 1,
+            "count": 300,
+            "market": "recife",
+            "listing_kind": "venda",
+            "slice_index": 106,
+            "completed": True,
+            "clamped": False,
+            "next_page": None,
+            "attempt": 0,
+            "run_started_at": "2026-01-01T00:00:00+00:00",
+            "deactivated": 0,
+            "dividir_em": [],
+        }
+
+    monkeypatch.setattr(lambda_handler, "job_collect_chunk", _chunk_filha)
+    monkeypatch.setattr(lambda_handler, "_self_invoke", lambda _p: None)
+
+    asyncio.run(
+        lambda_handler.run(
+            {
+                "listing_kind": "venda",
+                "market": "recife",
+                "slice_index": 106,
+                "attempt": 0,
+                "price_min": 400_000,
+                "price_max": 425_000,
+                "run_started_at": "2026-01-01T00:00:00+00:00",
+            }
+        )
+    )
+
+    assert visto["price_min"] == 400_000
+    assert visto["price_max"] == 425_000
+    assert visto["slice_index"] == 106
+
+
 def test_root_logger_honors_config_level() -> None:
     expected = getattr(logging, config.LOG_LEVEL, logging.INFO)
     assert logging.getLogger().level == expected

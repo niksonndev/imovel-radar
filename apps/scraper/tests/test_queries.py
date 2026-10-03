@@ -11,6 +11,7 @@ from database.queries import (
     fatias_pendentes,
     get_neighbourhoods,
     marcar_fatia,
+    semear_fatias,
     upsert_listing,
 )
 
@@ -95,6 +96,105 @@ def test_marcar_fatia_atualiza_status_em_retentativa(session: Session) -> None:
     _marcar(session, run, 5, "ok")
     session.commit()
 
+    assert (
+        fatias_pendentes(
+            session, run_started_at=run, market="recife", listing_kind="venda"
+        )
+        == 0
+    )
+
+
+def test_semear_fatias_marca_pendentes_e_nao_sobrescreve(session: Session) -> None:
+    """A semeadura abre o placar do tipo; retomada da cadeia não apaga o que fechou."""
+    run = datetime.now(UTC)
+
+    semear_fatias(
+        session,
+        run_started_at=run,
+        market="recife",
+        listing_kind="venda",
+        quantidade=3,
+    )
+    session.commit()
+    assert (
+        fatias_pendentes(
+            session, run_started_at=run, market="recife", listing_kind="venda"
+        )
+        == 3
+    )
+
+    marcar_fatia(
+        session,
+        run_started_at=run,
+        market="recife",
+        listing_kind="venda",
+        slice_index=1,
+        status="ok",
+    )
+    session.commit()
+
+    # Cadeia retomada re-semeia: o 'ok' tem de sobreviver.
+    semear_fatias(
+        session,
+        run_started_at=run,
+        market="recife",
+        listing_kind="venda",
+        quantidade=3,
+    )
+    session.commit()
+
+    assert (
+        fatias_pendentes(
+            session, run_started_at=run, market="recife", listing_kind="venda"
+        )
+        == 2
+    )
+
+
+def test_fatias_pendentes_raiz_sem_placar_bloqueia(session: Session) -> None:
+    """Raiz que ninguém visitou conta como pendente (cobertura parcial).
+
+    Protege contra invocar uma fatia do meio na mão: sem as outras raízes, o
+    placar pareceria completo e a inativação rodaria sobre o que não foi visto.
+    """
+    run = datetime.now(UTC)
+    marcar_fatia(
+        session,
+        run_started_at=run,
+        market="recife",
+        listing_kind="venda",
+        slice_index=3,
+        status="split",
+    )
+    marcar_fatia(
+        session,
+        run_started_at=run,
+        market="recife",
+        listing_kind="venda",
+        slice_index=106,
+        status="ok",
+    )
+    marcar_fatia(
+        session,
+        run_started_at=run,
+        market="recife",
+        listing_kind="venda",
+        slice_index=107,
+        status="ok",
+    )
+    session.commit()
+
+    assert (
+        fatias_pendentes(
+            session,
+            run_started_at=run,
+            market="recife",
+            listing_kind="venda",
+            raizes=14,
+        )
+        == 13
+    )
+    # Sem exigir as raízes (chamada antiga), o placar pareceria fechado.
     assert (
         fatias_pendentes(
             session, run_started_at=run, market="recife", listing_kind="venda"
