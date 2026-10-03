@@ -35,3 +35,16 @@ def test_extract_listings_from_search_page_uses_real_fixture(monkeypatch) -> Non
 
     assert len(listings) == 1
     assert listings[0] == expected_listing
+
+
+def test_normalize_olx_listing_guarda_so_a_primeira_imagem() -> None:
+    """O array completo era 62% do peso da tabela e ninguém consome a galeria.
+
+    O bot envia só a primeira imagem e o frontend não usa `listing.images`.
+    """
+    raw_listing = _load_fixture("raw_olx_ad.json")
+    assert len(raw_listing["images"]) > 1  # a fixture tem várias de propósito
+
+    listing = normalize_olx_listing(raw_listing)
+
+    assert listing["images"] == [raw_listing["images"][0]["originalWebp"]]

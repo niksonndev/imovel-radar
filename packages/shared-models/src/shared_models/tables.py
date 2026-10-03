@@ -79,6 +79,14 @@ class Listing(SQLModel, table=True):
     category: str
     images: list[str] = Field(sa_column=Column("images", JSON, nullable=False))
     properties: dict[str, Any] = Field(sa_column=Column("properties", JSON, nullable=False))
+    # Qual varredura viu o anúncio por último ("maceio", "recife", ...). É o
+    # escopo da inativação: a URL de uma cidade devolve a região metropolitana
+    # inteira, então inativar por município deixava as cidades vizinhas presas
+    # para sempre. Vazio = ainda não adotado por nenhuma varredura.
+    source_market: str = Field(
+        default="",
+        sa_column=Column("source_market", Text(), nullable=False, server_default=""),
+    )
     first_seen_at: datetime | None = Field(
         default=None,
         sa_column=Column("first_seen_at", DateTime(timezone=True), server_default=func.now()),
@@ -107,6 +115,31 @@ class MarketSnapshot(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
     payload: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
+
+
+class CollectSlice(SQLModel, table=True):
+    """Status de cada fatia de uma varredura completa (dona: scraper).
+
+    Existe para a inativação ser honesta: o walk inativa o que não viu, então só
+    pode inativar quando viu TODAS as fatias daquele mercado/tipo. Sem isto, uma
+    fatia clampada (a OLX não passa da página 100) ou morta num erro deixava a
+    última fatia inativar o que outra nunca chegou a olhar — tirando do ar
+    anúncio vivo e re-notificando quando a próxima varredura o trouxesse de
+    volta.
+    """
+
+    __tablename__ = "collect_slice"  # type: ignore
+
+    run_started_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), primary_key=True),
+    )
+    market: str = Field(primary_key=True)
+    listing_kind: str = Field(primary_key=True)
+    slice_index: int = Field(primary_key=True)
+    status: str = Field(sa_column=Column(Text(), nullable=False))
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
 
 class User(SQLModel, table=True):

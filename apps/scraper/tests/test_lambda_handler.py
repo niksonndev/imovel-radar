@@ -421,3 +421,133 @@ def test_run_after_fan_out_marks_main_chain_fanned_out(
 def test_root_logger_honors_config_level() -> None:
     expected = getattr(logging, config.LOG_LEVEL, logging.INFO)
     assert logging.getLogger().level == expected
+
+
+# ── Chunk quebrado não pode matar a coleta do dia ──────────────────────────
+# Causa raiz do ciclo incompleto de 03/10: a última fatia de venda do Recife
+# morreu num deadlock do Postgres (`psycopg.errors.DeadlockDetected`), a cadeia
+# terminou ali, Natal nunca foi visitada e nada foi inativado.
+
+
+def test_falha_repete_a_fatia_sem_perder_a_pagina() -> None:
+    nxt = lambda_handler._next_payload_after_failure(
+        {
+            "market": "recife",
+            "listing_kind": "venda",
+            "slice_index": 13,
+            "start_page": 51,
+            "attempt": 0,
+            "run_started_at": "2026-01-01T00:00:00+00:00",
+        }
+    )
+    assert nxt is not None
+    assert nxt["market"] == "recife"
+    assert nxt["slice_index"] == 13
+    assert nxt["start_page"] == 51
+    assert nxt["attempt"] == 1
+
+
+def test_falha_persistente_na_ultima_fatia_ainda_abre_a_proxima_cidade() -> None:
+    """Última fatia do Recife venda falhou de vez: Natal precisa rodar mesmo assim."""
+    nxt = lambda_handler._next_payload_after_failure(
+        {
+            "market": "recife",
+            "listing_kind": "venda",
+            "slice_index": len(slices_for_kind("venda", "recife")) - 1,
+            "start_page": 1,
+            "attempt": lambda_handler.MAX_CHUNK_ATTEMPTS - 1,
+            "fanned_out": True,
+            "run_started_at": "2026-01-01T00:00:00+00:00",
+        }
+    )
+    assert nxt is not None
+    assert nxt["market"] == "natal"
+    assert nxt["listing_kind"] == "aluguel"
+    # `skip_deactivate` não viaja para o próximo mercado: a proteção de Recife
+    # venda vem do placar de fatias (a fatia morta nunca marcou "ok", e sem
+    # placar `fatias_pendentes` bloqueia a inativação).
+
+
+def test_falha_persistente_no_meio_encerra_o_ramo_da_fatia() -> None:
+    """Fatia fanned-out do meio que morreu: o ramo dela acaba (quem avança é a última).
+
+    O que importa é que ela não marcou "ok" — a última fatia consulta o placar e
+    não inativa o mercado, em vez de tirar do ar o que ninguém olhou.
+    """
+    nxt = lambda_handler._next_payload_after_failure(
+        {
+            "market": "recife",
+            "listing_kind": "venda",
+            "slice_index": 3,
+            "start_page": 1,
+            "attempt": lambda_handler.MAX_CHUNK_ATTEMPTS - 1,
+            "fanned_out": True,
+            "run_started_at": "2026-01-01T00:00:00+00:00",
+        }
+    )
+    assert nxt is None
+
+
+def test_run_encadeia_mesmo_quando_o_chunk_falha(monkeypatch: pytest.MonkeyPatch) -> None:
+    invoked: list[dict[str, Any]] = []
+
+    async def _chunk_quebrado(**_kwargs: Any) -> dict[str, Any]:
+        return {
+            "success": 0,
+            "count": 0,
+            "market": "recife",
+            "listing_kind": "venda",
+            "slice_index": 13,
+            "start_page": 1,
+            "attempt": 0,
+            "completed": False,
+            "clamped": False,
+            "next_page": None,
+            "run_started_at": "2026-01-01T00:00:00+00:00",
+            "deactivated": 0,
+        }
+
+    monkeypatch.setattr(lambda_handler, "job_collect_chunk", _chunk_quebrado)
+    monkeypatch.setattr(lambda_handler, "_self_invoke", invoked.append)
+
+    result = asyncio.run(
+        lambda_handler.run(
+            {
+                "listing_kind": "venda",
+                "market": "recife",
+                "slice_index": 13,
+                "start_page": 1,
+                "attempt": 0,
+                "run_started_at": "2026-01-01T00:00:00+00:00",
+            }
+        )
+    )
+
+    assert result["success"] == 0
+    assert len(invoked) == 1
+    assert invoked[0]["slice_index"] == 13
+    assert invoked[0]["attempt"] == 1
+
+
+def test_delta_nao_entra_na_cadeia_de_fatias(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`mode=delta` responde e sai — sem self-invoke, sem inativar."""
+    invoked: list[dict[str, Any]] = []
+    visto: dict[str, Any] = {}
+
+    async def _fake_delta(*, get_remaining_ms: Any = None) -> dict[str, Any]:
+        visto["chamado"] = True
+        del get_remaining_ms
+        return {"success": 1, "count": 37, "delta": {"recife/venda": 37}}
+
+    monkeypatch.setattr(lambda_handler, "_self_invoke", invoked.append)
+    import scheduler.jobs as jobs
+
+    monkeypatch.setattr(jobs, "job_collect_delta", _fake_delta)
+
+    result = asyncio.run(lambda_handler.run({"mode": "delta"}))
+
+    assert result["success"] == 1
+    assert result["count"] == 37
+    assert result["market"] == "delta"
+    assert visto["chamado"] is True
+    assert invoked == []

@@ -54,6 +54,11 @@ variable "scraper_cron" {
   default     = "cron(0 11 * * ? *)"
 }
 
+variable "scraper_delta_cron" {
+  description = "Cron do delta (recência) em UTC — de hora em hora por padrão"
+  default     = "cron(0 * * * ? *)"
+}
+
 variable "lambda_memory" {
   default = 512
 }

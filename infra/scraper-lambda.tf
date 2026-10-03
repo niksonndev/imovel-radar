@@ -104,6 +104,29 @@ resource "aws_lambda_permission" "collect_schedule" {
   source_arn    = aws_cloudwatch_event_rule.collect_schedule.arn
 }
 
+# ── Delta (recência, de hora em hora) ──────────────────────────────────────
+# Passada curta nas primeiras páginas (a listagem já vem ordenada por mais
+# recentes): pega o que acabou de entrar e **nunca inativa** — quem inativa é a
+# varredura completa, que viu a lista inteira. É isto que dá latência de minutos
+# ao alerta sem pagar o custo de percorrer tudo de novo.
+resource "aws_cloudwatch_event_rule" "delta_schedule" {
+  name                = "${var.project}-${var.environment}-scraper-delta-cron"
+  schedule_expression = var.scraper_delta_cron
+}
+
+resource "aws_cloudwatch_event_target" "delta_schedule" {
+  rule  = aws_cloudwatch_event_rule.delta_schedule.name
+  arn   = aws_lambda_function.collect.arn
+  input = jsonencode({ mode = "delta" })
+}
+
+resource "aws_lambda_permission" "delta_schedule" {
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.collect.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.delta_schedule.arn
+}
+
 # ── Logs + alarme ──────────────────────────────────────────────────────────
 resource "aws_cloudwatch_log_group" "collect" {
   name              = "/aws/lambda/${aws_lambda_function.collect.function_name}"

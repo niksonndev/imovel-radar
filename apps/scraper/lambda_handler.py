@@ -58,6 +58,9 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
+# Tentativas de uma fatia antes de seguir a cadeia sem ela.
+MAX_CHUNK_ATTEMPTS = 3
+
 
 def _event_payload(event: dict | None) -> dict[str, Any]:
     if not event:
@@ -71,6 +74,7 @@ def _event_payload(event: dict | None) -> dict[str, Any]:
         or "slice_index" in detail
         or "market" in detail
         or "smoke" in detail
+        or "mode" in detail
     ):
         return detail
     return event
@@ -207,6 +211,43 @@ def _should_publish_snapshot(result: dict[str, Any]) -> bool:
     return int(result.get("slice_index") or 0) == last_slice
 
 
+def _next_payload_after_failure(result: dict[str, Any]) -> dict[str, Any] | None:
+    """Chunk quebrou (deadlock no banco, HTML inesperado, erro de rede).
+
+    Repete a mesma fatia algumas vezes; persistindo o erro, **segue a cadeia
+    como se a OLX tivesse clampado** — sem inativar.
+
+    Antes disso, um erro matava a coleta do dia: a última fatia de venda do
+    Recife morreu num deadlock e a cadeia nunca chegou a Natal (nem inativou o
+    que saiu do ar). A nota do docstring de ``_should_publish_snapshot`` sobre
+    "quebrar no meio não publica" era exatamente esse buraco.
+    """
+    attempt = int(result.get("attempt") or 0)
+    if attempt + 1 < MAX_CHUNK_ATTEMPTS:
+        return _cursor(
+            market=str(result.get("market") or "maceio"),
+            listing_kind=str(result.get("listing_kind") or "aluguel"),
+            slice_index=int(result.get("slice_index") or 0),
+            start_page=int(result.get("start_page") or 1),
+            attempt=attempt + 1,
+            run_started_at=result.get("run_started_at"),
+            skip_deactivate=bool(result.get("skip_deactivate")),
+            fanned_out=bool(result.get("fanned_out")),
+        )
+    fallback = dict(result)
+    fallback.update(
+        {"clamped": True, "completed": False, "next_page": None, "skip_deactivate": True}
+    )
+    logger.warning(
+        "Fatia %s (market=%s kind=%s) falhou %s vezes — seguindo a cadeia sem inativar",
+        result.get("slice_index"),
+        result.get("market"),
+        result.get("listing_kind"),
+        MAX_CHUNK_ATTEMPTS,
+    )
+    return _next_payload_after_chunk(fallback)
+
+
 def _next_payload_after_chunk(result: dict[str, Any]) -> dict[str, Any] | None:
     """Próximo cursor: mais páginas, próxima fatia (só se não fanned-out),
     venda, ou a próxima cidade.
@@ -302,6 +343,29 @@ async def run(
     get_remaining_ms: Any = None,
 ) -> dict[str, Any]:
     payload = _event_payload(event)
+
+    # Passada curta por recência (regra horária): pega o que é novo e NÃO
+    # inativa nada. Não entra na cadeia de fatias — é uma invocação curta e
+    # independente da varredura completa.
+    if payload.get("mode") == "delta":
+        from scheduler.jobs import job_collect_delta
+
+        resultado = await job_collect_delta(get_remaining_ms=get_remaining_ms)
+        return {
+            "success": resultado.get("success", 0),
+            "count": resultado.get("count", 0),
+            "market": "delta",
+            "listing_kind": None,
+            "slice_index": 0,
+            "completed": True,
+            "clamped": False,
+            "next_page": None,
+            "attempt": 0,
+            "deactivated": 0,
+            "snapshot": 0,
+            "delta": resultado.get("delta", {}),
+        }
+
     listing_kind = normalize_kind(payload.get("listing_kind"))
     market = str(payload.get("market") or "maceio")
     start_page = int(payload.get("start_page") or 1)
@@ -356,7 +420,10 @@ async def run(
         result["fanned_out"] = True
 
     snapshot = 0
-    if result.get("success") and not smoke:
+    if smoke:
+        # Smoke CI é uma invocação isolada: não encadeia nem publica.
+        pass
+    elif result.get("success"):
         nxt = _next_payload_after_chunk(result)
         if nxt is not None:
             # Fresh watermark when starting venda after aluguel
@@ -371,6 +438,17 @@ async def run(
                 snapshot = 1
             except Exception:
                 logger.exception("Falha ao gravar market_snapshot")
+    else:
+        # Chunk quebrado: repete a fatia ou segue a cadeia sem inativar.
+        # Sem isto, qualquer erro encerrava a coleta (foi assim que a última
+        # fatia do Recife venda morreu num deadlock e Natal ficou sem visita).
+        nxt = _next_payload_after_failure(result)
+        if nxt is not None:
+            if nxt.get("run_started_at") is None:
+                from datetime import UTC, datetime
+
+                nxt["run_started_at"] = datetime.now(UTC).isoformat()
+            _self_invoke(nxt)
 
     return {
         "success": result.get("success", 0),

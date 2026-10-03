@@ -61,11 +61,14 @@ def normalize_olx_listing(
         and "value" in prop
     }
 
+    # Só a primeira imagem. É a única que o bot envia e o frontend não usa
+    # galeria; o array completo era 62% do peso da tabela (medido: 931 B de
+    # 2.299 B por linha).
     images_list = [
         img["originalWebp"]
         for img in raw["images"]
         if isinstance(img, dict) and "originalWebp" in img
-    ]
+    ][:1]
 
     return {
         "listing_id": int(raw["listId"]),
