@@ -59,14 +59,12 @@ pub fn main_menu() -> String {
     "\
 👋 *Olá!* Sou o bot de alertas OLX — *Maceió, Recife e Natal*.
 
-🏠 *Menu principal*
+🏠 *Menu*
 1. Novo alerta
 2. Meus alertas
-3. Acompanhando
-4. Ajuda
-5. Radar Pro
+3. Ajuda
 
-Responda com o número."
+Responda com o número ou toque no botão."
         .to_string()
 }
 

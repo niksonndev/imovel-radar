@@ -4,8 +4,8 @@ use chrono::Utc;
 use serde_json::{json, Value};
 
 use crate::ai::{
-    call_assistant_function, extract_alert_intent, match_neighbourhoods, mock_extract_alert,
-    AssistantFunctionCall,
+    call_assistant_function, closest_neighbourhoods, draft_state, extract_alert_intent,
+    match_neighbourhoods, mock_extract_alert, AssistantFunctionCall,
 };
 use crate::config::Config;
 use crate::db::Db;
@@ -78,14 +78,15 @@ fn button_label(raw: &str) -> String {
     label
 }
 
-/// Menu principal com os três atalhos de uso diário; o restante segue no texto.
+/// Menu principal: são exatamente as três opções do texto, então os botões
+/// carregam o menu inteiro.
 fn menu_message() -> OutMsg {
     buttons(
         main_menu(),
         vec![
             button("1", "Novo alerta"),
             button("2", "Meus alertas"),
-            button("3", "Acompanhando"),
+            button("3", "Ajuda"),
         ],
     )
 }
@@ -310,11 +311,13 @@ async fn on_menu(
     match raw.trim() {
         "1" => Ok(start_alert(cfg, session)),
         "2" => list_alerts(db, chat_id, session).await,
-        "3" => list_watches(db, chat_id, session).await,
-        "4" => {
+        "3" => {
             session.step = Step::Menu;
             Ok(vec![text(help_text()), menu_message()])
         }
+        // Fora do menu desde a simplificação; seguem aceitos por número para
+        // quem já conhece o fluxo (ou estava no meio dele).
+        "4" => list_watches(db, chat_id, session).await,
         "5" => start_email(db, cfg, chat_id, session).await,
         _ => assistant_turn(db, cfg, http, chat_id, session, raw, audio_seconds, quota_preconsumed).await,
     }
@@ -364,7 +367,8 @@ async fn assistant_turn(
                 .len()
                 .saturating_sub(cfg.assistant_memory_turns.saturating_mul(2));
             let history = session.assistant_history[history_start..].to_vec();
-            match call_assistant_function(http, cfg, raw, &history).await {
+            let state = draft_state(&session.draft);
+            match call_assistant_function(http, cfg, raw, &history, state.as_deref()).await {
                 Ok(Some(call)) => {
                     if call.total_tokens.is_some() {
                         let input_tokens = call.input_tokens.unwrap_or_default();
@@ -567,11 +571,33 @@ async fn apply_assistant_create(
         };
         apply_neighbourhoods(db, session, &raw_neighbourhoods).await?;
         if session.draft.neighbourhoods.is_empty() {
-            session.draft.pending_raw_neighbourhoods = raw_neighbourhoods;
+            session.draft.pending_raw_neighbourhoods = raw_neighbourhoods.clone();
             session.step = Step::AssistantConversation;
-            return Ok(vec![text(format!(
-                "Não localizei esse bairro em {city}. Quer tentar outro ou usar qualquer bairro?"
-            ))]);
+            // Sem sugestão a conversa fica sem saída: a pessoa repete o nome
+            // correto e recebe a mesma negativa, o que parece amnésia.
+            let available = db
+                .neighbourhoods(&city, session.draft.listing_kind.as_deref())
+                .await
+                .unwrap_or_default();
+            let mut guessed: Vec<String> = Vec::new();
+            for name in &raw_neighbourhoods {
+                for candidate in closest_neighbourhoods(name, &available, 3) {
+                    if !guessed.contains(&candidate) {
+                        guessed.push(candidate);
+                    }
+                }
+            }
+            guessed.truncate(3);
+            return Ok(vec![text(if guessed.is_empty() {
+                format!(
+                    "Não localizei esse bairro em {city}. Quer tentar outro ou usar qualquer bairro?"
+                )
+            } else {
+                format!(
+                    "Não localizei esse bairro em {city}. Temos estes parecidos: {}. Responda com o nome ou diga *qualquer bairro*.",
+                    guessed.join(", ")
+                )
+            })]);
         }
     }
 

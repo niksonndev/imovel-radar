@@ -193,11 +193,17 @@ async fn main() -> anyhow::Result<()> {
                 // Um toque em botão chega como resposta interativa, nunca como
                 // texto. O id do botão é a própria opção numerada ("1", "2"),
                 // então ele entra no roteador como se tivesse sido digitado.
-                let body = ctx
-                    .message
-                    .text_content()
-                    .map(str::to_string)
-                    .or_else(|| button_reply(&ctx.message));
+                let texto = ctx.message.text_content().map(str::to_string);
+                let toque = button_reply(&ctx.message);
+                // Só metadados: distingue "não chegou" de "não entendeu" sem
+                // registrar conteúdo.
+                tracing::info!(
+                    texto = texto.is_some(),
+                    audio = audio.is_some(),
+                    botao = toque.is_some(),
+                    "mensagem recebida"
+                );
+                let body = texto.or(toque);
                 if body.is_none() && audio.is_none() {
                     return;
                 }

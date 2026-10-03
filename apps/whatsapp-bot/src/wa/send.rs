@@ -72,16 +72,22 @@ impl Sender for WaSender {
                 OutMsg::Buttons { body, buttons } => {
                     // Se o envio interativo falhar, o corpo numerado continua
                     // sendo a resposta: o fluxo não depende do botão.
-                    if let Err(error) = self
+                    match self
                         .client
                         .send_message(&jid, interactive::quick_replies(body, buttons))
                         .await
                     {
-                        tracing::warn!(%error, "botões falharam; enviando texto");
-                        self.client
-                            .send_text(&jid, body)
-                            .await
-                            .context("enviar texto do menu")?;
+                        // Log explícito: sem ele não dá para distinguir "o
+                        // servidor recusou o interativo" de "o aparelho não
+                        // renderizou os botões".
+                        Ok(_) => tracing::info!(botoes = buttons.len(), "botões enviados"),
+                        Err(error) => {
+                            tracing::warn!(%error, "botões falharam; enviando texto");
+                            self.client
+                                .send_text(&jid, body)
+                                .await
+                                .context("enviar texto do menu")?;
+                        }
                     }
                 }
             }

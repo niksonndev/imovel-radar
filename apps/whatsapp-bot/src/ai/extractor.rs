@@ -163,6 +163,20 @@ pub fn match_neighbourhoods(raw: Option<&[String]>, available: &[String]) -> Vec
             }
             continue;
         }
+        // "benedito" deve casar com "Benedito Bentes": contenção cobre
+        // abreviações e nomes cortados que a distância de edição não alcança.
+        // O piso de 4 caracteres evita casar ruído curto com bairro longo.
+        if norm.chars().count() >= 4 {
+            let contained = pairs
+                .iter()
+                .find(|(key, _)| key.contains(&norm) || norm.contains(key.as_str()));
+            if let Some((_, canon)) = contained {
+                if !matched.contains(canon) {
+                    matched.push(canon.clone());
+                }
+                continue;
+            }
+        }
         let mut best: Option<(f64, String)> = None;
         for (key, canon) in &pairs {
             let score = similarity(&norm, key);
@@ -178,6 +192,36 @@ pub fn match_neighbourhoods(raw: Option<&[String]>, available: &[String]) -> Vec
         }
     }
     matched
+}
+
+/// Bairros disponíveis mais parecidos com o que a pessoa escreveu, para a
+/// mensagem de erro sugerir opções em vez de deixar a conversa sem saída.
+pub fn closest_neighbourhoods(raw: &str, available: &[String], limit: usize) -> Vec<String> {
+    let norm = normalize_name(raw);
+    if norm.is_empty() || available.is_empty() {
+        return Vec::new();
+    }
+    let mut scored: Vec<(f64, String)> = available
+        .iter()
+        .map(|name| (similarity(&norm, &normalize_name(name)), name.clone()))
+        .filter(|(score, _)| *score >= 0.45)
+        .collect();
+    scored.sort_by(|left, right| {
+        right
+            .0
+            .partial_cmp(&left.0)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let mut best: Vec<String> = Vec::new();
+    for (_, name) in scored {
+        if !best.contains(&name) {
+            best.push(name);
+        }
+        if best.len() >= limit {
+            break;
+        }
+    }
+    best
 }
 
 fn known_neighbourhoods() -> Vec<(&'static str, &'static str)> {
@@ -501,5 +545,28 @@ mod tests {
         assert!(match_neighbourhoods(Some(&[]), &available).is_empty());
         assert!(match_neighbourhoods(None, &available).is_empty());
         assert!(match_neighbourhoods(Some(&["PV".into()]), &[]).is_empty());
+    }
+
+    #[test]
+    fn contencao_casa_bairro_cortado() {
+        let available = vec!["Benedito Bentes".to_string(), "Ponta Verde".to_string()];
+        assert_eq!(
+            match_neighbourhoods(Some(&["benedito".into()]), &available),
+            vec!["Benedito Bentes".to_string()]
+        );
+    }
+
+    #[test]
+    fn sugestoes_quando_o_bairro_nao_existe() {
+        let available = vec![
+            "Ponta Verde".to_string(),
+            "Ponta Grossa".to_string(),
+            "Jatiúca".to_string(),
+        ];
+        let guessed = closest_neighbourhoods("ponta verdi", &available, 2);
+        assert_eq!(guessed.first().map(String::as_str), Some("Ponta Verde"));
+        assert!(guessed.len() <= 2);
+        assert!(closest_neighbourhoods("", &available, 3).is_empty());
+        assert!(closest_neighbourhoods("ponta verde", &[], 3).is_empty());
     }
 }
