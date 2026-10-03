@@ -10,6 +10,7 @@ use whatsapp_rust::Jid;
 
 use crate::handlers::OutMsg;
 use crate::jobs::Sender;
+use crate::wa::interactive;
 
 pub struct WaSender {
     client: Arc<Client>,
@@ -66,6 +67,21 @@ impl Sender for WaSender {
                             .send_text(&jid, caption)
                             .await
                             .context("enviar legenda")?;
+                    }
+                }
+                OutMsg::Buttons { body, buttons } => {
+                    // Se o envio interativo falhar, o corpo numerado continua
+                    // sendo a resposta: o fluxo não depende do botão.
+                    if let Err(error) = self
+                        .client
+                        .send_message(&jid, interactive::quick_replies(body, buttons))
+                        .await
+                    {
+                        tracing::warn!(%error, "botões falharam; enviando texto");
+                        self.client
+                            .send_text(&jid, body)
+                            .await
+                            .context("enviar texto do menu")?;
                     }
                 }
             }

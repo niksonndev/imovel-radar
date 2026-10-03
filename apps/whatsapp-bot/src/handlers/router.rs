@@ -10,7 +10,7 @@ use crate::ai::{
 use crate::config::Config;
 use crate::db::Db;
 use crate::intelligence::prepare_match_carousel;
-use crate::models::{ClaimStatus, CreateAlertStatus, Listing, WatchStatus};
+use crate::models::{Alert, ClaimStatus, CreateAlertStatus, Listing, WatchStatus};
 use crate::money::{effective_listing_price, format_brl, json_fee};
 use crate::session::{
     global_command, normalize_text, parse_index_list, parse_money, parse_number_words, Draft,
@@ -23,15 +23,90 @@ use crate::ui::{
     price_min_prompt, price_presets, price_prompt, pro_activated, pro_pitch, rooms_prompt,
     watch_card_caption,
 };
+use crate::wa::interactive;
+
+/// Botão de resposta rápida. O `id` é exatamente a opção que o roteador já
+/// entende no texto, para o toque entrar no fluxo como se tivesse sido digitado.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Button {
+    pub id: String,
+    pub label: String,
+}
 
 #[derive(Debug, Clone)]
 pub enum OutMsg {
     Text(String),
-    Image { url: String, caption: String },
+    Image {
+        url: String,
+        caption: String,
+    },
+    /// Texto com botões de resposta rápida. O WhatsApp aceita no máximo 3 e o
+    /// corpo mantém as opções numeradas: se o cliente não renderizar os botões,
+    /// a pessoa ainda responde digitando o número.
+    Buttons {
+        body: String,
+        buttons: Vec<Button>,
+    },
 }
 
 fn text(body: impl Into<String>) -> OutMsg {
     OutMsg::Text(body.into())
+}
+
+fn button(id: &str, label: &str) -> Button {
+    Button {
+        id: id.to_string(),
+        label: label.to_string(),
+    }
+}
+
+fn buttons(body: String, items: Vec<Button>) -> OutMsg {
+    OutMsg::Buttons { body, buttons: items }
+}
+
+/// Rótulo de botão: o WhatsApp recomenda até 20 caracteres.
+fn button_label(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return "Sem nome".to_string();
+    }
+    if trimmed.chars().count() <= 20 {
+        return trimmed.to_string();
+    }
+    let mut label: String = trimmed.chars().take(19).collect();
+    label.push('…');
+    label
+}
+
+/// Menu principal com os três atalhos de uso diário; o restante segue no texto.
+fn menu_message() -> OutMsg {
+    buttons(
+        main_menu(),
+        vec![
+            button("1", "Novo alerta"),
+            button("2", "Meus alertas"),
+            button("3", "Acompanhando"),
+        ],
+    )
+}
+
+/// Confirmação do alerta: mesmos "1"/"2" que o roteador lê no texto.
+fn confirm_message(draft: &Draft) -> OutMsg {
+    buttons(
+        confirm_prompt(draft),
+        vec![button("1", "Confirmar"), button("2", "Cancelar")],
+    )
+}
+
+/// Confirmação de remoção de um alerta.
+fn confirm_removal_message(alert: &Alert) -> OutMsg {
+    buttons(
+        format!(
+            "Confirma a remoção deste alerta?\n\n{}\n1. Confirmar remoção\n2. Cancelar",
+            alert_detail(alert)
+        ),
+        vec![button("1", "Confirmar remoção"), button("2", "Cancelar")],
+    )
 }
 
 fn down() -> OutMsg {
@@ -80,7 +155,7 @@ async fn handle_inbound(
     let raw = raw.trim();
     if raw.is_empty() {
         session.step = Step::Menu;
-        return store(db, chat_id, &session, vec![text(main_menu())]).await;
+        return store(db, chat_id, &session, vec![menu_message()]).await;
     }
 
     if let Some(command) = global_command(raw) {
@@ -172,20 +247,20 @@ async fn on_global(
     let messages = match command {
         GlobalCommand::Menu => {
             *session = Session::menu();
-            vec![text(main_menu())]
+            vec![menu_message()]
         }
         GlobalCommand::Cancel => {
             let in_flow = !matches!(session.step, Step::Menu);
             *session = Session::menu();
             if in_flow {
-                vec![text("Criação cancelada."), text(main_menu())]
+                vec![text("Criação cancelada."), menu_message()]
             } else {
-                vec![text(main_menu())]
+                vec![menu_message()]
             }
         }
         GlobalCommand::Help => {
             session.step = Step::Menu;
-            vec![text(help_text()), text(main_menu())]
+            vec![text(help_text()), menu_message()]
         }
         GlobalCommand::NewAlert => start_alert(cfg, session),
         GlobalCommand::MyAlerts => list_alerts(db, chat_id, session).await?,
@@ -238,7 +313,7 @@ async fn on_menu(
         "3" => list_watches(db, chat_id, session).await,
         "4" => {
             session.step = Step::Menu;
-            Ok(vec![text(help_text()), text(main_menu())])
+            Ok(vec![text(help_text()), menu_message()])
         }
         "5" => start_email(db, cfg, chat_id, session).await,
         _ => assistant_turn(db, cfg, http, chat_id, session, raw, audio_seconds, quota_preconsumed).await,
@@ -315,6 +390,7 @@ async fn assistant_turn(
         .filter_map(|message| match message {
             OutMsg::Text(body) => Some(body.as_str()),
             OutMsg::Image { caption, .. } => Some(caption.as_str()),
+            OutMsg::Buttons { body, .. } => Some(body.as_str()),
         })
         .collect::<Vec<_>>()
         .join("\n");
@@ -346,7 +422,7 @@ async fn execute_assistant_call(
         }
         _ => {
             session.step = Step::Menu;
-            Ok(vec![text("Posso ajudar com alertas imobiliários nas cidades cobertas."), text(main_menu())])
+            Ok(vec![text("Posso ajudar com alertas imobiliários nas cidades cobertas."), menu_message()])
         }
     }
 }
@@ -531,7 +607,7 @@ async fn apply_assistant_create(
         .unwrap_or(suggested_name);
     session.draft.alert_name = Some(name);
     session.step = Step::Confirm;
-    Ok(vec![text(confirm_prompt(&session.draft))])
+    Ok(vec![confirm_message(&session.draft)])
 }
 
 async fn start_assistant_remove(
@@ -567,10 +643,7 @@ async fn start_assistant_remove(
     if candidates.len() == 1 {
         let alert = candidates[0];
         session.step = Step::AssistantDeleteConfirm { id: alert.id };
-        return Ok(vec![text(format!(
-            "Confirma a remoção deste alerta?\n\n{}\n1. Confirmar remoção\n2. Cancelar",
-            alert_detail(alert)
-        ))]);
+        return Ok(vec![confirm_removal_message(alert)]);
     }
     let ids: Vec<i32> = candidates.iter().map(|alert| alert.id).collect();
     session.step = Step::AssistantRemoveChoice { ids };
@@ -585,7 +658,18 @@ async fn start_assistant_remove(
         ));
     }
     lines.push("Responda com o número. Não vou remover vários alertas de uma vez.".to_string());
-    Ok(vec![text(lines.join("\n"))])
+    let choices = candidates
+        .iter()
+        .take(interactive::MAX_BUTTONS)
+        .enumerate()
+        .map(|(index, alert)| {
+            button(
+                &(index + 1).to_string(),
+                &button_label(alert.alert_name.as_deref().unwrap_or("Sem nome")),
+            )
+        })
+        .collect();
+    Ok(vec![buttons(lines.join("\n"), choices)])
 }
 
 async fn assistant_market(db: &Db, args: &Value) -> anyhow::Result<Vec<OutMsg>> {
@@ -681,10 +765,7 @@ async fn on_assistant_remove_choice(
         return Ok(vec![text("Não encontrei esse alerta. Digite *meus alertas* para atualizar a lista.")]);
     };
     session.step = Step::AssistantDeleteConfirm { id };
-    Ok(vec![text(format!(
-        "Confirma a remoção deste alerta?\n\n{}\n1. Confirmar remoção\n2. Cancelar",
-        alert_detail(&alert)
-    ))])
+    Ok(vec![confirm_removal_message(&alert)])
 }
 
 async fn on_assistant_delete_confirm(
@@ -699,11 +780,11 @@ async fn on_assistant_delete_confirm(
             let deleted = db.delete_alert(chat_id, id).await?;
             session.step = Step::Menu;
             let result = if deleted { "Alerta removido." } else { "Não encontrei esse alerta." };
-            Ok(vec![text(result), text(main_menu())])
+            Ok(vec![text(result), menu_message()])
         }
         "2" | "nao" | "cancelar" | "cancela" => {
             session.step = Step::Menu;
-            Ok(vec![text("Tudo bem, não removi o alerta."), text(main_menu())])
+            Ok(vec![text("Tudo bem, não removi o alerta."), menu_message()])
         }
         _ => Ok(vec![text("Responda *1* para confirmar a remoção ou *2* para cancelar.")]),
     }
@@ -734,7 +815,7 @@ async fn on_delete_account_confirm(
         }
     } else if matches!(normalize_text(raw).as_str(), "cancelar" | "nao" | "não") {
         *session = Session::menu();
-        Ok(vec![text("Solicitação cancelada; seus dados foram mantidos."), text(main_menu())])
+        Ok(vec![text("Solicitação cancelada; seus dados foram mantidos."), menu_message()])
     } else {
         Ok(vec![text("Para confirmar a exclusão, responda *EXCLUIR*. Para cancelar, digite *cancelar*.")])
     }
@@ -839,7 +920,7 @@ fn advance_nl(session: &mut Session) -> Vec<OutMsg> {
         session.draft.alert_name = Some(auto_alert_name(&session.draft));
     }
     session.step = Step::Confirm;
-    vec![text(confirm_prompt(&session.draft))]
+    vec![confirm_message(&session.draft)]
 }
 
 async fn apply_neighbourhoods(
@@ -1108,7 +1189,7 @@ fn on_name(session: &mut Session, raw: &str) -> Vec<OutMsg> {
     };
     session.draft.alert_name = Some(name);
     session.step = Step::Confirm;
-    vec![text(confirm_prompt(&session.draft))]
+    vec![confirm_message(&session.draft)]
 }
 
 async fn finish_alert(
@@ -1121,7 +1202,7 @@ async fn finish_alert(
     match raw.trim() {
         "2" => {
             *session = Session::menu();
-            return Ok(vec![text("Ok! O alerta não foi salvo."), text(main_menu())]);
+            return Ok(vec![text("Ok! O alerta não foi salvo."), menu_message()]);
         }
         "1" => {}
         _ => return Ok(vec![text("Responda *1* para confirmar ou *2* para cancelar.")]),
@@ -1145,7 +1226,7 @@ async fn finish_alert(
             let user = db.get_user(chat_id).await.ok().flatten();
             let pro = Db::is_pro(user.as_ref(), Utc::now());
             *session = Session::menu();
-            Ok(vec![text(cap_alerts(cfg, pro)), text(main_menu())])
+            Ok(vec![text(cap_alerts(cfg, pro)), menu_message()])
         }
         CreateAlertStatus::Created(_) | CreateAlertStatus::Reused(_) => {
             let created = matches!(status, CreateAlertStatus::Created(_));
@@ -1168,7 +1249,7 @@ async fn show_matches(
         } else {
             "ℹ️ Você já tem um alerta com esses filtros. Nenhum imóvel novo desde a última vez."
         };
-        return Ok(vec![text(body), text(main_menu())]);
+        return Ok(vec![text(body), menu_message()]);
     }
     let alerts = db.active_alerts(chat_id).await.unwrap_or_default();
     let snapshot = db.snapshot().await.ok().flatten();
@@ -1221,7 +1302,7 @@ async fn on_match_carousel(
 ) -> anyhow::Result<Vec<OutMsg>> {
     if listing_ids.is_empty() {
         *session = Session::menu();
-        return Ok(vec![text(main_menu())]);
+        return Ok(vec![menu_message()]);
     }
     let mut index = index.min(listing_ids.len() - 1);
     match nav_action(raw) {
@@ -1243,7 +1324,7 @@ async fn on_match_carousel(
         }
         Nav::Menu => {
             *session = Session::menu();
-            return Ok(vec![text(main_menu())]);
+            return Ok(vec![menu_message()]);
         }
         Nav::Unknown => {
             return Ok(vec![text(
@@ -1304,7 +1385,7 @@ async fn on_alerts(
     }
     if ids.is_empty() {
         *session = Session::menu();
-        return Ok(vec![text(main_menu())]);
+        return Ok(vec![menu_message()]);
     }
     let Ok(index) = raw.trim().parse::<usize>() else {
         return list_alerts(db, chat_id, session).await;
@@ -1367,7 +1448,7 @@ async fn list_watches(db: &Db, chat_id: i64, session: &mut Session) -> anyhow::R
         *session = Session::menu();
         return Ok(vec![
             text("Você ainda não acompanha nenhum anúncio. Abra um match e responda *3*."),
-            text(main_menu()),
+            menu_message(),
         ]);
     }
     let ids: Vec<i32> = watches.iter().map(|watch| watch.id).collect();
@@ -1401,7 +1482,7 @@ async fn on_watch_carousel(
 ) -> anyhow::Result<Vec<OutMsg>> {
     if watch_ids.is_empty() {
         *session = Session::menu();
-        return Ok(vec![text(main_menu())]);
+        return Ok(vec![menu_message()]);
     }
     let mut index = index.min(watch_ids.len() - 1);
     match nav_action(raw) {
@@ -1432,7 +1513,7 @@ async fn on_watch_carousel(
         }
         Nav::Menu => {
             *session = Session::menu();
-            return Ok(vec![text(main_menu())]);
+            return Ok(vec![menu_message()]);
         }
         Nav::Unknown => return Ok(vec![text("1 próximo · 2 anterior · 3 parar · 4 menu")]),
     }
@@ -1458,7 +1539,7 @@ async fn start_email(
         session.step = Step::Menu;
         return Ok(vec![
             text("✅ Você já tem o *Radar Pro* ativo."),
-            text(main_menu()),
+            menu_message(),
         ]);
     }
     session.step = Step::Email;
@@ -1477,7 +1558,7 @@ async fn on_email(
         Err(error) => {
             tracing::error!(%error, "trial de e-mail");
             *session = Session::menu();
-            return Ok(vec![text("Não consegui ativar o trial agora."), text(main_menu())]);
+            return Ok(vec![text("Não consegui ativar o trial agora."), menu_message()]);
         }
     };
     let messages = match status {
@@ -1486,19 +1567,19 @@ async fn on_email(
         }
         ClaimStatus::EmailTaken => {
             *session = Session::menu();
-            vec![text("Esse e-mail já foi usado em outra conta."), text(main_menu())]
+            vec![text("Esse e-mail já foi usado em outra conta."), menu_message()]
         }
         ClaimStatus::AlreadyClaimed => {
             *session = Session::menu();
-            vec![text("Você já usou o trial de e-mail nesta conta."), text(main_menu())]
+            vec![text("Você já usou o trial de e-mail nesta conta."), menu_message()]
         }
         ClaimStatus::AlreadyPro => {
             *session = Session::menu();
-            vec![text("✅ Você já tem o *Radar Pro* ativo."), text(main_menu())]
+            vec![text("✅ Você já tem o *Radar Pro* ativo."), menu_message()]
         }
         ClaimStatus::Activated { pro_until } => {
             *session = Session::menu();
-            vec![text(pro_activated(pro_until, cfg)), text(main_menu())]
+            vec![text(pro_activated(pro_until, cfg)), menu_message()]
         }
     };
     Ok(messages)

@@ -11,7 +11,7 @@ use whatsapp_bot::http;
 use whatsapp_bot::jobs::{due, now_maceio, read_stamp, run_daily, write_stamp, Sender};
 use whatsapp_bot::ops;
 use whatsapp_bot::snapshot::{snapshot_path, snapshot_sqlite};
-use whatsapp_bot::wa::{qr_ascii, Pairing, WaSender};
+use whatsapp_bot::wa::{button_reply, qr_ascii, Pairing, WaSender};
 use whatsapp_rust::bot::{Bot, EventDelivery};
 use whatsapp_rust::prelude::*;
 use whatsapp_rust::store::SqliteStore;
@@ -190,7 +190,14 @@ async fn main() -> anyhow::Result<()> {
                 let chat = ctx.info.source.chat.clone();
                 let jid = chat.to_string();
                 let audio = ctx.message.get_base_message().audio_message.as_option();
-                let body = ctx.message.text_content().map(str::to_string);
+                // Um toque em botão chega como resposta interativa, nunca como
+                // texto. O id do botão é a própria opção numerada ("1", "2"),
+                // então ele entra no roteador como se tivesse sido digitado.
+                let body = ctx
+                    .message
+                    .text_content()
+                    .map(str::to_string)
+                    .or_else(|| button_reply(&ctx.message));
                 if body.is_none() && audio.is_none() {
                     return;
                 }

@@ -9,6 +9,7 @@ Atualizado em 01/10/2026. Pagamentos não estão disponíveis. O atendimento é 
 | Conversa por linguagem natural | Function-calling OpenAI; fallback determinístico |
 | Memória curta | 6 trocas, TTL padrão 4h, na sessão PostgreSQL |
 | Criação de alerta | Critérios acumulados na sessão; confirmação numerada; dedup e cap transacional |
+| Botões | `quick_reply` (até 3) no menu, na confirmação do alerta e na remoção; o texto numerado segue no corpo como fallback |
 | Remoção | Confirmação numerada; propriedade limitada ao `chat_id` WhatsApp |
 | Mercado | Snapshot recente; média e preço/m²; disclaimer de preço pedido |
 | Áudio de entrada | Mídia descriptografada pela biblioteca → Whisper, com limite e quota |
@@ -58,7 +59,8 @@ Para Lambda, medir duração, memória, arquitetura, região e requests do webho
 7. Free vs Pro trial, Pro expirado, quotas de áudio/texto, token threshold e downgrade; confirmar entitlement no servidor.
 8. `excluir dados` → confirmar, cancelar e falha Postgres; conferir alerts, matches, watches, e-mail, sessão, histórico e contadores.
 9. Instruções maliciosas no texto/áudio, pedido de dados de terceiros, pagamento e assunto não imobiliário → recusa/redirecionamento sem vazamento.
-10. Usar mensagens reais do WhatsApp em staging, revisar legibilidade, latência, fallback de texto e consistência da ajuda.
+10. Botões: menu, confirmação do alerta e remoção renderizam como botões e o toque executa a mesma ação do número; testar em Android e iOS e conferir que o texto numerado funciona quando os botões não renderizam.
+11. Usar mensagens reais do WhatsApp em staging, revisar legibilidade, latência, fallback de texto e consistência da ajuda.
 
 ## Rollback
 
